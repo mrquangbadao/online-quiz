@@ -1,0 +1,58 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Java / Spring Boot
+**/target/
+**/out/
+**/build/
+**/bin/
+*.class
+*.jar
+*.war
+*.nar
+
+# Maven wrapper cache
+.mvn/wrapper/maven-wrapper.jar
+
+# Node / Vite / React
+**/node_modules/
+**/dist/
+**/coverage/
+**/.vite/
+**/.turbo/
+**/.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Flyway / local DB files
+*.sqlite
+*.sqlite3
+*.h2.db
+*.mv.db
+
+# Misc
+*.tmp
+*.bak
+docs/contest-info.txt

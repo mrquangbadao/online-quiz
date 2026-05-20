@@ -1,0 +1,302 @@
+/* ═══════════════════════════════════════════════════
+   Landing page – lightweight CSS animations
+   Replaces framer-motion for better perf on weak devices
+   ═══════════════════════════════════════════════════ */
+
+/* ── Floating icons (replaces infinite motion.animate) ── */
+@keyframes landing-float-1 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(5deg); }
+}
+@keyframes landing-float-2 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(30px) rotate(-10deg); }
+}
+@keyframes landing-float-3 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-40px) rotate(15deg); }
+}
+
+.landing-float-1 {
+  animation: landing-float-1 6s ease-in-out infinite;
+  will-change: transform;
+}
+.landing-float-2 {
+  animation: landing-float-2 8s ease-in-out infinite;
+  will-change: transform;
+}
+.landing-float-3 {
+  animation: landing-float-3 7s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── Hero staggered fade-in ── */
+@keyframes landing-hero-fadein {
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-hero-item {
+  opacity: 0;
+  animation: landing-hero-fadein 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Scroll-triggered reveal (via IntersectionObserver) ── */
+@keyframes landing-reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-reveal {
+  opacity: 0;
+}
+
+.landing-reveal.is-visible {
+  animation: landing-reveal-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Reduced motion preference ── */
+@media (prefers-reduced-motion: reduce) {
+  .landing-float-1,
+  .landing-float-2,
+  .landing-float-3 {
+    animation: none;
+  }
+
+  .landing-hero-item {
+    animation: none;
+    opacity: 1;
+  }
+
+  .landing-reveal {
+    opacity: 1;
+  }
+
+  .landing-reveal.is-visible {
+    animation: none;
+  }
+}
+
+/* ── Footer redesign ── */
+.landing-footer {
+  --footer-ink: #e9ffef;
+  --footer-accent: #facc15;
+  --footer-accent-2: #4ade80;
+  --footer-surface: rgba(6, 36, 20, 0.9);
+  position: relative;
+  padding: 64px 0 32px;
+  color: var(--footer-ink);
+  background:
+    radial-gradient(1200px 600px at 10% -20%, rgba(250, 204, 21, 0.18), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(74, 222, 128, 0.18), transparent 60%),
+    linear-gradient(180deg, #143a26 0%, #081b12 100%);
+  border-top: 1px solid rgba(250, 204, 21, 0.2);
+  overflow: hidden;
+}
+
+.landing-footer__halo {
+  position: absolute;
+  inset: -30% 0 auto 0;
+  height: 60%;
+  background: radial-gradient(60% 80% at 50% 0%, rgba(250, 204, 21, 0.25), transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
+  animation: footer-float 9s ease-in-out infinite;
+}
+
+.landing-footer__noise {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.landing-footer__top {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+.landing-footer__brand {
+  grid-column: span 6;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.landing-footer__mark {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: rgba(20, 83, 45, 0.5);
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.25);
+}
+
+.landing-footer__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(250, 204, 21, 0.8);
+  margin-bottom: 8px;
+}
+
+.landing-footer__title {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+.landing-footer__desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(233, 255, 239, 0.7);
+  max-width: 420px;
+}
+
+.landing-footer__cols {
+  grid-column: span 6;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.landing-footer__card {
+  padding: 18px 18px 16px;
+  background: var(--footer-surface);
+  border-radius: 18px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 24px rgba(0, 0, 0, 0.25);
+}
+
+.landing-footer__card-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 800;
+  color: rgba(250, 204, 21, 0.85);
+  margin-bottom: 12px;
+}
+
+.landing-footer__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(233, 255, 239, 0.85);
+  margin-bottom: 8px;
+}
+
+.landing-footer__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--footer-accent);
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.6);
+}
+
+.landing-footer__social {
+  display: flex;
+  gap: 10px;
+}
+
+.landing-footer__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  background: rgba(37, 99, 235, 0.2);
+  color: #bfdbfe;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.landing-footer__icon:hover {
+  transform: translateY(-2px);
+  background: rgba(37, 99, 235, 0.35);
+}
+
+.landing-footer__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(250, 204, 21, 0.15);
+  font-size: 12px;
+  color: rgba(233, 255, 239, 0.55);
+}
+
+.landing-footer__links {
+  display: flex;
+  gap: 20px;
+}
+
+.landing-footer__links a {
+  color: rgba(233, 255, 239, 0.65);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.landing-footer__links a:hover {
+  color: var(--footer-accent);
+}
+
+@keyframes footer-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(16px);
+  }
+}
+
+@media (max-width: 900px) {
+  .landing-footer__top {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-footer__brand,
+  .landing-footer__cols {
+    grid-column: span 1;
+  }
+
+  .landing-footer__cols {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-footer__bottom {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-footer__halo {
+    animation: none;
+  }
+}
+

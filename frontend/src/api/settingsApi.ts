@@ -1,0 +1,12 @@
+import axiosClient from './axiosClient';
+
+export const settingsApi = {
+  getSlogan: () => axiosClient.get<{ data: string }>('/settings/slogan'),
+  updateSlogan: (value: string) => axiosClient.put('/settings/slogan', { value }),
+  getTimeLimitMinutes: () => axiosClient.get<{ data: number }>('/settings/exam-time-limit'),
+  updateTimeLimitMinutes: (minutes: number) =>
+    axiosClient.put('/settings/exam_time_limit_minutes', { value: String(minutes) }),
+  getPredictionAnswer: () => axiosClient.get<{ data: number }>('/settings/prediction-answer'),
+  updatePredictionAnswer: (answer: number) =>
+    axiosClient.put('/settings/prediction_answer', { value: String(answer) }),
+};
