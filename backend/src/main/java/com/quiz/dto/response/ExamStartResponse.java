@@ -9,6 +9,7 @@ import java.util.List;
 @Data @Builder
 public class ExamStartResponse {
     private Long examId;
+    private String submitToken;
     private LocalDateTime startTime;
     private int timeLimitMinutes;   // 0 = no limit
     private List<MCQuestionDto> multipleChoiceQuestions;

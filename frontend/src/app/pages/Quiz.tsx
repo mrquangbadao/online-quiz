@@ -6,9 +6,10 @@ import { examApi } from '../../api/examApi';
 import { unitApi, type UnitItem } from '../../api/unitApi';
 import { useExamStore } from '../../store/examStore';
 import BrandMark from '../components/BrandMark';
+import QuizRegistrationGate from '../components/QuizRegistrationGate';
 import VietnamEmblem from '../components/VietnamEmblem';
 import { toast } from '../components/ui/Toast';
-import type { MCQuestion, ScenarioQuestion, AnswerItem } from '../../types';
+import type { MCQuestion, ScenarioQuestion, AnswerItem, ExamStartResponse } from '../../types';
 
 type Phase = 'info' | 'loading' | 'mc' | 'scenario' | 'prediction' | 'submitting';
 
@@ -38,6 +39,7 @@ export default function Quiz() {
 
   // Exam data
   const [examId, setExamId] = useState<number | null>(null);
+  const [submitToken, setSubmitToken] = useState<string>('');
   const [mcQuestions, setMcQuestions] = useState<MCQuestion[]>([]);
   const [scenarioQuestions, setScenarioQuestions] = useState<ScenarioQuestion[]>([]);
 
@@ -96,6 +98,7 @@ export default function Quiz() {
       }
 
       const res = await examApi.submitExam(examId, {
+        submitToken,
         answers: answerItems,
         prediction: prediction ? parseInt(prediction, 10) : undefined,
       });
@@ -106,7 +109,7 @@ export default function Quiz() {
       toast.error(err.response?.data?.message ?? 'Nộp bài thất bại. Vui lòng thử lại.');
       setPhase('scenario');
     }
-  }, [examId, mcQuestions, scenarioQuestions, answers, prediction, store, navigate]);
+  }, [examId, submitToken, mcQuestions, scenarioQuestions, answers, prediction, store, navigate]);
 
   // Auto-submit khi đếm ngược về 0
   useEffect(() => {
@@ -170,6 +173,7 @@ export default function Quiz() {
       const examRes = await examApi.startExam({ contestantId });
       const data = examRes.data.data;
       setExamId(data.examId);
+      setSubmitToken(data.submitToken);
       setMcQuestions(data.multipleChoiceQuestions);
       setScenarioQuestions(data.scenarioQuestions);
       store.setExam(data);
@@ -235,6 +239,30 @@ export default function Quiz() {
   }
 
   const answeredCount = currentQuestions.filter((_, i) => isQuestionAnswered(i, phase as 'mc' | 'scenario')).length;
+
+  const handleExamStarted = useCallback(({ contestantId, exam }: { contestantId: number; exam: ExamStartResponse }) => {
+    setError('');
+    setExamId(exam.examId);
+    setSubmitToken(exam.submitToken);
+    setMcQuestions(exam.multipleChoiceQuestions);
+    setScenarioQuestions(exam.scenarioQuestions);
+    setCurrentIdx(0);
+    setAnswers({});
+    setElapsed(0);
+    setTimeLimitSecs(exam.timeLimitMinutes > 0 ? exam.timeLimitMinutes * 60 : 0);
+    setAutoSubmitTriggered(false);
+    setPrediction('');
+    setShowSectionConfirm(false);
+    setShowSubmitWarning(false);
+    setIsMobileGridOpen(false);
+    store.setContestantId(contestantId);
+    store.setExam(exam);
+    setPhase('mc');
+  }, [store]);
+
+  if (phase === 'info') {
+    return <QuizRegistrationGate onExamStarted={handleExamStarted} />;
+  }
 
   // Render các Phase giao diện
   if (phase === 'info') {

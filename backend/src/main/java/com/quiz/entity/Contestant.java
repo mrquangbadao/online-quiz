@@ -22,6 +22,9 @@ import java.time.LocalDateTime;
         @Index(name = "idx_contestants_phone_phase",
                 columnList = "phone, phase_id",
                 unique = true),
+        @Index(name = "idx_contestants_email_phase",
+                columnList = "normalized_email, phase_id",
+                unique = true),
         @Index(name = "idx_contestants_phone",
                 columnList = "phone")})
 public class Contestant {
@@ -48,6 +51,20 @@ public class Contestant {
     @Size(max = 200)
     @Column(name = "email", length = 200)
     private String email;
+
+    @Size(max = 200)
+    @Column(name = "normalized_email", length = 200)
+    private String normalizedEmail;
+
+    @Size(max = 255)
+    @Column(name = "start_exam_token_hash", length = 255)
+    private String startExamTokenHash;
+
+    @Column(name = "start_exam_token_expires_at")
+    private LocalDateTime startExamTokenExpiresAt;
+
+    @Column(name = "start_exam_token_consumed_at")
+    private LocalDateTime startExamTokenConsumedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @OnDelete(action = OnDeleteAction.CASCADE)

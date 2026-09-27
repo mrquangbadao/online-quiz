@@ -6,6 +6,7 @@ Ngay cap nhat: 2026-05-20
 - Giam dang ky tai khoan va dang ky thi tu dong.
 - Bat buoc xac thuc email truoc khi vao thi.
 - Gioi han moi dot thi chi 1 email hop le duoc tham gia.
+- Gioi han moi dot thi chi 1 so dien thoai hop le duoc tham gia.
 - Phat hien, han che, va xu ly abuse theo nhieu lop thay vi chi dua vao 1 co che.
 
 ## 2. Pham vi bao ve
@@ -20,7 +21,7 @@ Ngay cap nhat: 2026-05-20
 ## 3. Threat model
 ### 3.1 Tinh huong can phong ve
 - Bot tao nhieu account tu dong.
-- 1 nguoi dung 1 email dang ky lap lai cho cung 1 dot thi.
+- 1 nguoi dung dung lai email hoac so dien thoai de dang ky lap lai cho cung 1 dot thi.
 - Spam OTP de gay ton tai nguyen hoac tan cong mailbox.
 - Doan OTP bang brute force.
 - Lua dao bang email tam thoi hoac domain chat luong thap.
@@ -37,7 +38,7 @@ Ngay cap nhat: 2026-05-20
 1. CAPTCHA: uu tien Cloudflare Turnstile, thay the hCaptcha.
 2. Rate limit mac dinh: 5 lan / 10 phut cho cac endpoint nhay cam.
 3. Bat buoc xac thuc email OTP truoc khi vao thi.
-4. Moi dot thi chi 1 email hop le duoc tham gia.
+4. Moi dot thi chi 1 email hop le va 1 so dien thoai hop le duoc tham gia 1 lan.
 
 ## 5. Khuyen nghi best practices can them vao plan
 ### 5.1 Chuan hoa identity va dau vet
@@ -87,12 +88,12 @@ Ngay cap nhat: 2026-05-20
 - Redis la lua chon uu tien; fallback in-memory chi dung cho local dev, khong nen la co che chinh khi production.
 
 ### 5.5 Rang buoc du lieu
-- Dat unique constraint cho `(normalized_email, exam_id)`.
+- Dat unique constraint cho `(normalized_email, phase_id)` va `(phone, phase_id)`.
 - Neu co flow tao contestant truoc khi verify OTP, can co trang thai ro:
   - `PENDING_VERIFICATION`
   - `VERIFIED`
   - `CANCELLED` hoac `EXPIRED`
-- Khong de logic "1 email / 1 dot thi" chi nam o service ma khong co DB constraint.
+- Khong de logic "1 email / 1 so dien thoai / 1 dot thi" chi nam o service ma khong co DB constraint.
 
 ### 5.6 Banlist va review
 - Banlist nen co:
@@ -124,8 +125,8 @@ Ngay cap nhat: 2026-05-20
 
 ### 6.4 Register Exam
 - Chi cho dang ky neu email da verify OTP cho dung `examId`.
-- Dat unique constraint `(normalized_email, exam_id)`.
-- Neu dang ky lan 2 cung exam -> reject ro rang, khong tao duplicate record.
+- Dat unique constraint `(normalized_email, phase_id)` va `(phone, phase_id)`.
+- Neu dang ky lan 2 cung dot thi bang cung email hoac cung so dien thoai -> reject ro rang, khong tao duplicate record.
 
 ## 7. Architecture de xuat
 ### 7.1 Kien truc bao ve theo lop
@@ -169,6 +170,7 @@ Index/goi y:
 - `id`
 - `email`
 - `normalizedEmail`
+- `phone`
 - `examId`
 - `status`
 - `verifiedAt`
@@ -176,6 +178,7 @@ Index/goi y:
 
 Constraint/goi y:
 - unique `(normalizedEmail, examId)`
+- unique `(phone, examId)`
 
 ### 8.3 abuse_logs
 - `id`
@@ -218,7 +221,7 @@ Constraint/goi y:
 - verify CAPTCHA success/fail
 - request OTP / resend OTP
 - verify OTP success/fail/expired/too-many-attempts
-- duplicate email theo exam
+- duplicate email hoac phone theo exam
 
 ### 10.2 Metrics can co
 - so request OTP / gio
@@ -226,6 +229,7 @@ Constraint/goi y:
 - ti le CAPTCHA fail
 - so request bi rate limit
 - so case duplicate email/exam
+- so case duplicate phone/exam
 - so case auto-block va manual unblock
 
 ### 10.3 Canh bao
@@ -275,12 +279,12 @@ Constraint/goi y:
   - resend co cooldown
   - khong cho reuse OTP
 
-### Phase 4 - 1 email / 1 dot thi
-- Tao unique constraint `(normalized_email, exam_id)`.
+### Phase 4 - 1 email + 1 so dien thoai / 1 dot thi
+- Tao unique constraint `(normalized_email, phase_id)` va `(phone, phase_id)`.
 - Chi cho register khi da verify OTP.
 - Admin co endpoint reset/unblock neu nghiep vu can.
 - Tieu chi xong:
-  - register lan 2 cung exam bi reject o ca service va DB
+  - register lan 2 cung dot thi bi reject neu trung email hoac trung so dien thoai o ca service va DB
 
 ### Phase 5 - Heuristics va banlist
 - Rule ban tam thoi theo IP/deviceId/domain/email.
@@ -298,7 +302,7 @@ Constraint/goi y:
 - OTP qua so lan -> reject.
 - OTP da dung -> reject.
 - Register khi chua verify -> reject.
-- Register lan 2 cung exam -> reject.
+- Register lan 2 cung exam -> reject neu trung email hoac trung so dien thoai.
 
 ### 12.2 Security va abuse
 - Khong bypass duoc OTP bang cach goi truc tiep register endpoint.
@@ -306,6 +310,8 @@ Constraint/goi y:
 - Khong reuse OTP cho exam khac.
 - Khong flood resend OTP vuot cooldown.
 - Khong tao duplicate record khi race condition xay ra.
+- Khong the dang ky 2 lan trong cung dot thi bang email khac nhung cung phone.
+- Khong the dang ky 2 lan trong cung dot thi bang phone khac nhung cung email.
 
 ### 12.3 Operational
 - Redis unavailable thi he thong xu ly the nao can duoc dinh nghia ro.

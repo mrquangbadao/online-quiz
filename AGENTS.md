@@ -16,12 +16,17 @@
 - Do not change database schema outside Flyway migrations.
 - Treat `docs/anti-spam-plan.md` as the source of truth for anti-spam and OTP work unless the user overrides it.
 - After code changes, run the narrowest useful verification available for the touched area.
+- Add clear English comments for non-trivial code so intent, constraints, and flow are easy to review later.
+- Before coding, follow the pre-code checklist in `.codex/checklists/pre-code-senior-checklist.md`.
+- Before considering a task complete, run `.codex/checklists/post-code-quality-checklist.md`.
 
 ## Routing
 - For project context, read `.codex/context/project-overview.md`.
 - For backend work, read `.codex/rules/backend.md`.
 - For frontend work, read `.codex/rules/frontend.md`.
 - For auth, rate limit, OTP, and abuse controls, read `.codex/rules/security.md`.
+- Before implementation, read `.codex/checklists/pre-code-senior-checklist.md`.
+- Before finishing implementation or review, read `.codex/checklists/post-code-quality-checklist.md`.
 - For execution style, read the relevant file in `.codex/workflows/`.
 - For prompt drafting, use `.codex/templates/task-prompt-template.md`.
 

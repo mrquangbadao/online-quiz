@@ -3,12 +3,16 @@
 ## Goal
 Resolve a specific defect without accidental refactor sprawl.
 
+## First Step
+- Run `.codex/checklists/pre-code-senior-checklist.md` before tracing the fix path or editing code.
+
 ## Steps
 1. Reproduce or inspect the failing path.
 2. Trace the smallest code path that can explain the bug.
 3. Fix the root cause, not only the symptom.
 4. Add a regression check when practical.
-5. Verify the affected area and describe remaining uncertainty.
+5. Run `.codex/checklists/post-code-quality-checklist.md` against the completed fix.
+6. Verify the affected area and describe remaining uncertainty.
 
 ## Prompt Shape
 - Symptom

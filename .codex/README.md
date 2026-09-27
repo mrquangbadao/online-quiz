@@ -4,6 +4,7 @@ This folder stores project-specific context, rules, workflows, and prompt templa
 
 ## Layout
 - `context/`: stable repository and domain context.
+- `checklists/`: pre-code and review checklists.
 - `rules/`: implementation constraints by area.
 - `workflows/`: repeatable task execution patterns.
 - `templates/`: prompt templates for common requests.

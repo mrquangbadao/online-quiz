@@ -3,12 +3,16 @@
 ## Goal
 Turn a business or product document into a concrete implementation plan for this repository.
 
+## First Step
+- Run `.codex/checklists/pre-code-senior-checklist.md` before mapping the document into implementation work.
+
 ## Steps
 1. Read the source document.
 2. Map each requirement to current backend and frontend code paths.
 3. Identify missing entities, migrations, endpoints, UI, config, and tests.
 4. Split the work into phases that can be implemented safely.
-5. Flag mismatches between the document and the existing code.
+5. Define the post-code quality checks that each implementation phase must pass.
+6. Flag mismatches between the document and the existing code.
 
 ## Output Expectations
 - Impacted files or directories

@@ -15,6 +15,10 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
 
   Optional<Exam> findByIdAndStatus(Long id, ExamStatus status);
 
+  @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT e FROM Exam e WHERE e.id = :id AND e.status = :status")
+  Optional<Exam> findByIdAndStatusForUpdate(@Param("id") Long id, @Param("status") ExamStatus status);
+
   boolean existsByContestantIdAndStatusIn(Long contestantId, List<ExamStatus> statuses);
 
   @Query("SELECT e FROM Exam e JOIN FETCH e.contestant " +

@@ -46,7 +46,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/exams/active-count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/exams/phase/current").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/units").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/settings/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/settings/slogan", "/api/settings/exam-time-limit").permitAll()
+                        .requestMatchers("/api/settings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/phases/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
@@ -54,30 +55,15 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
-//comment for testing in ngrok
-//    @Bean
-//    public CorsConfigurationSource corsConfigurationSource() {
-//        CorsConfiguration config = new CorsConfiguration();
-//        String allowedOriginsEnv = System.getenv("ALLOWED_ORIGINS");
-//        List<String> allowedOrigins = (allowedOriginsEnv != null && !allowedOriginsEnv.isBlank())
-//                ? Arrays.asList(allowedOriginsEnv.split(","))
-//                : List.of("http://localhost:5173", "http://localhost:3000");
-//        config.setAllowedOrigins(allowedOrigins);
-//        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-//        config.setAllowedHeaders(List.of("*"));
-//        config.setAllowCredentials(true);
-//        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-//        source.registerCorsConfiguration("/api/**", config);
-//        return source;
-//    }
-
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
-        // Sử dụng setAllowedOriginPatterns để chấp nhận mọi domain (bao gồm cả các domain ngrok sinh ra ngẫu nhiên)
-        config.setAllowedOriginPatterns(List.of("*"));
-
+        String allowedOriginsEnv = System.getenv("ALLOWED_ORIGINS");
+        if (allowedOriginsEnv != null && !allowedOriginsEnv.isBlank()) {
+            config.setAllowedOrigins(Arrays.asList(allowedOriginsEnv.split(",")));
+        } else {
+            throw new IllegalArgumentException("ALLOWED_ORIGINS environment variable is required for CORS");
+        }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

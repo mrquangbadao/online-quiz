@@ -65,10 +65,22 @@ public class AdminUnitService {
 
     @Transactional
     public int importFromExcel(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("IMPORT_FAILED", "File tải lên trống");
+        }
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".xlsx")) {
+            throw new BusinessException("IMPORT_FAILED", "Chỉ hỗ trợ định dạng file .xlsx");
+        }
+
         List<Unit> units = new ArrayList<>();
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            int lastRowNum = sheet.getLastRowNum();
+            if (lastRowNum > 5000) {
+                throw new BusinessException("IMPORT_FAILED", "File vượt quá số dòng tối đa cho phép (5000 dòng)");
+            }
+            for (int i = 1; i <= lastRowNum; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 String name = getCellValue(row, 0);
@@ -82,8 +94,10 @@ public class AdminUnitService {
                             .build());
                 }
             }
-        } catch (IOException e) {
-            throw new BusinessException("IMPORT_FAILED", "Không thể đọc file Excel: " + e.getMessage());
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("IMPORT_FAILED", "Không thể đọc hoặc xử lý file Excel: " + e.getMessage());
         }
         unitRepository.saveAll(units);
         return units.size();

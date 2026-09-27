@@ -9,17 +9,40 @@ export interface ContestantRegisterRequest {
   fullName: string;
   unit: string;
   phone: string;
-  email?: string;
+  email: string;
+  verificationToken: string;
 }
 
 export interface ContestantResponse {
   contestantId: number;
   fullName: string;
   unit: string;
+  startExamToken: string;
 }
 
 export interface ExamStartRequest {
   contestantId: number;
+  startExamToken: string;
+}
+
+export interface RequestOtpRequest {
+  email: string;
+  captchaToken?: string;
+}
+
+export interface RequestOtpResponse {
+  expiresInSeconds: number;
+  resendAvailableInSeconds: number;
+}
+
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface VerifyOtpResponse {
+  verificationToken: string;
+  expiresInSeconds: number;
 }
 
 export interface MCQuestion {
@@ -48,6 +71,7 @@ export interface ScenarioQuestion {
 
 export interface ExamStartResponse {
   examId: number;
+  submitToken: string;
   startTime: string;
   timeLimitMinutes: number;
   multipleChoiceQuestions: MCQuestion[];
@@ -61,6 +85,7 @@ export interface AnswerItem {
 }
 
 export interface ExamSubmitRequest {
+  submitToken: string;
   answers: AnswerItem[];
   prediction?: number;
 }

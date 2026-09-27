@@ -3,6 +3,10 @@
 ## Goal
 Review code for correctness, regression risk, and missing coverage.
 
+## First Step
+- Use `.codex/checklists/pre-code-senior-checklist.md` as a review lens before writing findings.
+- Use `.codex/checklists/post-code-quality-checklist.md` as the final quality gate for judging implementation completeness.
+
 ## Review Priorities
 - Functional bugs
 - Security or abuse-control gaps

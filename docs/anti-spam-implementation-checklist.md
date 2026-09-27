@@ -40,25 +40,42 @@ Ngay cap nhat: 2026-05-20
   - step gate giua "dang ky" va "vao thi"
 
 ## 2. Mismatch giua plan moi va code hien tai
-- He thong hien tai dang xem `phone` la khoa chong duplicate chinh, trong khi plan moi chuyen trong tam sang `email + exam/phase`.
+- He thong hien tai dang xem `phone` la khoa chong duplicate chinh, trong khi rule da chot can chan theo ca `email + phase` va `phone + phase`.
 - Frontend chua thu thap email, nen OTP flow chua the bat dau.
 - Backend chua co identity model cho email verification theo `examId`/`phaseId`.
 - Chua co abstraction chung cho rate limit tren cac endpoint ngoai login.
 - Chua co bang log abuse, banlist, va OTP persistence.
 - Chua co gate o `start exam` de dam bao contestant da verify email.
+- `POST /api/exams/start` hien dang public va chi nhan `contestantId`, nen neu khong doi flow nay thi OTP verification van co the bi bypass bang request truc tiep.
+- `ExamServiceImpl.startExam(...)` hien chi check contestant ton tai, active phase, va exam da submit hay chua; no khong rang buoc request hien tai voi mot session verify hop le.
+
+## 2.1 Findings can sua ngay trong checklist
+- `phaseId` moi la khoa nghiep vu dung hon `examId` cho anti-spam registration trong codebase nay.
+- Khong nen coi `register contestant -> start exam` la 2 buoc doc lap ve bao mat. Hai buoc nay hien tao thanh mot chain public.
+- Neu van giu `POST /api/exams/start` public, can them co che rang buoc nhu:
+  - registration token ngan han da ky
+  - hoac verification session id duoc backend cap sau OTP
+  - hoac start exam trong cung transaction/flow sau khi register hop le
+- Checklist cu chua neu ro cach dong duong bypass qua `contestantId`.
 
 ## 3. Dinh huong trien khai de xuat
-- Giu `phone` nhu mot thong tin nghiep vu va co the van tiep tuc chan duplicate theo `phone + phaseId` neu doanh nghiep van muon.
+- Rule nghiep vu da chot:
+  - moi `email` chi duoc thi 1 lan trong moi `phase`
+  - moi `so dien thoai` chi duoc thi 1 lan trong moi `phase`
 - Them lop moi cho email verification va anti-spam, khong nen sua plan theo code cu.
 - Chuyen flow public tu:
   - `nhap thong tin -> register contestant -> start exam`
 - Thanh:
   - `nhap thong tin + email -> request OTP -> verify OTP -> register contestant -> start exam`
+- Tuy nhien, de an toan hon voi codebase nay, can doi them trust boundary:
+  - `verify OTP -> backend cap registration token/session ngan han`
+  - `register contestant` chi chap nhan request kem token/session hop le
+  - `start exam` chi chap nhan contestant vua duoc tao tu registration hop le, hoac nhan token/session thay vi tin raw `contestantId`
 
-## 4. Quyết định nghiep vu can chot truoc khi code
-- Duplicate rule cuoi cung la:
-  - chi chan theo email
-  - hay chan theo ca email va phone
+## 4. Quyet dinh nghiep vu da chot
+- Duplicate rule:
+  - chan theo `normalizedEmail + phaseId`
+  - chan theo `phone + phaseId`
 - Mapping `phase` va `exam`:
   - hien tai code dang register theo `active phase`
   - plan can chot unique theo `phaseId` hay theo `examId`
@@ -90,7 +107,7 @@ Ngay cap nhat: 2026-05-20
 - Tao bang moi, khong nhoi vao `contestants`
 - Bang de xuat:
   - `email_otp`
-  - `email_verification_sessions` neu muon tach ro session verify thanh cong
+  - `email_verification_sessions` nen co de tach ro session verify thanh cong
 - Toi thieu can co:
   - email
   - normalizedEmail
@@ -102,6 +119,15 @@ Ngay cap nhat: 2026-05-20
   - createdAt
   - lastSentAt
 
+Khuyen nghi them cho `email_verification_sessions`:
+- `id`
+- `normalizedEmail`
+- `phaseId`
+- `verifiedAt`
+- `expiresAt`
+- `consumedAt`
+- `issuedTokenHash` neu dung token ky/gui ve frontend
+
 ### 5.3 Register gate
 - `ContestantServiceImpl.register(...)` phai doi tu:
   - check active phase
@@ -111,9 +137,13 @@ Ngay cap nhat: 2026-05-20
   - check active phase
   - check email da verify cho phase nay chua
   - check duplicate theo email/phase
-  - tuy chon check duplicate theo phone/phase neu nghiep vu yeu cau
+  - check duplicate theo phone/phase
   - save contestant
   - invalidate verification session neu can
+- `ExamServiceImpl.startExam(...)` cung phai doi:
+  - khong tin moi `contestantId` public nhu hien tai
+  - rang buoc contestant duoc tao tu verification session hop le
+  - neu giu endpoint start rieng, them registration token/session check truoc khi tao exam
 
 ### 5.4 Frontend flow
 - `Quiz.tsx` can tach thanh it nhat 2 step:
@@ -125,7 +155,7 @@ Ngay cap nhat: 2026-05-20
 ## 6. Checklist implementation theo phase
 
 ### Phase A - Chot architecture va rule
-- [ ] Chot duplicate rule: email only hay email + phone
+- [x] Chot duplicate rule: email + phone
 - [ ] Chot `phaseId` la key nghiep vu thay cho `examId` trong flow register
 - [ ] Chot OTP TTL va resend cooldown
 - [ ] Chot CAPTCHA provider: Turnstile
@@ -137,6 +167,7 @@ Ngay cap nhat: 2026-05-20
 - [ ] Doi login limit tu `10/15` ve `5/10` neu dung theo plan moi
 - [ ] Tao model va migration cho `abuse_logs`
 - [ ] Tao helper logging cho action allow/reject
+- [ ] Chot cach xu ly `X-Forwarded-For` de tranh tin nham header tu client khi chua qua trusted proxy
 
 File kha nang se sua:
 - `backend/src/main/java/com/quiz/controller/AuthController.java`
@@ -156,6 +187,7 @@ File kha nang se them/sua:
 
 ### Phase D - OTP backend
 - [ ] Tao migration cho bang `email_otp`
+- [ ] Tao migration cho `email_verification_sessions`
 - [ ] Tao entity/repository/service cho OTP
 - [ ] Tao endpoint `POST /api/auth/request-otp`
 - [ ] Tao endpoint `POST /api/auth/verify-otp`
@@ -164,6 +196,7 @@ File kha nang se them/sua:
 - [ ] Max 5 lan thu
 - [ ] Resend cooldown 60 giay
 - [ ] Rate limit theo IP va email
+- [ ] Sau verify thanh cong, cap verification session/token ngan han cho buoc register/start exam
 
 File kha nang se them/sua:
 - controller auth moi hoac mo rong `AuthController`
@@ -177,8 +210,9 @@ File kha nang se them/sua:
 - [ ] Them `normalizedEmail` vao persistence neu can
 - [ ] Check verification session truoc khi register
 - [ ] Check unique `(normalizedEmail, phaseId)`
-- [ ] Giu hoac bo check `phone + phaseId` theo rule da chot
+- [ ] Giu va enforce unique `(phone, phaseId)` theo rule da chot
 - [ ] Dam bao transaction an toan khi race condition xay ra
+- [ ] Khong de `contestantId` tro thanh bypass path sau khi register
 
 File chac chan bi anh huong:
 - `backend/src/main/java/com/quiz/dto/request/ContestantRegisterRequest.java`
@@ -193,6 +227,7 @@ File chac chan bi anh huong:
 - [ ] Them UI request OTP
 - [ ] Them UI verify OTP
 - [ ] Chi goi `examApi.register` sau khi verify thanh cong
+- [ ] Truyen verification token/session backend cap cho request register neu chon huong nay
 - [ ] Xu ly loading, resend cooldown, error states
 - [ ] Cap nhat `ContestantRegisterRequest` type neu can
 - [ ] Them API client cho:
@@ -214,13 +249,14 @@ File chac chan bi anh huong:
 1. Backend rate limit + logging foundation
 2. CAPTCHA backend verification
 3. OTP backend
-4. Constraint va register gate
+4. Verification session/token + register gate + start exam gate
 5. Frontend OTP/CAPTCHA flow
-6. Banlist va heuristics
+6. Constraint DB email/phase + banlist va heuristics
 
 Ly do:
 - Neu frontend doi truoc khi backend co gate that su thi user van co the bypass bang request truc tiep.
 - Constraint DB va verification gate phai ton tai truoc khi coi flow da an toan.
+- Rieng voi repo nay, `start exam` la public endpoint nen phai duoc dua vao anti-spam scope ngay tu dau, khong de lai sau.
 
 ## 8. Definition of done cho tung nhom
 
@@ -238,7 +274,9 @@ Ly do:
 ### Register done
 - User khong the register neu chua verify email
 - Duplicate email cung phase bi chan o service va DB
+- Duplicate phone cung phase bi chan o service va DB
 - Race condition khong tao duplicate record
+- Khong the dung `contestantId` hop le cu de bat dau bai thi neu khong co trust signal hop le cua flow moi
 
 ### Frontend done
 - User co the request OTP, nhap OTP, verify, va tiep tuc vao thi
@@ -246,10 +284,12 @@ Ly do:
 - Khong co duong di UI nao bypass verify
 
 ## 9. Risk can canh bao khi bat dau code
-- Neu giu logic duplicate theo `phone` va them duplicate theo `email`, can chot message loi va uu tien rule nao.
+- Can chot message loi va thu tu uu tien neu request trung ca email va phone, hoac chi trung 1 trong 2.
 - Neu tiep tuc tao contestant truoc verify, du lieu rac va cleanup se phuc tap.
 - Neu chi dua vao in-memory limiter khi production gap Redis issue, anti-spam se yeu.
 - `Quiz.tsx` dang la file lon, kha nang can tach component nho khi them OTP step.
+- `SecurityConfig` hien permit public cho `/api/contestant/register` va `/api/exams/start`; anti-spam scope phai tinh ca 2 duong nay.
+- `CorsConfiguration` hien mo rong qua muc voi `setAllowedOriginPatterns(List.of("*"))` ket hop `allowCredentials(true)`; day khong phai anti-spam truc tiep nhung la mot diem can xem lai khi hardening.
 
 ## 10. Prompt de xuat de giao viec cho Codex
 

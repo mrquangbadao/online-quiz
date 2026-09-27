@@ -44,7 +44,8 @@ public class SettingsController {
     return ResponseEntity.ok(ApiResponse.ok(value));
   }
 
-  /** Public — anyone can read the prediction answer (0 = not set) */
+  /** Admin only — admin can read the prediction answer */
+  @PreAuthorize("hasRole('ADMIN')")
   @GetMapping("/prediction-answer")
   public ResponseEntity<ApiResponse<Integer>> getPredictionAnswer() {
     int value = settingRepository.findById("prediction_answer")

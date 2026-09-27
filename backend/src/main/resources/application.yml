@@ -2,6 +2,11 @@ spring:
   application:
     name: quiz-competition
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:quiz_database}
     username: ${DB_USER:postgres}
@@ -27,21 +32,51 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASS:}
-      timeout: 500ms           # read/write timeout — fail fast to in-memory
-      connect-timeout: 500ms   # connection timeout — fail fast when Redis not running
+      timeout: 500ms
+      connect-timeout: 500ms
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 server:
   port: ${PORT:8080}
   servlet:
     context-path: /
 
+security:
+  trust-forward-headers: ${TRUST_FORWARD_HEADERS:false}
+
+captcha:
+  turnstile:
+    enabled: ${CAPTCHA_TURNSTILE_ENABLED:false}
+    secret-key: ${CAPTCHA_TURNSTILE_SECRET_KEY:}
+
 jwt:
   secret: ${JWT_SECRET}
-  expiration-ms: 28800000  # 8 hours
+  expiration-ms: 28800000
 
 quiz:
   exam:
     mc-question-count: 10
+    start-token-ttl-minutes: ${EXAM_START_TOKEN_TTL_MINUTES:10}
+  otp:
+    ttl-minutes: ${OTP_TTL_MINUTES:5}
+    resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
+    max-attempts: ${OTP_MAX_ATTEMPTS:5}
+    email-request-limit: ${OTP_EMAIL_REQUEST_LIMIT:3}
+    email-request-window-minutes: ${OTP_EMAIL_REQUEST_WINDOW_MINUTES:10}
+    verification-session-ttl-minutes: ${OTP_VERIFICATION_SESSION_TTL_MINUTES:10}
+    mail:
+      from: ${OTP_MAIL_FROM:${MAIL_USERNAME:}}
 
 logging:
   level:

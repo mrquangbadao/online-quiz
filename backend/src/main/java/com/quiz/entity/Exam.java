@@ -71,6 +71,15 @@ public class Exam {
     @Builder.Default
     private ExamStatus status = ExamStatus.IN_PROGRESS;
 
+    @Column(name = "submit_token_hash")
+    private String submitTokenHash;
+
+    @Column(name = "submit_token_expires_at")
+    private LocalDateTime submitTokenExpiresAt;
+
+    @Column(name = "submit_token_consumed_at")
+    private LocalDateTime submitTokenConsumedAt;
+
     @CreationTimestamp
     @ColumnDefault("now()")
     @Column(name = "created_at")

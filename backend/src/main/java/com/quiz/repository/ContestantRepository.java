@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ContestantRepository extends JpaRepository<Contestant, Long> {
     boolean existsByPhoneAndPhaseId(String phone, Long phaseId);
+    boolean existsByNormalizedEmailAndPhaseId(String normalizedEmail, Long phaseId);
 }

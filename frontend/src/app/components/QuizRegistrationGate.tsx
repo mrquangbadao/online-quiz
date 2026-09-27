@@ -1,0 +1,740 @@
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  Building2,
+  CheckCircle2,
+  Clock,
+  LoaderCircle,
+  Mail,
+  Phone,
+  Scale,
+  ShieldCheck,
+  User,
+  Video,
+} from 'lucide-react';
+import { authApi } from '../../api/authApi';
+import { examApi } from '../../api/examApi';
+import { unitApi, type UnitItem } from '../../api/unitApi';
+import { settingsApi } from '../../api/settingsApi';
+import { toast } from './ui/Toast';
+import type { ExamStartResponse } from '../../types';
+import BrandMark from './BrandMark';
+import TurnstileWidget from './TurnstileWidget';
+import VietnamEmblem from './VietnamEmblem';
+
+type RegistrationForm = {
+  fullName: string;
+  unit: string;
+  phone: string;
+  email: string;
+};
+
+type FormErrors = Partial<Record<keyof RegistrationForm | 'otp', string>>;
+type EntryStatus = 'idle' | 'otpRequested' | 'verifiedPreparing' | 'entering' | 'entryFailed';
+type PendingStartSession = {
+  contestantId: number;
+  startExamToken: string;
+};
+
+type Props = {
+  onExamStarted: (payload: { contestantId: number; exam: ExamStartResponse }) => void;
+};
+
+export default function QuizRegistrationGate({ onExamStarted }: Props) {
+  const navigate = useNavigate();
+  const [form, setForm] = useState<RegistrationForm>({
+    fullName: '',
+    unit: '',
+    phone: '',
+    email: '',
+  });
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [otp, setOtp] = useState('');
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [pendingStartSession, setPendingStartSession] = useState<PendingStartSession | null>(null);
+  const [entryStatus, setEntryStatus] = useState<EntryStatus>('idle');
+  const [submitting, setSubmitting] = useState(false);
+  const [requestingOtp, setRequestingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState<number>(0);
+  const [unitsList, setUnitsList] = useState<UnitItem[]>([]);
+  const [unitOther, setUnitOther] = useState('');
+  const [showUnitDropdown, setShowUnitDropdown] = useState(false);
+  const [unitSearch, setUnitSearch] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const [currentPhase, setCurrentPhase] = useState<{
+    id: number;
+    name: string;
+    status: string;
+    startTime?: string;
+    endTime?: string;
+  } | null>(null);
+  const [timeLimit, setTimeLimit] = useState<number | null>(null);
+
+  const formatDateTime = (isoString?: string) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${hours}:${minutes} ngày ${day}/${month}/${year}`;
+    } catch {
+      return isoString;
+    }
+  };
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    examApi
+      .getCurrentPhase()
+      .then((res) => {
+        if (res.data?.data) {
+          setCurrentPhase(res.data.data);
+        }
+      })
+      .catch(() => {});
+
+    settingsApi
+      .getTimeLimitMinutes()
+      .then((res) => {
+        if (typeof res.data?.data === 'number') {
+          setTimeLimit(res.data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    unitApi.getActiveUnits().then((res) => setUnitsList(res.data.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setResendCountdown((current) => current - 1);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCountdown]);
+
+
+
+  const filteredUnits = useMemo(
+    () => unitsList.filter((u) => u.name.toLowerCase().includes((unitSearch || form.unit).toLowerCase())),
+    [unitsList, unitSearch, form.unit]
+  );
+
+
+
+  const canRetryAutoStart = !!pendingStartSession && entryStatus === 'entryFailed' && !submitting;
+  const isProgressState = entryStatus === 'verifiedPreparing' || entryStatus === 'entering';
+  const isFormLocked = requestingOtp || verifyingOtp || submitting || isProgressState;
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
+  const captchaEnabled = !!turnstileSiteKey;
+
+  const validateField = (name: keyof RegistrationForm, value: string): string => {
+    if (name === 'fullName') {
+      return value.trim() ? '' : 'Vui lòng nhập họ và tên';
+    }
+    if (name === 'unit') {
+      return value.trim() ? '' : 'Vui lòng chọn hoặc nhập đơn vị công tác';
+    }
+    if (name === 'phone') {
+      const normalized = value.replace(/\s/g, '');
+      if (!normalized) return 'Vui lòng nhập số điện thoại';
+      if (!/^0\d{9}$/.test(normalized)) {
+        return 'Số điện thoại không hợp lệ (10 chữ số, bắt đầu bằng 0)';
+      }
+      return '';
+    }
+    if (name === 'email') {
+      const normalized = value.trim();
+      if (!normalized) return 'Vui lòng nhập email';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+        return 'Email không hợp lệ';
+      }
+    }
+    return '';
+  };
+
+  const validateOtp = (value: string): string => {
+    if (!value.trim()) return 'Vui lòng nhập mã OTP';
+    if (!/^\d{6}$/.test(value.trim())) return 'Mã OTP phải gồm đúng 6 chữ số';
+    return '';
+  };
+
+  const validateForm = (): boolean => {
+    const submittedUnit = form.unit === 'Khác' ? (unitOther.trim() || 'Khác') : form.unit;
+    const nextErrors: FormErrors = {
+      fullName: validateField('fullName', form.fullName),
+      unit: validateField('unit', submittedUnit),
+      phone: validateField('phone', form.phone),
+      email: validateField('email', form.email),
+    };
+    setFormErrors(nextErrors);
+    return !Object.values(nextErrors).some(Boolean);
+  };
+
+  const requestOtp = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    if (captchaEnabled && !captchaToken) {
+      toast.error('Vui lòng hoàn tất xác minh bảo mật trước khi nhận OTP.');
+      return;
+    }
+
+    setRequestingOtp(true);
+    try {
+      const response = await authApi.requestOtp({
+        email: form.email.trim(),
+        captchaToken: captchaToken || undefined,
+      });
+      setEntryStatus('otpRequested');
+      setVerificationToken(null);
+      setPendingStartSession(null);
+      setOtp('');
+      setFormErrors((prev) => ({ ...prev, otp: undefined }));
+      setResendCountdown(response.data.data.resendAvailableInSeconds);
+      setCaptchaToken('');
+      setCaptchaResetKey((current) => current + 1);
+      toast.success('Mã OTP đã được gửi tới email của bạn.');
+    } catch (err: any) {
+      setCaptchaToken('');
+      setCaptchaResetKey((current) => current + 1);
+      toast.error(err.response?.data?.message ?? 'Không thể gửi OTP. Vui lòng thử lại.');
+    } finally {
+      setRequestingOtp(false);
+    }
+  };
+
+  const handleVerifyAndStartExam = async () => {
+    const otpError = validateOtp(otp);
+    if (otpError) {
+      setFormErrors((prev) => ({ ...prev, otp: otpError }));
+      return;
+    }
+
+    setVerifyingOtp(true);
+    setEntryStatus('entering');
+    try {
+      // 1. Verify OTP
+      const verifyResponse = await authApi.verifyOtp({
+        email: form.email.trim(),
+        otp: otp.trim(),
+      });
+      const token = verifyResponse.data.data.verificationToken;
+      setVerificationToken(token);
+
+      // 2. Register Contestant
+      const submittedUnit = form.unit === 'Khác' ? (unitOther.trim() || 'Khác') : form.unit;
+      const registerResponse = await examApi.register({
+        fullName: form.fullName.trim(),
+        unit: submittedUnit,
+        phone: form.phone.replace(/\s/g, ''),
+        email: form.email.trim(),
+        verificationToken: token,
+      });
+
+      const contestant = registerResponse.data.data;
+      const startSession = {
+        contestantId: contestant.contestantId,
+        startExamToken: contestant.startExamToken,
+      };
+      setPendingStartSession(startSession);
+
+      // 3. Start Exam
+      const examResponse = await examApi.startExam({
+        contestantId: startSession.contestantId,
+        startExamToken: startSession.startExamToken,
+      });
+
+      toast.success('Xác thực thành công! Đang chuyển vào phòng thi.');
+      onExamStarted({
+        contestantId: startSession.contestantId,
+        exam: examResponse.data.data,
+      });
+    } catch (err: any) {
+      setEntryStatus('entryFailed');
+      toast.error(err.response?.data?.message ?? 'Không thể khởi tạo phiên làm bài. Vui lòng thử lại.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const startExam = async () => {
+    if (!verificationToken && !pendingStartSession) {
+      toast.error('Vui lòng xác thực OTP trước khi vào thi.');
+      return;
+    }
+
+    setEntryStatus('entering');
+    setSubmitting(true);
+    try {
+      let startSession = pendingStartSession;
+
+      if (!startSession) {
+        const submittedUnit = form.unit === 'Khác' ? (unitOther.trim() || 'Khác') : form.unit;
+        const registerResponse = await examApi.register({
+          fullName: form.fullName.trim(),
+          unit: submittedUnit,
+          phone: form.phone.replace(/\s/g, ''),
+          email: form.email.trim(),
+          verificationToken: verificationToken!,
+        });
+
+        const contestant = registerResponse.data.data;
+        startSession = {
+          contestantId: contestant.contestantId,
+          startExamToken: contestant.startExamToken,
+        };
+        setPendingStartSession(startSession);
+      }
+
+      const examResponse = await examApi.startExam({
+        contestantId: startSession.contestantId,
+        startExamToken: startSession.startExamToken,
+      });
+
+      setPendingStartSession(null);
+      onExamStarted({
+        contestantId: startSession.contestantId,
+        exam: examResponse.data.data,
+      });
+    } catch (err: any) {
+      setEntryStatus('entryFailed');
+      toast.error(err.response?.data?.message ?? 'Không thể bắt đầu bài thi. Vui lòng thử lại.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-[calc(100vh-48px)] lg:h-[calc(100vh-48px)] flex-col overflow-hidden bg-slate-50 font-sans lg:flex-row">
+      <div className="w-full shrink-0 border-b border-green-800/40 bg-gradient-to-br from-green-950 via-green-900 to-emerald-950 p-6 text-white lg:w-[40%] lg:border-b-0 lg:border-r lg:p-12 xl:w-[35%]">
+        <div className="relative z-10 space-y-6">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-green-100 transition-all hover:bg-white/20 hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Quay lại trang chủ
+          </button>
+
+          <div className="flex items-center gap-3.5">
+            <VietnamEmblem size={44} showBorder={false} className="shrink-0" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-400">Cuộc thi trực tuyến</p>
+              <p className="text-sm font-extrabold leading-snug text-white">TÌM HIỂU PHÁP LUẬT PHÒNG, CHỐNG MA TÚY NĂM 2025</p>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <p className="text-sm leading-relaxed text-green-100/80 md:text-base">
+              Hoàn tất điền thông tin cá nhân và xác thực mã OTP gửi về hòm thư của bạn để có quyền truy cập vào phòng thi trực tuyến.
+            </p>
+          </div>
+
+          {currentPhase && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+              <p className="text-xs font-black uppercase tracking-widest text-yellow-400">Đợt thi hiện tại</p>
+              <p className="mt-2 text-lg font-bold text-white">{currentPhase.name}</p>
+              {currentPhase.startTime && <p className="mt-1 text-sm text-green-100/80">Bắt đầu: {formatDateTime(currentPhase.startTime)}</p>}
+              {currentPhase.endTime && <p className="mt-1 text-sm text-green-100/80">Kết thúc: {formatDateTime(currentPhase.endTime)}</p>}
+            </div>
+          )}
+
+          <div className="hidden space-y-3.5 pt-2 lg:block">
+            <p className="text-xs font-black uppercase tracking-widest text-yellow-400">Thông tin bài thi</p>
+            <InfoCard icon={<BookOpen className="h-5 w-5 text-yellow-300" />} title="10 câu trắc nghiệm" description="Tìm hiểu kiến thức pháp luật phòng chống ma túy" />
+            <InfoCard icon={<Video className="h-5 w-5 text-yellow-300" />} title="10 câu tình huống" description="Xem video tình huống thực tế và đưa ra giải pháp" />
+            <InfoCard icon={<Scale className="h-5 w-5 text-yellow-300" />} title="1 câu dự đoán" description="Dự đoán tổng số lượt thí sinh trả lời đúng tất cả" />
+            {timeLimit !== null && (
+              <InfoCard icon={<Clock className="h-5 w-5 text-yellow-300" />} title={`${timeLimit} phút làm bài`} description="Thời gian làm bài thi trắc nghiệm trực tuyến" />
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2.5 pt-1 lg:hidden">
+            <InfoChip icon={<BookOpen className="h-3.5 w-3.5" />} label="10 câu trắc nghiệm" />
+            <InfoChip icon={<Video className="h-3.5 w-3.5" />} label="10 câu tình huống" />
+            <InfoChip icon={<Scale className="h-3.5 w-3.5" />} label="1 câu dự đoán" />
+            {timeLimit !== null && <InfoChip icon={<Clock className="h-3.5 w-3.5" />} label={`${timeLimit} phút`} />}
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-8 hidden items-center justify-between border-t border-white/10 pt-4 text-xs text-green-200/50 lg:flex">
+          <div className="flex items-center gap-2">
+            <BrandMark size={24} showBorder={false} />
+            <span className="font-semibold text-green-100/70">Công an tỉnh Nghệ An</span>
+          </div>
+          <span>Bảo mật qua OTP</span>
+        </div>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center overflow-y-auto bg-slate-50 p-4 md:p-8 lg:p-12">
+        <div className="w-full max-w-lg">
+          <div className="space-y-6 rounded-3xl border border-slate-200/60 bg-white p-6 shadow-xl md:p-8">
+            {entryStatus === 'idle' ? (
+              <div className="space-y-6">
+                <div>
+                  <span className="rounded-full bg-green-100/60 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Bước 1/2</span>
+                  <h2 className="mt-2 text-xl font-black text-slate-800 md:text-2xl">Thông tin thí sinh</h2>
+                  <p className="mt-1 text-xs text-slate-500 md:text-sm">Vui lòng cung cấp chính xác thông tin để lưu trữ kết quả thi.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <Field label="Họ và tên" required icon={<User className="h-4 w-4 text-slate-400" />} error={formErrors.fullName}>
+                    <input
+                      className={inputClass(formErrors.fullName)}
+                      value={form.fullName}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        setForm((prev) => ({ ...prev, fullName: e.target.value }));
+                        if (formErrors.fullName) setFormErrors((prev) => ({ ...prev, fullName: undefined }));
+                      }}
+                      onBlur={() => setFormErrors((prev) => ({ ...prev, fullName: validateField('fullName', form.fullName) }))}
+                      placeholder="Nguyễn Văn A"
+                    />
+                  </Field>
+
+                  <Field label="Số điện thoại" required icon={<Phone className="h-4 w-4 text-slate-400" />} error={formErrors.phone}>
+                    <input
+                      className={inputClass(formErrors.phone)}
+                      value={form.phone}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        setForm((prev) => ({ ...prev, phone: e.target.value }));
+                        if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: undefined }));
+                      }}
+                      onBlur={() => setFormErrors((prev) => ({ ...prev, phone: validateField('phone', form.phone) }))}
+                      placeholder="0912 345 678"
+                    />
+                  </Field>
+
+                  <div className="relative">
+                    <Field label="Đơn vị công tác" required icon={<Building2 className="h-4 w-4 text-slate-400" />} error={formErrors.unit}>
+                      <input
+                        className={inputClass(formErrors.unit)}
+                        value={form.unit}
+                        disabled={isFormLocked}
+                        onChange={(e) => {
+                          setForm((prev) => ({ ...prev, unit: e.target.value }));
+                          setUnitSearch(e.target.value);
+                          setShowUnitDropdown(true);
+                          if (e.target.value !== 'Khác') {
+                            setUnitOther('');
+                          }
+                          if (formErrors.unit) setFormErrors((prev) => ({ ...prev, unit: undefined }));
+                        }}
+                        onFocus={() => !isFormLocked && setShowUnitDropdown(true)}
+                        onBlur={() => {
+                          window.setTimeout(() => setShowUnitDropdown(false), 200);
+                          const submittedUnit = form.unit === 'Khác' ? (unitOther.trim() || 'Khác') : form.unit;
+                          setFormErrors((prev) => ({ ...prev, unit: validateField('unit', submittedUnit) }));
+                        }}
+                        placeholder="Chọn đơn vị công tác"
+                      />
+                      <p className="mt-1.5 text-[11px] leading-normal text-slate-400">
+                        * Nếu không tìm thấy đơn vị của mình, vui lòng chọn <strong>"Khác"</strong> ở cuối danh sách để tự nhập.
+                      </p>
+                    </Field>
+
+                    {showUnitDropdown && form.unit !== 'Khác' && !isFormLocked && (
+                      <div className="absolute z-20 mt-1.5 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+                        {filteredUnits.length > 0 ? (
+                          filteredUnits.map((unit) => (
+                            <button
+                              key={unit.id}
+                              type="button"
+                              className="w-full px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-green-50 hover:text-green-800"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, unit: unit.name }));
+                                setUnitSearch('');
+                                setShowUnitDropdown(false);
+                              }}
+                            >
+                              {unit.name}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-xs italic text-slate-400">Không tìm thấy kết quả phù hợp</div>
+                        )}
+                        <button
+                          type="button"
+                          className="w-full rounded-b-2xl border-t border-slate-100 px-4 py-3.5 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-amber-50 hover:text-amber-800"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setForm((prev) => ({ ...prev, unit: 'Khác' }));
+                            setShowUnitDropdown(false);
+                          }}
+                        >
+                          Khác (Nhập đơn vị mới)
+                        </button>
+                      </div>
+                    )}
+
+                    {form.unit === 'Khác' && (
+                      <input
+                        className={`${inputClass(undefined)} mt-2.5`}
+                        value={unitOther}
+                        disabled={isFormLocked}
+                        onChange={(e) => setUnitOther(e.target.value)}
+                        placeholder="Nhập tên đơn vị công tác cụ thể"
+                      />
+                    )}
+                  </div>
+
+                  <Field label="Email xác thực" required icon={<Mail className="h-4 w-4 text-slate-400" />} error={formErrors.email}>
+                    <input
+                      className={inputClass(formErrors.email)}
+                      value={form.email}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        setForm((prev) => ({ ...prev, email: e.target.value }));
+                        if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: undefined }));
+                      }}
+                      onBlur={() => setFormErrors((prev) => ({ ...prev, email: validateField('email', form.email) }))}
+                      placeholder="your-email@gmail.com"
+                    />
+                  </Field>
+                </div>
+
+                <div className="rounded-2xl bg-amber-50/50 border border-amber-200/50 p-4 text-xs text-amber-800 leading-relaxed flex gap-2.5">
+                  <AlertCircle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Lưu ý:</strong> Mỗi số điện thoại và email chỉ được tham gia thi <strong>01 lần duy nhất</strong> trong mỗi đợt thi. Vui lòng kiểm tra kỹ thông tin trước khi tiếp tục.
+                  </span>
+                </div>
+
+                {captchaEnabled && turnstileSiteKey && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <TurnstileWidget
+                      siteKey={turnstileSiteKey}
+                      resetKey={captchaResetKey}
+                      onToken={setCaptchaToken}
+                      onExpire={() => setCaptchaToken('')}
+                    />
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={requestOtp}
+                    disabled={requestingOtp || (captchaEnabled && !captchaToken)}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-3.5 font-bold text-white shadow-lg shadow-green-700/25 transition-all active:scale-[0.98] hover:bg-green-800 disabled:opacity-50"
+                  >
+                    {requestingOtp ? (
+                      <>
+                        <LoaderCircle className="h-5 w-5 animate-spin" />
+                        Đang gửi mã...
+                      </>
+                    ) : (
+                      'Vào thi'
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isProgressState) {
+                        setEntryStatus('idle');
+                      }
+                    }}
+                    disabled={isProgressState}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-30"
+                    aria-label="Quay lại bước trước"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div>
+                    <span className="rounded-full bg-green-100/60 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Bước 2/2</span>
+                    <h2 className="mt-2 text-xl font-black text-slate-800 md:text-2xl">Xác thực mã OTP</h2>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1 rounded-2xl border border-green-100 bg-green-50/70 p-4 text-xs text-green-950 shadow-sm md:text-sm">
+                  <span className="font-semibold text-green-800">Một mã OTP 6 chữ số đã được gửi đến email:</span>
+                  <span className="mt-1 truncate font-mono text-base font-bold text-green-900">{form.email}</span>
+                </div>
+
+                <div className="space-y-4">
+                  <Field label="Nhập mã OTP" required icon={<ShieldCheck className="h-4 w-4 text-slate-400" />} error={formErrors.otp}>
+                    <input
+                      className="w-full rounded-2xl border-2 border-slate-200 bg-white px-5 py-3.5 text-center text-xl font-black tracking-[0.4em] outline-none transition-all placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-300 focus:border-green-600 focus:shadow-[0_0_0_4px_rgba(21,128,61,0.1)] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      value={otp}
+                      disabled={verifyingOtp || isProgressState}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        setOtp(val);
+                        if (formErrors.otp) setFormErrors((prev) => ({ ...prev, otp: undefined }));
+                      }}
+                      placeholder="------"
+                      maxLength={6}
+                    />
+                  </Field>
+
+                  {captchaEnabled && turnstileSiteKey && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <TurnstileWidget
+                        siteKey={turnstileSiteKey}
+                        resetKey={captchaResetKey}
+                        onToken={setCaptchaToken}
+                        onExpire={() => setCaptchaToken('')}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={requestOtp}
+                      disabled={requestingOtp || resendCountdown > 0 || isProgressState || (captchaEnabled && !captchaToken)}
+                      className="text-xs font-semibold text-green-700 transition-colors hover:text-green-800 disabled:text-slate-400 disabled:opacity-75"
+                    >
+                      {requestingOtp
+                        ? 'Đang gửi...'
+                        : resendCountdown > 0
+                        ? `Thử lại sau ${resendCountdown} giây`
+                        : 'Không nhận được mã? Gửi lại'}
+                    </button>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 border border-slate-200/60 p-4 text-xs text-slate-500 leading-relaxed flex gap-2.5">
+                    <AlertCircle className="h-4.5 w-4.5 text-slate-400 shrink-0 mt-0.5" />
+                    <span>
+                      Nếu không nhận được mã OTP, vui lòng kiểm tra hộp thư rác (Spam) hoặc thử lại sau khi hết thời gian đếm ngược. Nếu vẫn gặp sự cố, xin vui lòng liên hệ Ban tổ chức để được hỗ trợ.
+                    </span>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleVerifyAndStartExam}
+                      disabled={otp.length !== 6 || verifyingOtp || submitting || isProgressState}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-3.5 font-bold text-white shadow-lg shadow-green-700/25 transition-all active:scale-[0.98] hover:bg-green-800 disabled:opacity-50"
+                    >
+                      {verifyingOtp || submitting ? (
+                        <>
+                          <LoaderCircle className="h-5 w-5 animate-spin" />
+                          Đang xác thực...
+                        </>
+                      ) : (
+                        'Vào thi'
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {entryStatus === 'entryFailed' && (
+                  <div className="space-y-3.5 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+                    <div className="flex items-start gap-2.5 text-amber-900">
+                      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold">Không thể truy cập bài thi</p>
+                        <p className="text-xs leading-relaxed text-amber-800">
+                          Hệ thống gặp sự cố kết nối khi tạo phiên thi của bạn. Tuy nhiên, email đã được xác minh thành công. Bạn có thể nhấn nút dưới để vào lại.
+                        </p>
+                      </div>
+                    </div>
+                    {canRetryAutoStart && (
+                      <button
+                        type="button"
+                        onClick={() => void startExam()}
+                        className="w-full rounded-2xl bg-amber-500 py-3 font-bold text-white shadow-md shadow-amber-500/25 transition-all active:scale-[0.98] hover:bg-amber-600"
+                      >
+                        Thử vào thi lại
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoCard({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
+  return (
+    <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+        {icon}
+      </div>
+      <div>
+        <p className="text-base font-extrabold leading-normal text-white">{title}</p>
+        <p className="mt-1 text-sm leading-relaxed text-green-200/70">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function InfoChip({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-green-100">
+      {icon}
+      {label}
+    </span>
+  );
+}
+
+function Field({
+  label,
+  required,
+  icon,
+  error,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  icon: ReactNode;
+  error?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+        {icon}
+        <span>{label}</span>
+        {required && <span className="text-red-500">*</span>}
+      </label>
+      {children}
+      {error && (
+        <p className="flex items-center gap-1.5 text-xs font-medium text-red-500">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function inputClass(error?: string) {
+  return `w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none transition-all disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 md:text-base ${
+    error
+      ? 'border-red-400 focus:border-red-500 focus:shadow-[0_0_0_4px_rgba(239,68,68,0.1)]'
+      : 'border-slate-200 focus:border-green-600 focus:shadow-[0_0_0_4px_rgba(21,128,61,0.1)]'
+  }`;
+}
