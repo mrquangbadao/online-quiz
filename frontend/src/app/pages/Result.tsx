@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
 import { useExamStore } from '../../store/examStore';
-import { Trophy, Clock, BarChart3, Home, Star } from 'lucide-react';
-import VietnamEmblem from "../components/VietnamEmblem";
+import { Trophy, Clock, BarChart3, Home, Star, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 function formatDuration(seconds: number) {
@@ -23,75 +22,95 @@ export default function Result() {
         particleCount: 150,
         spread: 80,
         origin: { y: 0.5 },
-        colors: ['#10b981', '#f59e0b', '#fbbf24', '#059669', '#34d399']
+        colors: ['#1d4ed8', '#38bdf8', '#facc15', '#dc2626', '#2563eb']
       });
     }
   }, [result, navigate]);
 
   if (!result) return null;
 
-  const scorePercent = Math.round((result.totalScore / 20) * 100);
-
   return (
-    <div className="flex flex-col min-h-[calc(100vh-48px)] bg-gradient-to-br from-teal-50 via-white to-lime-50 font-sans">
-      {/* Navbar */}
-      <header className="sticky top-12 z-50 bg-white/90 backdrop-blur border-b border-slate-200/60 shadow-sm">
-        <div className="w-full flex items-center px-4 py-3 md:px-12 lg:px-20 md:py-4">
+    <div className="flex flex-col min-h-[calc(100vh-44px)] bg-slate-50 font-sans">
+      {/* Header */}
+      <header className="sticky top-11 z-50 bg-[#1746b8] text-white border-b border-white/10 shadow-sm">
+        <div className="w-full flex items-center px-4 py-3 md:px-8 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
-            <VietnamEmblem size={36} showBorder={false} onClick={() => navigate('/')} />
-            <p className="text-base font-bold text-slate-800">Kết quả bài thi</p>
+            <img src="/logo-doan.png" alt="Huy hiệu Đoàn" className="w-10 h-10 object-contain shrink-0 drop-shadow-xs select-none" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-yellow-300">TỈNH ĐOÀN NGHỆ AN</p>
+              <h1 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-white">
+                BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
+              </h1>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex items-center justify-center p-4 md:p-8 lg:p-12">
-        <div className="w-full max-w-lg lg:max-w-xl">
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-            {/* Green header */}
-            <div className="bg-lime-300 px-6 py-6 lg:py-8 text-center">
-              <Trophy className="w-12 h-12 lg:w-14 lg:h-14 text-teal-900 mx-auto mb-3" />
-              <h1 className="text-teal-900 font-extrabold text-xl lg:text-2xl">Hoàn thành bài thi!</h1>
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8">
+        <div className="w-full max-w-md md:max-w-lg">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+            {/* Banner */}
+            <div className="bg-gradient-to-b from-[#1746b8] to-[#12389e] px-6 py-6 text-center text-white relative">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center mb-2.5 shadow-inner">
+                <Trophy className="w-8 h-8 text-yellow-300" />
+              </div>
+              <h2 className="font-black text-lg sm:text-xl uppercase tracking-wide text-white">
+                Hoàn thành bài thi Vòng loại
+              </h2>
+              <p className="text-blue-200 text-xs sm:text-sm mt-0.5 font-medium">
+                Phần thi: Bí thư đoàn cơ sở – Kiến thức
+              </p>
             </div>
 
-            <div className="p-6 md:p-8 lg:p-10 text-center">
+            <div className="p-6 sm:p-8 text-center">
               {/* Score circle */}
-              <div className="relative mx-auto w-32 h-32 lg:w-44 lg:h-44 mb-8">
-                <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-20"></div>
-                <div className="absolute inset-0 rounded-full border-[6px] lg:border-[8px] border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)] flex flex-col items-center justify-center bg-white z-10">
-                  <span className="text-4xl lg:text-6xl font-black text-green-700 leading-none">{result.totalScore}</span>
-                  <span className="text-sm lg:text-base text-slate-500 font-bold mt-1">/20 điểm</span>
+              <div className="relative mx-auto w-36 h-36 mb-6">
+                <div className="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-25" />
+                <div className="absolute inset-0 rounded-full border-[6px] border-blue-600 shadow-md flex flex-col items-center justify-center bg-white z-10">
+                  <span className="text-5xl font-black text-blue-700 leading-none">{result.totalScore}</span>
+                  <span className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">/ 30 điểm</span>
                 </div>
-                {result.totalScore >= 15 && (
-                  <div className="absolute -top-3 -right-3 z-20 bg-yellow-400 text-green-900 rounded-full p-2 lg:p-2.5 shadow-lg border-2 border-white animate-bounce">
-                    <Star className="w-5 h-5 lg:w-7 lg:h-7 fill-current" />
+                {result.totalScore >= 20 && (
+                  <div className="absolute -top-2 -right-2 z-20 bg-yellow-400 text-blue-950 rounded-full p-2 shadow-md border-2 border-white animate-bounce">
+                    <Star className="w-5 h-5 fill-current" />
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 lg:gap-4 mb-6 lg:mb-8">
-                <div className="rounded-xl bg-teal-50 border border-teal-100 p-4 lg:p-5">
-                  <BarChart3 className="w-5 h-5 lg:w-6 lg:h-6 text-teal-600 mx-auto mb-1.5" />
-                  <p className="text-xs lg:text-sm text-slate-500 font-medium">Trắc nghiệm</p>
-                  <p className="text-xl lg:text-2xl font-bold text-teal-800">{result.mcScore}/10</p>
-                </div>
-                <div className="rounded-xl bg-lime-50 border border-lime-200 p-4 lg:p-5">
-                  <BarChart3 className="w-5 h-5 lg:w-6 lg:h-6 text-teal-600 mx-auto mb-1.5" />
-                  <p className="text-xs lg:text-sm text-slate-500 font-medium">Tình huống</p>
-                  <p className="text-xl lg:text-2xl font-bold text-teal-800">{result.scenarioScore}/10</p>
+              {/* Stats card */}
+              <div className="rounded-2xl bg-blue-50/70 border border-blue-200 p-4 mb-5 text-center">
+                <div className="flex items-center justify-center gap-6">
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Số câu đúng</p>
+                    <p className="text-xl font-black text-blue-800 mt-0.5">{result.mcScore} / 30 câu</p>
+                  </div>
+                  <div className="w-px h-8 bg-blue-200" />
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Thời gian</p>
+                    <p className="text-xl font-black text-blue-800 mt-0.5">{formatDuration(result.durationSeconds)}</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 lg:p-5 mb-6 lg:mb-8 flex items-center justify-center gap-2">
-                <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-slate-500" />
-                <span className="text-sm lg:text-base text-slate-600 font-medium">Thời gian: <b className="text-slate-800">{formatDuration(result.durationSeconds)}</b></span>
+              {/* Notice */}
+              <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-600 leading-relaxed mb-6 text-left">
+                <p className="font-semibold text-slate-700 mb-1">Quy chế xét chọn vào Chung kết:</p>
+                Căn cứ tổng điểm và thời gian làm bài, Ban Tổ chức sẽ lựa chọn <strong>06 thí sinh có thành tích tốt nhất</strong> tham gia Vòng Chung Kết đối kháng sân khấu ngày 09/10/2026 tại Nhà khách Nghệ An.
               </div>
 
-              <button
-                onClick={() => { reset(); navigate('/'); }}
-                className="w-full py-3.5 lg:py-4 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-base lg:text-lg shadow-sm transition-all flex items-center justify-center gap-2"
-              >
-                <Home className="w-5 h-5" /> Về trang chủ
-              </button>
+              {/* Action buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => {
+                    reset();
+                    navigate('/');
+                  }}
+                  className="flex-1 py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  <Home className="w-4 h-4" />
+                  Về trang chủ
+                </button>
+              </div>
             </div>
           </div>
         </div>

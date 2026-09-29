@@ -12,4 +12,7 @@ public interface EmailOtpRepository extends JpaRepository<EmailOtp, Long> {
 
     List<EmailOtp> findByNormalizedEmailAndPhaseIdAndUsedAtIsNullOrderByCreatedAtDesc(
             String normalizedEmail, Long phaseId);
+
+    Optional<EmailOtp> findFirstByNormalizedEmailAndPhaseIdOrderByCreatedAtDesc(
+            String normalizedEmail, Long phaseId);
 }

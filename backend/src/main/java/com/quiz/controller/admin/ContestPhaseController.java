@@ -47,4 +47,9 @@ public class ContestPhaseController {
         contestPhaseService.deletePhase(id);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
+
+    @PutMapping("/{id}/reactivate")
+    public ResponseEntity<ApiResponse<ContestPhase>> reactivatePhase(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(contestPhaseService.reactivatePhase(id)));
+    }
 }

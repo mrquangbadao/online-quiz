@@ -10,4 +10,5 @@ public interface ContestPhaseService {
   void deletePhase(Long id);
   List<ContestPhase> listPhases();
   ContestPhase getCurrentPhase(); // null if none active
+  ContestPhase reactivatePhase(Long id);
 }

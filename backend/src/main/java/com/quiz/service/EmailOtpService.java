@@ -2,6 +2,8 @@ package com.quiz.service;
 
 import com.quiz.dto.request.RequestOtpRequest;
 import com.quiz.dto.request.VerifyOtpRequest;
+import com.quiz.dto.response.AdminGenerateOtpResponse;
+import com.quiz.dto.response.AdminOtpStatusResponse;
 import com.quiz.dto.response.RequestOtpResponse;
 import com.quiz.dto.response.VerifyOtpResponse;
 import com.quiz.entity.ContestPhase;
@@ -40,6 +42,9 @@ public class EmailOtpService {
     private final EmailDeliveryService emailDeliveryService;
     private final PasswordEncoder passwordEncoder;
     private final RequestRateLimiter requestRateLimiter;
+
+    @Value("${quiz.otp.emergency-master-otp:}")
+    private String emergencyMasterOtp;
 
     @Value("${quiz.otp.ttl-minutes:5}")
     private long otpTtlMinutes;
@@ -93,9 +98,13 @@ public class EmailOtpService {
             emailDeliveryService.sendOtpEmail(request.getEmail().trim(), otpCode);
         } catch (MailException ex) {
             log.error("Failed to deliver OTP email to {}: {}", normalizedEmail, ex.getMessage(), ex);
-            emailOtpRepository.delete(emailOtp);
-            throw new BusinessException("OTP_DELIVERY_FAILED",
-                    "Unable to send OTP email at the moment. Please try again.");
+            if (emergencyMasterOtp != null && !emergencyMasterOtp.isBlank()) {
+                log.warn("Emergency master OTP is configured; proceeding with OTP request for {} despite email delivery failure", normalizedEmail);
+            } else {
+                emailOtpRepository.delete(emailOtp);
+                throw new BusinessException("OTP_DELIVERY_FAILED",
+                        "Unable to send OTP email at the moment. Please try again.");
+            }
         }
 
         return RequestOtpResponse.builder()
@@ -111,29 +120,62 @@ public class EmailOtpService {
 
         rateLimitVerifyOtpByEmail(normalizedEmail, activePhase.getId());
 
+        // Check Emergency Master OTP first
+        boolean isMasterOtp = emergencyMasterOtp != null && !emergencyMasterOtp.isBlank()
+                && emergencyMasterOtp.trim().equalsIgnoreCase(request.getOtp().trim());
+
+        if (isMasterOtp) {
+            log.warn("Emergency master OTP used for email verification: {}", normalizedEmail);
+            EmailOtp emailOtp = emailOtpRepository
+                    .findFirstByNormalizedEmailAndPhaseIdAndUsedAtIsNullOrderByCreatedAtDesc(
+                            normalizedEmail, activePhase.getId())
+                    .orElse(null);
+            LocalDateTime now = LocalDateTime.now();
+            if (emailOtp != null) {
+                emailOtp.setUsedAt(now);
+                emailOtpRepository.save(emailOtp);
+            }
+            invalidateVerificationSessions(normalizedEmail, activePhase.getId());
+
+            String verificationToken = generateVerificationToken();
+            verificationSessionRepository.save(EmailVerificationSession.builder()
+                    .email(request.getEmail().trim())
+                    .normalizedEmail(normalizedEmail)
+                    .phase(activePhase)
+                    .tokenHash(passwordEncoder.encode(verificationToken))
+                    .verifiedAt(now)
+                    .expiresAt(now.plusMinutes(verificationSessionTtlMinutes))
+                    .build());
+
+            return VerifyOtpResponse.builder()
+                    .verificationToken(verificationToken)
+                    .expiresInSeconds(Duration.ofMinutes(verificationSessionTtlMinutes).toSeconds())
+                    .build();
+        }
+
         EmailOtp emailOtp = emailOtpRepository
                 .findFirstByNormalizedEmailAndPhaseIdAndUsedAtIsNullOrderByCreatedAtDesc(
                         normalizedEmail, activePhase.getId())
                 .orElseThrow(() -> new BusinessException("OTP_NOT_FOUND",
-                        "No active OTP request was found for this email."));
+                        "Không tìm thấy mã OTP hợp lệ cho email này (mã đã được sử dụng hoặc chưa được gửi). Vui lòng bấm 'Gửi lại mã'."));
 
         if (emailOtp.getExpiresAt().isBefore(LocalDateTime.now())) {
             // Expired OTPs are marked as used so the same code cannot be retried indefinitely.
             emailOtp.setUsedAt(LocalDateTime.now());
             emailOtpRepository.save(emailOtp);
-            throw new BusinessException("OTP_EXPIRED", "The OTP code has expired.");
+            throw new BusinessException("OTP_EXPIRED", "Mã OTP đã hết hạn. Vui lòng bấm 'Gửi lại mã'.");
         }
 
         if (emailOtp.getAttempts() >= emailOtp.getMaxAttempts()) {
             throw new BusinessException("OTP_ATTEMPTS_EXCEEDED",
-                    "The OTP code has exceeded the allowed number of attempts.");
+                    "Mã OTP đã vượt quá số lần nhập sai cho phép. Vui lòng gửi lại mã mới.");
         }
 
         if (!passwordEncoder.matches(request.getOtp(), emailOtp.getOtpHash())) {
             // Failed attempts must survive the business exception to enforce OTP brute-force limits.
             emailOtp.setAttempts(emailOtp.getAttempts() + 1);
             emailOtpRepository.save(emailOtp);
-            throw new BusinessException("OTP_INVALID", "The OTP code is invalid.");
+            throw new BusinessException("OTP_INVALID", "Mã OTP không chính xác. Vui lòng kiểm tra lại.");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -188,6 +230,74 @@ public class EmailOtpService {
 
     public String normalizeEmailValue(String email) {
         return normalizeEmail(email);
+    }
+
+    @Transactional
+    public AdminGenerateOtpResponse generateAdminSupportOtp(String email) {
+        ContestPhase activePhase = requireActivePhase();
+        String normalizedEmail = normalizeEmail(email);
+
+        invalidateUnusedOtps(normalizedEmail, activePhase.getId());
+
+        String otpCode = generateOtpCode();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = now.plusMinutes(5);
+
+        EmailOtp emailOtp = EmailOtp.builder()
+                .email(email.trim())
+                .normalizedEmail(normalizedEmail)
+                .phase(activePhase)
+                .otpHash(passwordEncoder.encode(otpCode))
+                .expiresAt(expiresAt)
+                .attempts(0)
+                .maxAttempts(otpMaxAttempts)
+                .lastSentAt(now)
+                .build();
+
+        emailOtpRepository.save(emailOtp);
+
+        log.info("Admin generated emergency support OTP for email: {}", normalizedEmail);
+
+        return AdminGenerateOtpResponse.builder()
+                .email(email.trim())
+                .otpCode(otpCode)
+                .expiresAt(expiresAt)
+                .expiresInSeconds(300)
+                .message("Cấp mã OTP thành công. Mã có hiệu lực trong 5 phút và dùng 1 lần duy nhất.")
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public AdminOtpStatusResponse getLatestOtpStatus(String email) {
+        ContestPhase activePhase = requireActivePhase();
+        String normalizedEmail = normalizeEmail(email);
+
+        EmailOtp latestOtp = emailOtpRepository
+                .findFirstByNormalizedEmailAndPhaseIdOrderByCreatedAtDesc(normalizedEmail, activePhase.getId())
+                .orElse(null);
+
+        if (latestOtp == null) {
+            return AdminOtpStatusResponse.builder()
+                    .email(email.trim())
+                    .hasActiveOtp(false)
+                    .build();
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean isUsed = latestOtp.getUsedAt() != null;
+        boolean isExpired = latestOtp.getExpiresAt().isBefore(now);
+        boolean isActive = !isUsed && !isExpired;
+
+        return AdminOtpStatusResponse.builder()
+                .email(latestOtp.getEmail())
+                .hasActiveOtp(isActive)
+                .used(isUsed)
+                .expired(isExpired)
+                .createdAt(latestOtp.getCreatedAt())
+                .expiresAt(latestOtp.getExpiresAt())
+                .attempts(latestOtp.getAttempts())
+                .maxAttempts(latestOtp.getMaxAttempts())
+                .build();
     }
 
     private ContestPhase requireActivePhase() {

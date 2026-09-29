@@ -78,7 +78,7 @@ export default function AdminAccounts() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 font-sans">
       <AdminSidebar active="accounts" />
       <div className="flex-1 p-8 text-white">
         <div className="flex items-center gap-3">

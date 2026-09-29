@@ -14,11 +14,12 @@ export default function VietnamEmblem({ size = 40, className = '', showBorder = 
       aria-hidden
     >
       <img
-        src="/Emblem_of_Vietnam.svg"
-        alt=""
+        src="/logo-doan.svg"
+        alt="Huy hiệu Đoàn TNCS Hồ Chí Minh"
         className="h-full w-full object-contain"
         loading="eager"
       />
+
     </div>
   );
 }

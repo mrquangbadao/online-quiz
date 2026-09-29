@@ -1,5 +1,6 @@
 package com.quiz.service.impl;
 
+import com.quiz.dto.request.ExamDraftAnswerRequest;
 import com.quiz.dto.request.ExamStartRequest;
 import com.quiz.dto.request.ExamSubmitRequest;
 import com.quiz.dto.response.ExamResultResponse;
@@ -17,6 +18,7 @@ import com.quiz.exception.BusinessException;
 import com.quiz.repository.AppSettingRepository;
 import com.quiz.repository.ContestPhaseRepository;
 import com.quiz.repository.ContestantRepository;
+import com.quiz.repository.EligibleContestantRepository;
 import com.quiz.repository.ExamAnswerRepository;
 import com.quiz.repository.ExamRepository;
 import com.quiz.repository.QuestionRepository;
@@ -44,6 +46,7 @@ public class ExamServiceImpl implements ExamService {
 
   private final ContestantRepository contestantRepository;
   private final ExamRepository examRepository;
+  private final EligibleContestantRepository eligibleContestantRepository;
   private final QuestionRepository questionRepository;
   private final ScenarioQuestionRepository scenarioQuestionRepository;
   private final ExamAnswerRepository examAnswerRepository;
@@ -73,17 +76,25 @@ public class ExamServiceImpl implements ExamService {
     boolean alreadyTaken = examRepository.existsByContestantIdAndStatusIn(
             contestant.getId(), List.of(ExamStatus.SUBMITTED));
     if (alreadyTaken) {
-      throw new BusinessException("ALREADY_PARTICIPATED", "Contestant has already submitted an exam.");
+      throw new BusinessException("ALREADY_PARTICIPATED", "Thí sinh đã nộp bài thi trong đợt thi này.");
     }
 
     log.info("Starting exam for contestant id={} name={}", contestant.getId(), contestant.getFullName());
 
-    int timeLimitMinutes = settingRepository.findById("exam_time_limit_minutes")
+    int timeLimitMinutes = (activePhase.getTimeLimitMinutes() != null && activePhase.getTimeLimitMinutes() > 0)
+            ? activePhase.getTimeLimitMinutes()
+            : settingRepository.findById("exam_time_limit_minutes")
             .map(s -> { try { return Integer.parseInt(s.getValue()); } catch (NumberFormatException e) { return 0; } })
             .orElse(0);
 
-    List<Question> mcQuestions = questionRepository.findRandomActiveQuestions(mcQuestionCount);
-    List<ScenarioQuestion> scenarioQuestions = scenarioQuestionRepository.findByIsActiveTrueOrderByDisplayOrderAsc();
+    int questionCount = (activePhase.getMcQuestionCount() != null && activePhase.getMcQuestionCount() > 0)
+            ? activePhase.getMcQuestionCount()
+            : mcQuestionCount;
+
+    List<Question> mcQuestions = questionRepository.findRandomActiveQuestions(questionCount);
+    List<ScenarioQuestion> scenarioQuestions = Boolean.FALSE.equals(activePhase.getHasScenarios())
+            ? List.of()
+            : scenarioQuestionRepository.findByIsActiveTrueOrderByDisplayOrderAsc();
 
     String submitToken = java.util.UUID.randomUUID().toString();
     String submitTokenHash = passwordEncoder.encode(submitToken);
@@ -153,8 +164,25 @@ public class ExamServiceImpl implements ExamService {
   @Override
   @Transactional
   public ExamResultResponse submitExam(Long examId, ExamSubmitRequest request) {
-    Exam exam = examRepository.findByIdAndStatusForUpdate(examId, ExamStatus.IN_PROGRESS)
-            .orElseThrow(() -> new BusinessException("EXAM_NOT_FOUND", "Bài thi không hợp lệ hoặc đã nộp"));
+    Exam exam = examRepository.findById(examId)
+            .orElseThrow(() -> new BusinessException("EXAM_NOT_FOUND", "Bài thi không tồn tại hoặc đã nộp"));
+
+    // If the exam was already submitted (e.g. auto-submitted when admin closed the phase), return existing result
+    if (exam.getStatus() == ExamStatus.SUBMITTED) {
+      log.info("Exam id={} was already submitted. Returning existing result to client.", examId);
+      return ExamResultResponse.builder()
+              .examId(exam.getId())
+              .mcScore(exam.getMcScore() != null ? exam.getMcScore() : 0)
+              .scenarioScore(exam.getScenarioScore() != null ? exam.getScenarioScore() : 0)
+              .totalScore(exam.getTotalScore() != null ? exam.getTotalScore() : 0)
+              .durationSeconds(exam.getDurationSeconds() != null ? exam.getDurationSeconds() : 0)
+              .prediction(exam.getPrediction() != null ? exam.getPrediction() : 0)
+              .build();
+    }
+
+    if (exam.getStatus() != ExamStatus.IN_PROGRESS) {
+      throw new BusinessException("EXAM_NOT_FOUND", "Bài thi không ở trạng thái làm bài");
+    }
 
     LocalDateTime now = LocalDateTime.now();
     if (exam.getSubmitTokenHash() == null || exam.getSubmitTokenConsumedAt() != null ||
@@ -166,7 +194,9 @@ public class ExamServiceImpl implements ExamService {
 
     log.info("Submitting exam id={} for contestant id={}", examId, exam.getContestant().getId());
 
-    int limitMinutes = settingRepository.findById("exam_time_limit_minutes")
+    int limitMinutes = (exam.getPhase() != null && exam.getPhase().getTimeLimitMinutes() != null && exam.getPhase().getTimeLimitMinutes() > 0)
+            ? exam.getPhase().getTimeLimitMinutes()
+            : settingRepository.findById("exam_time_limit_minutes")
             .map(s -> { try { return Integer.parseInt(s.getValue()); } catch (NumberFormatException e) { return 0; } })
             .orElse(0);
     if (limitMinutes > 0) {
@@ -185,7 +215,9 @@ public class ExamServiceImpl implements ExamService {
     Map<Long, String> mcAnswerKey = exam.getExamQuestions().stream()
             .collect(Collectors.toMap(eq -> eq.getQuestion().getId(), eq -> eq.getQuestion().getCorrectAnswer()));
 
-    Map<Long, String> scenarioAnswerKey = scenarioQuestionRepository.findByIsActiveTrueOrderByDisplayOrderAsc()
+    Map<Long, String> scenarioAnswerKey = (exam.getPhase() != null && Boolean.FALSE.equals(exam.getPhase().getHasScenarios()))
+            ? Map.of()
+            : scenarioQuestionRepository.findByIsActiveTrueOrderByDisplayOrderAsc()
             .stream().collect(Collectors.toMap(ScenarioQuestion::getId, ScenarioQuestion::getCorrectAnswer));
 
     int mcScore = 0, scenarioScore = 0;
@@ -221,6 +253,13 @@ public class ExamServiceImpl implements ExamService {
               .build());
     }
 
+    // Clean up draft answers if any to avoid duplicates
+    List<ExamAnswer> existingDrafts = examAnswerRepository.findByExamId(exam.getId());
+    if (!existingDrafts.isEmpty()) {
+      examAnswerRepository.deleteAll(existingDrafts);
+      examAnswerRepository.flush();
+    }
+
     examAnswerRepository.saveAll(answers);
 
     exam.setEndTime(endTime);
@@ -243,8 +282,114 @@ public class ExamServiceImpl implements ExamService {
   }
 
   @Override
+  @Transactional
+  public void saveDraftAnswer(Long examId, ExamDraftAnswerRequest request) {
+    Exam exam = examRepository.findByIdAndStatus(examId, ExamStatus.IN_PROGRESS)
+            .orElseThrow(() -> new BusinessException("EXAM_NOT_FOUND", "Bài thi không tồn tại hoặc đã nộp"));
+
+    String correctAnswer = null;
+    if ("MC".equals(request.getQuestionType())) {
+      correctAnswer = exam.getExamQuestions().stream()
+              .filter(eq -> eq.getQuestion().getId().equals(request.getQuestionId()))
+              .map(eq -> eq.getQuestion().getCorrectAnswer())
+              .findFirst()
+              .orElse(null);
+    } else if ("SC".equals(request.getQuestionType())) {
+      correctAnswer = scenarioQuestionRepository.findById(request.getQuestionId())
+              .map(ScenarioQuestion::getCorrectAnswer)
+              .orElse(null);
+    }
+
+    boolean isCorrect = correctAnswer != null && correctAnswer.equals(request.getSelectedAnswer());
+
+    ExamAnswer answer = examAnswerRepository.findByExamIdAndQuestionIdAndQuestionType(
+            examId, request.getQuestionId(), request.getQuestionType())
+            .orElseGet(() -> ExamAnswer.builder()
+                    .exam(exam)
+                    .questionId(request.getQuestionId())
+                    .questionType(request.getQuestionType())
+                    .build());
+
+    answer.setSelectedAnswer(request.getSelectedAnswer());
+    answer.setIsCorrect(isCorrect);
+    examAnswerRepository.save(answer);
+  }
+
+  @Override
+  @Transactional
+  public void autoSubmitInProgressExamsForPhase(Long phaseId) {
+    List<Exam> inProgressExams = examRepository.findByPhaseIdAndStatus(phaseId, ExamStatus.IN_PROGRESS);
+    if (inProgressExams.isEmpty()) {
+      return;
+    }
+
+    LocalDateTime now = LocalDateTime.now();
+    for (Exam exam : inProgressExams) {
+      List<ExamAnswer> answers = examAnswerRepository.findByExamId(exam.getId());
+
+      int mcScore = 0;
+      int scenarioScore = 0;
+      for (ExamAnswer ans : answers) {
+        if (Boolean.TRUE.equals(ans.getIsCorrect())) {
+          if ("MC".equals(ans.getQuestionType())) {
+            mcScore++;
+          } else {
+            scenarioScore++;
+          }
+        }
+      }
+
+      long duration = exam.getStartTime() != null
+              ? Math.max(0, ChronoUnit.SECONDS.between(exam.getStartTime(), now))
+              : 0;
+
+      exam.setMcScore(mcScore);
+      exam.setScenarioScore(scenarioScore);
+      exam.setTotalScore(mcScore + scenarioScore);
+      exam.setDurationSeconds(duration);
+      exam.setEndTime(now);
+      exam.setStatus(ExamStatus.SUBMITTED);
+      exam.setSubmitTokenConsumedAt(now);
+      examRepository.save(exam);
+      log.info("Auto-submitted exam id={} for contestant id={} with totalScore={}",
+              exam.getId(), exam.getContestant().getId(), exam.getTotalScore());
+    }
+  }
+
+  @Override
   public long getActiveExamCount() {
     return examRepository.countByStatus(ExamStatus.IN_PROGRESS);
+  }
+
+  @Override
+  @Transactional
+  public void resetExam(Long examId) {
+      Exam exam = examRepository.findById(examId)
+              .orElseThrow(() -> new BusinessException("EXAM_NOT_FOUND", "Không tìm thấy bài thi"));
+
+      Contestant contestant = exam.getContestant();
+      Long contestantId = contestant != null ? contestant.getId() : null;
+
+      // Delete all answers and questions for this exam, then delete the exam itself.
+      examRepository.delete(exam);
+      examRepository.flush();
+
+      // If an eligible contestant was linked to this contestantId, reset it too
+      if (contestantId != null) {
+          eligibleContestantRepository.findFirstByRegisteredContestantId(contestantId)
+                  .ifPresent(ec -> {
+                      ec.setIsRegistered(false);
+                      ec.setPhone(null);
+                      ec.setEmail(null);
+                      ec.setRegisteredContestantId(null);
+                      eligibleContestantRepository.save(ec);
+                      log.info("Reset eligible contestant id={} linked to reset examId={}", ec.getId(), examId);
+                  });
+
+          // Delete the contestant record so they can register fresh
+          contestantRepository.deleteById(contestantId);
+          log.info("Deleted contestant id={} after resetting examId={}", contestantId, examId);
+      }
   }
 
   private void validateAndConsumeStartExamToken(Contestant contestant, String providedToken) {

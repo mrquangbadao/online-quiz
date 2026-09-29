@@ -11,6 +11,26 @@ export interface ContestantRegisterRequest {
   phone: string;
   email: string;
   verificationToken: string;
+  eligibleContestantId?: number;
+}
+
+export interface EligibleContestant {
+  id: number;
+  orderNumber: number;
+  fullName: string;
+  unit: string;
+  scoreWeek1?: string;
+  scoreWeek2?: string;
+  scoreWeek3?: string;
+  scoreWeek4?: string;
+  totalScorePreliminary?: number;
+  isRegistered: boolean;
+  phone?: string;
+  email?: string;
+  examId?: number;
+  examStatus?: string;
+  examScore?: number;
+  examDurationSeconds?: number;
 }
 
 export interface ContestantResponse {

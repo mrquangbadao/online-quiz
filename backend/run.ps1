@@ -16,4 +16,10 @@ if (Test-Path $envFilePath) {
 }
 
 Write-Host "Starting Spring Boot application..." -ForegroundColor Green
-& "$PSScriptRoot\mvnw.cmd" spring-boot:run
+Push-Location $PSScriptRoot
+try {
+    & .\mvnw.cmd spring-boot:run
+} finally {
+    Pop-Location
+}
+

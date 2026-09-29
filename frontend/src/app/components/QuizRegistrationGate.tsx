@@ -17,10 +17,11 @@ import {
 } from 'lucide-react';
 import { authApi } from '../../api/authApi';
 import { examApi } from '../../api/examApi';
+import { eligibleApi } from '../../api/eligibleApi';
 import { unitApi, type UnitItem } from '../../api/unitApi';
 import { settingsApi } from '../../api/settingsApi';
 import { toast } from './ui/Toast';
-import type { ExamStartResponse } from '../../types';
+import type { ExamStartResponse, EligibleContestant } from '../../types';
 import BrandMark from './BrandMark';
 import TurnstileWidget from './TurnstileWidget';
 import VietnamEmblem from './VietnamEmblem';
@@ -72,8 +73,18 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
     status: string;
     startTime?: string;
     endTime?: string;
+    phaseType?: string;
+    mcQuestionCount?: number;
+    timeLimitMinutes?: number;
+    hasScenarios?: boolean;
+    hasPrediction?: boolean;
+    requireWhitelist?: boolean;
   } | null>(null);
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
+  const [eligibleList, setEligibleList] = useState<EligibleContestant[]>([]);
+  const [selectedEligible, setSelectedEligible] = useState<EligibleContestant | null>(null);
+  const [eligibleSearch, setEligibleSearch] = useState('');
+  const [showEligibleDropdown, setShowEligibleDropdown] = useState(false);
 
   const formatDateTime = (isoString?: string) => {
     if (!isoString) return '';
@@ -100,6 +111,18 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
       .then((res) => {
         if (res.data?.data) {
           setCurrentPhase(res.data.data);
+          if (res.data.data.timeLimitMinutes) {
+            setTimeLimit(res.data.data.timeLimitMinutes);
+          }
+        }
+      })
+      .catch(() => {});
+
+    eligibleApi
+      .getPublicList()
+      .then((res) => {
+        if (res.data?.data) {
+          setEligibleList(res.data.data);
         }
       })
       .catch(() => {});
@@ -108,7 +131,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
       .getTimeLimitMinutes()
       .then((res) => {
         if (typeof res.data?.data === 'number') {
-          setTimeLimit(res.data.data);
+          setTimeLimit((prev) => prev ?? res.data.data);
         }
       })
       .catch(() => {});
@@ -130,12 +153,37 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
     return () => window.clearInterval(timer);
   }, [resendCountdown]);
 
-
-
   const filteredUnits = useMemo(
     () => unitsList.filter((u) => u.name.toLowerCase().includes((unitSearch || form.unit).toLowerCase())),
     [unitsList, unitSearch, form.unit]
   );
+
+  const filteredEligible = useMemo(() => {
+    if (!eligibleSearch) return eligibleList;
+    const q = eligibleSearch.toLowerCase();
+    return eligibleList.filter(
+      (c) =>
+        c.fullName.toLowerCase().includes(q) ||
+        c.unit.toLowerCase().includes(q) ||
+        String(c.orderNumber).includes(q)
+    );
+  }, [eligibleList, eligibleSearch]);
+
+  const handleSelectEligible = (c: EligibleContestant) => {
+    if (c.isRegistered) {
+      toast.error('Thí sinh này đã được đăng ký tài khoản thi.');
+      return;
+    }
+    setSelectedEligible(c);
+    setForm((prev) => ({
+      ...prev,
+      fullName: c.fullName,
+      unit: c.unit,
+    }));
+    setShowEligibleDropdown(false);
+    setEligibleSearch('');
+    setFormErrors((prev) => ({ ...prev, fullName: undefined, unit: undefined }));
+  };
 
 
 
@@ -177,6 +225,14 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
   };
 
   const validateForm = (): boolean => {
+    if (currentPhase?.requireWhitelist && !selectedEligible) {
+      setFormErrors((prev) => ({
+        ...prev,
+        fullName: 'Vui lòng chọn tên thí sinh trong danh sách 70 thí sinh đủ điều kiện',
+      }));
+      return false;
+    }
+
     const submittedUnit = form.unit === 'Khác' ? (unitOther.trim() || 'Khác') : form.unit;
     const nextErrors: FormErrors = {
       fullName: validateField('fullName', form.fullName),
@@ -248,6 +304,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
         phone: form.phone.replace(/\s/g, ''),
         email: form.email.trim(),
         verificationToken: token,
+        eligibleContestantId: selectedEligible?.id,
       });
 
       const contestant = registerResponse.data.data;
@@ -295,6 +352,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
           phone: form.phone.replace(/\s/g, ''),
           email: form.email.trim(),
           verificationToken: verificationToken!,
+          eligibleContestantId: selectedEligible?.id,
         });
 
         const contestant = registerResponse.data.data;
@@ -324,63 +382,76 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-48px)] lg:h-[calc(100vh-48px)] flex-col overflow-hidden bg-slate-50 font-sans lg:flex-row">
-      <div className="w-full shrink-0 border-b border-green-800/40 bg-gradient-to-br from-green-950 via-green-900 to-emerald-950 p-6 text-white lg:w-[40%] lg:border-b-0 lg:border-r lg:p-12 xl:w-[35%]">
-        <div className="relative z-10 space-y-6">
+    <div className="flex min-h-[calc(100vh-44px)] lg:h-[calc(100vh-44px)] flex-col overflow-hidden bg-slate-50 font-sans lg:flex-row">
+      <div className="w-full shrink-0 border-b border-blue-900/40 bg-gradient-to-b from-[#143da8] via-[#1d52d4] to-[#12389e] p-5 sm:p-6 text-white lg:w-[40%] lg:border-b-0 lg:border-r lg:p-10 xl:w-[35%]">
+        <div className="relative z-10 space-y-5">
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-green-100 transition-all hover:bg-white/20 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-blue-100 transition-all hover:bg-white/20 hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
-            Quay lại trang chủ
+            Về trang chủ
           </button>
 
-          <div className="flex items-center gap-3.5">
-            <VietnamEmblem size={44} showBorder={false} className="shrink-0" />
+          <div className="flex items-center gap-3">
+            <img src="/logo-doan.png" alt="Huy hiệu Đoàn" className="w-12 h-12 object-contain shrink-0 drop-shadow-md select-none" />
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-400">Cuộc thi trực tuyến</p>
-              <p className="text-sm font-extrabold leading-snug text-white">TÌM HIỂU PHÁP LUẬT PHÒNG, CHỐNG MA TÚY NĂM 2025</p>
+              <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-yellow-300">
+                TỈNH ĐOÀN NGHỆ AN
+              </p>
+              <p className="text-sm sm:text-base font-black leading-snug text-white">
+                BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
+              </p>
             </div>
           </div>
 
-          <div className="pt-2">
-            <p className="text-sm leading-relaxed text-green-100/80 md:text-base">
-              Hoàn tất điền thông tin cá nhân và xác thực mã OTP gửi về hòm thư của bạn để có quyền truy cập vào phòng thi trực tuyến.
+          <div className="pt-1">
+            <p className="text-xs sm:text-sm leading-relaxed text-blue-100/90">
+              Phần thi: <strong className="text-yellow-300 font-bold">Bí thư đoàn cơ sở – Kiến thức</strong> (Vòng loại cấp tỉnh). Dành cho 70 thí sinh xuất sắc vượt qua vòng thi cấp cơ sở theo Thông báo của Ban Thường vụ Tỉnh đoàn.
             </p>
           </div>
 
           {currentPhase && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-              <p className="text-xs font-black uppercase tracking-widest text-yellow-400">Đợt thi hiện tại</p>
-              <p className="mt-2 text-lg font-bold text-white">{currentPhase.name}</p>
-              {currentPhase.startTime && <p className="mt-1 text-sm text-green-100/80">Bắt đầu: {formatDateTime(currentPhase.startTime)}</p>}
-              {currentPhase.endTime && <p className="mt-1 text-sm text-green-100/80">Kết thúc: {formatDateTime(currentPhase.endTime)}</p>}
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-xs">
+              <p className="text-[10px] font-black uppercase tracking-widest text-yellow-300">Giai đoạn thi</p>
+              <p className="mt-1 text-base font-bold text-white">{currentPhase.name}</p>
+              {currentPhase.startTime && <p className="mt-0.5 text-xs text-blue-100/80">Bắt đầu: {formatDateTime(currentPhase.startTime)}</p>}
             </div>
           )}
 
-          <div className="hidden space-y-3.5 pt-2 lg:block">
-            <p className="text-xs font-black uppercase tracking-widest text-yellow-400">Thông tin bài thi</p>
-            <InfoCard icon={<BookOpen className="h-5 w-5 text-yellow-300" />} title="10 câu trắc nghiệm" description="Tìm hiểu kiến thức pháp luật phòng chống ma túy" />
-            <InfoCard icon={<Video className="h-5 w-5 text-yellow-300" />} title="10 câu tình huống" description="Xem video tình huống thực tế và đưa ra giải pháp" />
-            <InfoCard icon={<Scale className="h-5 w-5 text-yellow-300" />} title="1 câu dự đoán" description="Dự đoán tổng số lượt thí sinh trả lời đúng tất cả" />
+          <div className="hidden space-y-3 pt-1 lg:block">
+            <p className="text-[11px] font-black uppercase tracking-widest text-yellow-300">Quy cách bài thi</p>
+            <InfoCard
+              icon={<BookOpen className="h-5 w-5 text-yellow-300" />}
+              title={`${currentPhase?.mcQuestionCount ?? 30} câu trắc nghiệm`}
+              description="Nội dung: Công tác Đoàn, chủ trương Đảng, KT-XH và chuyển đổi số"
+            />
             {timeLimit !== null && (
-              <InfoCard icon={<Clock className="h-5 w-5 text-yellow-300" />} title={`${timeLimit} phút làm bài`} description="Thời gian làm bài thi trắc nghiệm trực tuyến" />
+              <InfoCard
+                icon={<Clock className="h-5 w-5 text-yellow-300" />}
+                title={`${timeLimit} phút làm bài`}
+                description="Đồng hồ đếm ngược trực tuyến, tự động nộp bài khi hết giờ"
+              />
             )}
+            <InfoCard
+              icon={<Scale className="h-5 w-5 text-yellow-300" />}
+              title="Tuyển chọn TOP 6"
+              description="06 thí sinh xuất sắc nhất giành vé vào Vòng Chung Kết đối kháng sân khấu"
+            />
           </div>
 
-          <div className="flex flex-wrap gap-2.5 pt-1 lg:hidden">
-            <InfoChip icon={<BookOpen className="h-3.5 w-3.5" />} label="10 câu trắc nghiệm" />
-            <InfoChip icon={<Video className="h-3.5 w-3.5" />} label="10 câu tình huống" />
-            <InfoChip icon={<Scale className="h-3.5 w-3.5" />} label="1 câu dự đoán" />
+          <div className="flex flex-wrap gap-2 pt-1 lg:hidden">
+            <InfoChip icon={<BookOpen className="h-3.5 w-3.5" />} label={`${currentPhase?.mcQuestionCount ?? 30} câu trắc nghiệm`} />
             {timeLimit !== null && <InfoChip icon={<Clock className="h-3.5 w-3.5" />} label={`${timeLimit} phút`} />}
+            <InfoChip icon={<Scale className="h-3.5 w-3.5" />} label="Top 6 vào Chung kết" />
           </div>
         </div>
 
         <div className="relative z-10 mt-8 hidden items-center justify-between border-t border-white/10 pt-4 text-xs text-green-200/50 lg:flex">
           <div className="flex items-center gap-2">
             <BrandMark size={24} showBorder={false} />
-            <span className="font-semibold text-green-100/70">Công an tỉnh Nghệ An</span>
+            <span className="font-semibold text-green-100/70">Ban Thường vụ Tỉnh đoàn Nghệ An</span>
           </div>
           <span>Bảo mật qua OTP</span>
         </div>
@@ -393,26 +464,214 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
               <div className="space-y-6">
                 <div>
                   <span className="rounded-full bg-green-100/60 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Bước 1/2</span>
-                  <h2 className="mt-2 text-xl font-black text-slate-800 md:text-2xl">Thông tin thí sinh</h2>
-                  <p className="mt-1 text-xs text-slate-500 md:text-sm">Vui lòng cung cấp chính xác thông tin để lưu trữ kết quả thi.</p>
+                  <h2 className="mt-2 text-xl font-black text-slate-800 md:text-2xl">
+                    {currentPhase?.requireWhitelist ? 'Xác nhận thông tin dự thi' : 'Thông tin thí sinh'}
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500 md:text-sm">
+                    {currentPhase?.requireWhitelist
+                      ? 'Chọn tên bạn trong danh sách 70 thí sinh đủ điều kiện và cung cấp SĐT, Email để nhận mã OTP.'
+                      : 'Vui lòng cung cấp chính xác thông tin để lưu trữ kết quả thi.'}
+                  </p>
                 </div>
 
                 <div className="space-y-4">
-                  <Field label="Họ và tên" required icon={<User className="h-4 w-4 text-slate-400" />} error={formErrors.fullName}>
-                    <input
-                      className={inputClass(formErrors.fullName)}
-                      value={form.fullName}
-                      disabled={isFormLocked}
-                      onChange={(e) => {
-                        setForm((prev) => ({ ...prev, fullName: e.target.value }));
-                        if (formErrors.fullName) setFormErrors((prev) => ({ ...prev, fullName: undefined }));
-                      }}
-                      onBlur={() => setFormErrors((prev) => ({ ...prev, fullName: validateField('fullName', form.fullName) }))}
-                      placeholder="Nguyễn Văn A"
-                    />
-                  </Field>
+                  {currentPhase?.requireWhitelist ? (
+                    <div className="relative">
+                      <Field
+                        label="Thí sinh (thuộc danh sách 70 thí sinh đủ điều kiện)"
+                        required
+                        icon={<User className="h-4 w-4 text-slate-400" />}
+                        error={formErrors.fullName}
+                      >
+                        {selectedEligible ? (
+                          <div className="rounded-2xl border-2 border-blue-500/80 bg-blue-50/70 p-4 transition-all">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center justify-center rounded-md bg-blue-700 px-2 py-0.5 text-xs font-black text-white">
+                                    SBD #{selectedEligible.orderNumber}
+                                  </span>
+                                  <span className="text-base font-extrabold text-blue-950">{selectedEligible.fullName}</span>
+                                </div>
+                                <p className="mt-1 text-xs font-semibold text-blue-800">{selectedEligible.unit}</p>
+                                <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] font-medium text-blue-700">
+                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T1: {selectedEligible.scoreWeek1}</span>
+                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T2: {selectedEligible.scoreWeek2}</span>
+                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T3: {selectedEligible.scoreWeek3}</span>
+                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T4: {selectedEligible.scoreWeek4}</span>
+                                  <span className="rounded bg-blue-700 px-2 py-0.5 font-bold text-white">
+                                    Tổng: {selectedEligible.totalScorePreliminary}đ
+                                  </span>
+                                </div>
+                              </div>
+                              {!isFormLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedEligible(null);
+                                    setForm((prev) => ({ ...prev, fullName: '', unit: '' }));
+                                  }}
+                                  className="rounded-lg bg-blue-200/70 px-2.5 py-1 text-xs font-bold text-blue-900 hover:bg-blue-300 transition-colors"
+                                  title="Chọn lại thí sinh khác"
+                                >
+                                  Đổi
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              className={inputClass(formErrors.fullName)}
+                              value={eligibleSearch}
+                              disabled={isFormLocked}
+                              onChange={(e) => {
+                                setEligibleSearch(e.target.value);
+                                setShowEligibleDropdown(true);
+                              }}
+                              onFocus={() => setShowEligibleDropdown(true)}
+                              placeholder="Gõ tìm kiếm họ tên hoặc đơn vị trong 70 thí sinh..."
+                            />
+                            {showEligibleDropdown && !isFormLocked && (
+                              <div className="absolute z-30 mt-1.5 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                                <div className="sticky top-0 bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                                  Danh sách 70 thí sinh đủ điều kiện ({filteredEligible.length} kết quả)
+                                </div>
+                                {filteredEligible.length > 0 ? (
+                                  filteredEligible.map((candidate) => (
+                                    <button
+                                      key={candidate.id}
+                                      type="button"
+                                      disabled={candidate.isRegistered}
+                                      className={`w-full px-4 py-3 text-left text-sm transition-colors border-b border-slate-100 flex items-center justify-between gap-3 ${
+                                        candidate.isRegistered
+                                          ? 'bg-slate-50 text-slate-400 cursor-not-allowed opacity-60'
+                                          : 'hover:bg-emerald-50 hover:text-emerald-950 text-slate-800'
+                                      }`}
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => handleSelectEligible(candidate)}
+                                    >
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-mono font-bold text-slate-400">#{candidate.orderNumber}</span>
+                                          <span className="font-bold">{candidate.fullName}</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-0.5">{candidate.unit}</p>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        {candidate.isRegistered ? (
+                                          <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                                            Đã đăng ký
+                                          </span>
+                                        ) : (
+                                          <span className="text-xs font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                                            {candidate.totalScorePreliminary}đ
+                                          </span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-6 text-center text-xs italic text-slate-400">
+                                    Không tìm thấy thí sinh nào phù hợp trong danh sách 70 người
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </Field>
+                    </div>
+                  ) : (
+                    <>
+                      <Field label="Họ và tên" required icon={<User className="h-4 w-4 text-slate-400" />} error={formErrors.fullName}>
+                        <input
+                          className={inputClass(formErrors.fullName)}
+                          value={form.fullName}
+                          disabled={isFormLocked}
+                          onChange={(e) => {
+                            setForm((prev) => ({ ...prev, fullName: e.target.value }));
+                            if (formErrors.fullName) setFormErrors((prev) => ({ ...prev, fullName: undefined }));
+                          }}
+                          onBlur={() => setFormErrors((prev) => ({ ...prev, fullName: validateField('fullName', form.fullName) }))}
+                          placeholder="Nguyễn Văn A"
+                        />
+                      </Field>
 
-                  <Field label="Số điện thoại" required icon={<Phone className="h-4 w-4 text-slate-400" />} error={formErrors.phone}>
+                      <div className="relative">
+                        <Field label="Đơn vị công tác" required icon={<Building2 className="h-4 w-4 text-slate-400" />} error={formErrors.unit}>
+                          <input
+                            className={inputClass(formErrors.unit)}
+                            value={form.unit}
+                            disabled={isFormLocked}
+                            onChange={(e) => {
+                              setForm((prev) => ({ ...prev, unit: e.target.value }));
+                              setUnitSearch(e.target.value);
+                              setShowUnitDropdown(true);
+                              if (e.target.value !== 'Khác') {
+                                setUnitOther('');
+                              }
+                              if (formErrors.unit) setFormErrors((prev) => ({ ...prev, unit: undefined }));
+                            }}
+                            onFocus={() => !isFormLocked && setShowUnitDropdown(true)}
+                            onBlur={() => {
+                              window.setTimeout(() => setShowUnitDropdown(false), 200);
+                              const submittedUnit = form.unit === 'Khác' ? (unitOther.trim() || 'Khác') : form.unit;
+                              setFormErrors((prev) => ({ ...prev, unit: validateField('unit', submittedUnit) }));
+                            }}
+                            placeholder="Chọn đơn vị công tác"
+                          />
+                        </Field>
+
+                        {showUnitDropdown && form.unit !== 'Khác' && !isFormLocked && (
+                          <div className="absolute z-20 mt-1.5 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+                            {filteredUnits.length > 0 ? (
+                              filteredUnits.map((unit) => (
+                                <button
+                                  key={unit.id}
+                                  type="button"
+                                  className="w-full px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-green-50 hover:text-green-800"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setForm((prev) => ({ ...prev, unit: unit.name }));
+                                    setUnitSearch('');
+                                    setShowUnitDropdown(false);
+                                  }}
+                                >
+                                  {unit.name}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-4 py-3 text-xs italic text-slate-400">Không tìm thấy kết quả phù hợp</div>
+                            )}
+                            <button
+                              type="button"
+                              className="w-full rounded-b-2xl border-t border-slate-100 px-4 py-3.5 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-amber-50 hover:text-amber-800"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, unit: 'Khác' }));
+                                setShowUnitDropdown(false);
+                              }}
+                            >
+                              Khác (Nhập đơn vị mới)
+                            </button>
+                          </div>
+                        )}
+
+                        {form.unit === 'Khác' && (
+                          <input
+                            className={`${inputClass(undefined)} mt-2.5`}
+                            value={unitOther}
+                            disabled={isFormLocked}
+                            onChange={(e) => setUnitOther(e.target.value)}
+                            placeholder="Nhập tên đơn vị công tác cụ thể"
+                          />
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  <Field label="Số điện thoại cá nhân" required icon={<Phone className="h-4 w-4 text-slate-400" />} error={formErrors.phone}>
                     <input
                       className={inputClass(formErrors.phone)}
                       value={form.phone}
@@ -425,80 +684,6 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                       placeholder="0912 345 678"
                     />
                   </Field>
-
-                  <div className="relative">
-                    <Field label="Đơn vị công tác" required icon={<Building2 className="h-4 w-4 text-slate-400" />} error={formErrors.unit}>
-                      <input
-                        className={inputClass(formErrors.unit)}
-                        value={form.unit}
-                        disabled={isFormLocked}
-                        onChange={(e) => {
-                          setForm((prev) => ({ ...prev, unit: e.target.value }));
-                          setUnitSearch(e.target.value);
-                          setShowUnitDropdown(true);
-                          if (e.target.value !== 'Khác') {
-                            setUnitOther('');
-                          }
-                          if (formErrors.unit) setFormErrors((prev) => ({ ...prev, unit: undefined }));
-                        }}
-                        onFocus={() => !isFormLocked && setShowUnitDropdown(true)}
-                        onBlur={() => {
-                          window.setTimeout(() => setShowUnitDropdown(false), 200);
-                          const submittedUnit = form.unit === 'Khác' ? (unitOther.trim() || 'Khác') : form.unit;
-                          setFormErrors((prev) => ({ ...prev, unit: validateField('unit', submittedUnit) }));
-                        }}
-                        placeholder="Chọn đơn vị công tác"
-                      />
-                      <p className="mt-1.5 text-[11px] leading-normal text-slate-400">
-                        * Nếu không tìm thấy đơn vị của mình, vui lòng chọn <strong>"Khác"</strong> ở cuối danh sách để tự nhập.
-                      </p>
-                    </Field>
-
-                    {showUnitDropdown && form.unit !== 'Khác' && !isFormLocked && (
-                      <div className="absolute z-20 mt-1.5 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
-                        {filteredUnits.length > 0 ? (
-                          filteredUnits.map((unit) => (
-                            <button
-                              key={unit.id}
-                              type="button"
-                              className="w-full px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-green-50 hover:text-green-800"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => {
-                                setForm((prev) => ({ ...prev, unit: unit.name }));
-                                setUnitSearch('');
-                                setShowUnitDropdown(false);
-                              }}
-                            >
-                              {unit.name}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-4 py-3 text-xs italic text-slate-400">Không tìm thấy kết quả phù hợp</div>
-                        )}
-                        <button
-                          type="button"
-                          className="w-full rounded-b-2xl border-t border-slate-100 px-4 py-3.5 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-amber-50 hover:text-amber-800"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setForm((prev) => ({ ...prev, unit: 'Khác' }));
-                            setShowUnitDropdown(false);
-                          }}
-                        >
-                          Khác (Nhập đơn vị mới)
-                        </button>
-                      </div>
-                    )}
-
-                    {form.unit === 'Khác' && (
-                      <input
-                        className={`${inputClass(undefined)} mt-2.5`}
-                        value={unitOther}
-                        disabled={isFormLocked}
-                        onChange={(e) => setUnitOther(e.target.value)}
-                        placeholder="Nhập tên đơn vị công tác cụ thể"
-                      />
-                    )}
-                  </div>
 
                   <Field label="Email xác thực" required icon={<Mail className="h-4 w-4 text-slate-400" />} error={formErrors.email}>
                     <input
@@ -538,7 +723,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                     type="button"
                     onClick={requestOtp}
                     disabled={requestingOtp || (captchaEnabled && !captchaToken)}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-3.5 font-bold text-white shadow-lg shadow-green-700/25 transition-all active:scale-[0.98] hover:bg-green-800 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 font-bold text-white shadow-lg shadow-blue-600/25 transition-all active:scale-[0.98] hover:bg-blue-700 disabled:opacity-50"
                   >
                     {requestingOtp ? (
                       <>
@@ -610,7 +795,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                       type="button"
                       onClick={requestOtp}
                       disabled={requestingOtp || resendCountdown > 0 || isProgressState || (captchaEnabled && !captchaToken)}
-                      className="text-xs font-semibold text-green-700 transition-colors hover:text-green-800 disabled:text-slate-400 disabled:opacity-75"
+                      className="text-xs font-semibold text-blue-700 transition-colors hover:text-blue-800 disabled:text-slate-400 disabled:opacity-75"
                     >
                       {requestingOtp
                         ? 'Đang gửi...'
@@ -632,7 +817,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                       type="button"
                       onClick={handleVerifyAndStartExam}
                       disabled={otp.length !== 6 || verifyingOtp || submitting || isProgressState}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-3.5 font-bold text-white shadow-lg shadow-green-700/25 transition-all active:scale-[0.98] hover:bg-green-800 disabled:opacity-50"
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 font-bold text-white shadow-lg shadow-blue-600/25 transition-all active:scale-[0.98] hover:bg-blue-700 disabled:opacity-50"
                     >
                       {verifyingOtp || submitting ? (
                         <>
@@ -735,6 +920,6 @@ function inputClass(error?: string) {
   return `w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none transition-all disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 md:text-base ${
     error
       ? 'border-red-400 focus:border-red-500 focus:shadow-[0_0_0_4px_rgba(239,68,68,0.1)]'
-      : 'border-slate-200 focus:border-green-600 focus:shadow-[0_0_0_4px_rgba(21,128,61,0.1)]'
+      : 'border-slate-200 focus:border-blue-600 focus:shadow-[0_0_0_4px_rgba(37,99,235,0.15)]'
   }`;
 }

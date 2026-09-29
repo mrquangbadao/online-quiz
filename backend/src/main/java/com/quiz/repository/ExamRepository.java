@@ -21,6 +21,9 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
 
   boolean existsByContestantIdAndStatusIn(Long contestantId, List<ExamStatus> statuses);
 
+  @Query("SELECT e FROM Exam e JOIN FETCH e.contestant WHERE e.contestant.id IN :contestantIds")
+  List<Exam> findByContestantIdIn(@Param("contestantIds") List<Long> contestantIds);
+
   @Query("SELECT e FROM Exam e JOIN FETCH e.contestant " +
           "WHERE e.status = 'SUBMITTED' " +
           "ORDER BY e.totalScore DESC, e.durationSeconds ASC")
@@ -32,6 +35,8 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
   List<Exam> findLeaderboardByPhase(@Param("phaseId") Long phaseId);
 
   long countByStatus(ExamStatus status);
+
+  List<Exam> findByPhaseIdAndStatus(Long phaseId, ExamStatus status);
 
   List<Exam> findByStatusAndStartTimeBefore(ExamStatus status, LocalDateTime cutoff);
 

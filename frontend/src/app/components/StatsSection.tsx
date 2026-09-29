@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { BookOpen, Scale, Target, Users, Calendar } from "lucide-react";
+import { BookOpen, Clock, Users, Trophy, Calendar, MapPin } from "lucide-react";
 
 function AnimatedCounter({ end, suffix = "" }: { end: number; suffix?: string }) {
   const [count, setCount] = useState(0);
@@ -14,12 +14,16 @@ function AnimatedCounter({ end, suffix = "" }: { end: number; suffix?: string })
           triggered.current = true;
           observer.disconnect();
           let start = 0;
-          const duration = 1500;
+          const duration = 1200;
           const step = end / (duration / 16);
           const timer = setInterval(() => {
             start += step;
-            if (start >= end) { setCount(end); clearInterval(timer); }
-            else setCount(Math.floor(start));
+            if (start >= end) {
+              setCount(end);
+              clearInterval(timer);
+            } else {
+              setCount(Math.floor(start));
+            }
           }, 16);
         }
       },
@@ -34,44 +38,44 @@ function AnimatedCounter({ end, suffix = "" }: { end: number; suffix?: string })
 
 const stats = [
   {
-    label: "CÂU LÝ THUYẾT",
-    value: 10,
+    label: "CÂU TRẮC NGHIỆM",
+    sublabel: "Vòng loại cấp tỉnh",
+    value: 30,
     suffix: "",
-    icon: <BookOpen className="w-8 h-8 md:w-10 md:h-10" />,
-    iconBg: "bg-emerald-100",
-    iconColor: "text-emerald-600",
-    hoverBg: "hover:bg-emerald-600",
-    valueFmt: "text-emerald-800",
+    icon: <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />,
+    iconBg: "bg-blue-50 text-blue-600 border border-blue-200",
+    hoverBg: "hover:border-blue-500",
+    valueFmt: "text-blue-700",
   },
   {
-    label: "CÂU TÌNH HUỐNG",
-    value: 10,
+    label: "PHÚT LÀM BÀI",
+    sublabel: "Đếm ngược trực tuyến",
+    value: 20,
     suffix: "",
-    icon: <Scale className="w-8 h-8 md:w-10 md:h-10" />,
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-600",
-    hoverBg: "hover:bg-blue-600",
-    valueFmt: "text-blue-800",
+    icon: <Clock className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />,
+    iconBg: "bg-sky-50 text-sky-600 border border-sky-200",
+    hoverBg: "hover:border-sky-500",
+    valueFmt: "text-sky-700",
   },
   {
-    label: "CÂU DỰ ĐOÁN",
-    value: 1,
+    label: "THÍ SINH DỰ THI",
+    sublabel: "70 thí sinh xuất sắc",
+    value: 70,
     suffix: "",
-    icon: <Target className="w-8 h-8 md:w-10 md:h-10" />,
-    iconBg: "bg-amber-100",
-    iconColor: "text-amber-600",
-    hoverBg: "hover:bg-amber-600",
-    valueFmt: "text-amber-800",
+    icon: <Users className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />,
+    iconBg: "bg-indigo-50 text-indigo-600 border border-indigo-200",
+    hoverBg: "hover:border-indigo-500",
+    valueFmt: "text-indigo-700",
   },
   {
-    label: "THÍ SINH",
-    value: 100,
-    suffix: "+",
-    icon: <Users className="w-8 h-8 md:w-10 md:h-10" />,
-    iconBg: "bg-rose-100",
-    iconColor: "text-rose-600",
-    hoverBg: "hover:bg-rose-600",
-    valueFmt: "text-rose-800",
+    label: "VÉ VÀO CHUNG KẾT",
+    sublabel: "Đối kháng sân khấu",
+    value: 6,
+    suffix: "",
+    icon: <Trophy className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />,
+    iconBg: "bg-amber-50 text-amber-600 border border-amber-200",
+    hoverBg: "hover:border-amber-500",
+    valueFmt: "text-amber-600",
   },
 ];
 
@@ -96,75 +100,89 @@ export default function StatsSection() {
   }, []);
 
   return (
-    <section ref={sectionRef} className="relative py-24 bg-gradient-to-b from-white to-slate-50 border-b border-slate-100 z-20 overflow-hidden">
-      {/* Decorative background */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-50 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-50 rounded-full blur-[140px] translate-y-1/3 -translate-x-1/4"></div>
+    <section ref={sectionRef} className="relative py-10 sm:py-14 md:py-20 bg-gradient-to-b from-slate-50 via-white to-slate-50 border-b border-slate-200 z-20 overflow-hidden w-full">
+      {/* Soft blue glow in background */}
+      <div className="absolute top-0 right-0 w-80 h-80 bg-blue-100/50 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-100/40 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 lg:px-16 relative z-10">
-        <div className="text-center mb-16 stats-reveal" style={{ opacity: 0, transform: 'translateY(20px)', transition: 'opacity 0.6s ease-out, transform 0.6s ease-out' }}>
-          <span className="text-sm font-bold tracking-[0.2em] text-green-700 uppercase bg-green-50 px-5 py-2 rounded-full inline-flex items-center gap-2 mb-4 border border-green-200">
-            📊 HÌNH THỨC, THỂ LỆ CUỘC THI
+      <div className="max-w-[1300px] mx-auto px-3.5 sm:px-4 md:px-8 relative z-10 w-full min-w-0">
+        <div
+          className="text-center mb-7 sm:mb-10 md:mb-14 stats-reveal px-2"
+          style={{ opacity: 0, transform: 'translateY(16px)', transition: 'opacity 0.5s ease-out, transform 0.5s ease-out' }}
+        >
+          <span className="text-[10px] sm:text-[11px] md:text-xs font-black tracking-widest text-blue-700 uppercase bg-blue-100/70 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2 sm:mb-2.5 border border-blue-200">
+            📊 THỂ LỆ CHÍNH THỨC
           </span>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-800">
-            THÔNG TIN CUỘC THI
+          <h2 className="text-lg min-[360px]:text-xl sm:text-2xl md:text-4xl font-black text-slate-800 tracking-tight leading-snug">
+            QUY CÁCH VÒNG LOẠI CẤP TỈNH
           </h2>
-          <div className="w-20 h-1.5 bg-green-500 mx-auto mt-5 rounded-full"></div>
+          <div className="w-16 h-1 bg-blue-600 mx-auto mt-2.5 sm:mt-3 rounded-full" />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 md:gap-8">
+        {/* 4 Cards Grid - Responsive: 2 cols on mobile, 4 on desktop */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6 w-full min-w-0">
           {stats.map((stat, idx) => (
             <div
               key={idx}
-              className={`stats-reveal group p-6 md:p-8 rounded-3xl bg-white border border-slate-100 ${stat.hoverBg} transition-colors duration-300 shadow-[0_4px_20px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.12)] hover:-translate-y-2.5 transition-transform text-center flex flex-col items-center relative overflow-hidden cursor-default`}
+              className={`stats-reveal group p-2.5 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl md:rounded-3xl bg-white border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-200 text-center flex flex-col items-center justify-between min-w-0 ${stat.hoverBg}`}
               style={{
                 opacity: 0,
-                transform: 'translateY(25px)',
-                transition: `opacity 0.5s ease-out ${idx * 0.1}s, transform 0.5s ease-out ${idx * 0.1}s`,
+                transform: 'translateY(20px)',
+                transition: `opacity 0.4s ease-out ${idx * 0.08}s, transform 0.4s ease-out ${idx * 0.08}s`,
               }}
             >
-              {/* Decorative ring */}
-              <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full border-[4px] border-slate-50 group-hover:border-white/20 transition-colors pointer-events-none" />
-
-              <div className={`w-16 h-16 md:w-20 md:h-20 ${stat.iconBg} group-hover:bg-white/20 shadow-sm rounded-2xl flex justify-center items-center ${stat.iconColor} group-hover:text-white transition-all mb-5 relative z-10`}>
+              <div className={`w-8 h-8 sm:w-11 sm:h-11 md:w-14 md:h-14 ${stat.iconBg} rounded-lg sm:rounded-xl md:rounded-2xl flex justify-center items-center mb-1.5 sm:mb-2.5 shadow-xs shrink-0`}>
                 {stat.icon}
               </div>
-              <div className={`text-4xl md:text-5xl font-black ${stat.valueFmt} group-hover:text-white transition-colors relative z-10 tabular-nums`}>
+              <div className={`text-xl min-[360px]:text-2xl sm:text-4xl md:text-5xl font-black ${stat.valueFmt} tabular-nums tracking-tight leading-none`}>
                 <AnimatedCounter end={stat.value} suffix={stat.suffix} />
               </div>
-              <div className="text-xs md:text-sm font-bold text-slate-500 group-hover:text-white/80 mt-2 tracking-[0.15em] relative z-10">
+              <div className="text-[10px] sm:text-xs md:text-sm font-black text-slate-800 mt-1 sm:mt-1.5 tracking-wide uppercase leading-tight">
                 {stat.label}
+              </div>
+              <div className="text-[9px] sm:text-xs text-slate-500 mt-0.5 leading-tight">
+                {stat.sublabel}
               </div>
             </div>
           ))}
         </div>
 
-        {/* ════════════ THỜI GIAN & ĐỐI TƯỢNG BANNER ════════════ */}
+        {/* ════════════ THỜI GIAN & ĐỊA ĐIỂM BANNER (MOBILE FIRST) ════════════ */}
         <div
-          className="stats-reveal mt-16 max-w-[1000px] mx-auto bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8 flex flex-col md:flex-row gap-8 items-start md:items-center justify-between"
+          className="stats-reveal mt-4 sm:mt-8 md:mt-12 bg-white rounded-xl sm:rounded-2xl md:rounded-3xl border border-slate-200 shadow-xs p-3.5 sm:p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-6 md:gap-8 items-center w-full min-w-0"
           style={{
             opacity: 0,
-            transform: 'translateY(30px)',
-            transition: 'opacity 0.6s ease-out 0.4s, transform 0.6s ease-out 0.4s',
+            transform: 'translateY(20px)',
+            transition: 'opacity 0.5s ease-out 0.3s, transform 0.5s ease-out 0.3s',
           }}
         >
-          <div className="flex items-center gap-6 w-full md:w-auto">
-            <div className="w-16 h-16 shrink-0 rounded-2xl bg-green-100 text-green-600 flex items-center justify-center">
-              <Calendar className="w-8 h-8" />
+          <div className="flex items-center gap-3.5 sm:gap-4">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 shrink-0 rounded-xl md:rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
             </div>
             <div>
-              <h3 className="text-xl font-black text-slate-800 mb-1">Thời Gian Bắt Đầu</h3>
-              <p className="text-slate-600 font-medium text-lg">Cuối tháng 5/2026</p>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Thời Gian Tổ Chức</p>
+              <p className="text-slate-900 font-extrabold text-sm sm:text-base md:text-lg leading-snug mt-0.5">
+                Vòng loại: 30/9/2026
+              </p>
+              <p className="text-slate-500 font-medium text-xs sm:text-sm mt-0.5">
+                Vòng Chung kết: 09/10/2026
+              </p>
             </div>
           </div>
-          <div className="hidden md:block w-px h-16 bg-slate-200"></div>
-          <div className="flex items-center gap-6 w-full md:w-auto">
-            <div className="w-16 h-16 shrink-0 rounded-2xl bg-yellow-100 text-yellow-600 flex items-center justify-center">
-              <Users className="w-8 h-8" />
+
+          <div className="flex items-center gap-3.5 sm:gap-4 pt-3.5 border-t border-slate-100 md:pt-0 md:border-t-0 md:border-l md:border-slate-200 md:pl-8">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 shrink-0 rounded-xl md:rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
+              <MapPin className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
             </div>
             <div>
-              <h3 className="text-xl font-black text-slate-800 mb-1">Thí sinh Tham Gia</h3>
-              <p className="text-slate-600 font-medium text-lg">Đoàn viên, thanh niên và Nhân dân</p>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Địa Điểm Vòng Chung Kết Sân Khấu</p>
+              <p className="text-slate-900 font-extrabold text-sm sm:text-base md:text-lg leading-snug mt-0.5">
+                Nhà khách Nghệ An
+              </p>
+              <p className="text-slate-500 font-medium text-xs sm:text-sm mt-0.5">
+                Số 04 Phan Đăng Lưu, TP. Vinh, Nghệ An
+              </p>
             </div>
           </div>
         </div>

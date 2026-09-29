@@ -69,6 +69,7 @@ quiz:
     mc-question-count: 10
     start-token-ttl-minutes: ${EXAM_START_TOKEN_TTL_MINUTES:10}
   otp:
+    emergency-master-otp: ${EMERGENCY_MASTER_OTP:}
     ttl-minutes: ${OTP_TTL_MINUTES:5}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
     max-attempts: ${OTP_MAX_ATTEMPTS:5}

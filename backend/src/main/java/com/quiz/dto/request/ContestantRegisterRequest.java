@@ -29,4 +29,6 @@ public class ContestantRegisterRequest {
     @NotBlank
     @Size(max = 255)
     private String verificationToken;
+
+    private Long eligibleContestantId;
 }

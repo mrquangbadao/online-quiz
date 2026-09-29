@@ -45,5 +45,27 @@ public class ContestPhase {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Builder.Default
+    @Column(name = "phase_type", nullable = false, length = 50)
+    private String phaseType = "STANDARD";
 
+    @Builder.Default
+    @Column(name = "mc_question_count", nullable = false)
+    private Integer mcQuestionCount = 10;
+
+    @Builder.Default
+    @Column(name = "time_limit_minutes", nullable = false)
+    private Integer timeLimitMinutes = 15;
+
+    @Builder.Default
+    @Column(name = "has_scenarios", nullable = false)
+    private Boolean hasScenarios = true;
+
+    @Builder.Default
+    @Column(name = "has_prediction", nullable = false)
+    private Boolean hasPrediction = true;
+
+    @Builder.Default
+    @Column(name = "require_whitelist", nullable = false)
+    private Boolean requireWhitelist = false;
 }

@@ -38,7 +38,7 @@ export default function AdminExamDetail() {
   const scAnswers = detail?.answers.filter((a) => a.questionType === 'SC') ?? [];
  
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 font-sans">
       <AdminSidebar active="dashboard" />
       <main className="flex-1 p-6 lg:p-8 space-y-6 min-w-0">
         {/* Header */}

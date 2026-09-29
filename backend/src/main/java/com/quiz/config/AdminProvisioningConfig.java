@@ -27,14 +27,17 @@ public class AdminProvisioningConfig {
             if (provisionPassword != null && !provisionPassword.trim().isEmpty()) {
                 log.info("Provisioning admin account from environment configuration...");
                 User admin = userRepository.findByUsername("admin").orElse(null);
-                if (admin != null) {
-                    admin.setPassword(passwordEncoder.encode(provisionPassword));
-                    admin.setIsActive(true);
-                    userRepository.save(admin);
-                    log.info("Admin account 'admin' has been successfully provisioned and activated.");
-                } else {
-                    log.warn("Admin account 'admin' not found in database. Cannot provision.");
+                if (admin == null) {
+                    admin = User.builder()
+                            .username("admin")
+                            .fullName("Ban Tổ chức Tỉnh đoàn")
+                            .role("ADMIN")
+                            .build();
                 }
+                admin.setPassword(passwordEncoder.encode(provisionPassword));
+                admin.setIsActive(true);
+                userRepository.save(admin);
+                log.info("Admin account 'admin' has been successfully provisioned and activated.");
             }
         };
     }

@@ -105,7 +105,7 @@ export default function AdminUnits() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 font-sans">
       <AdminSidebar active="units" />
       <div className="flex-1 p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">

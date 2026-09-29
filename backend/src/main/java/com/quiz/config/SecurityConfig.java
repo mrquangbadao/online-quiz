@@ -41,11 +41,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/contestant/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/exams/start").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/exams/*/submit").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/exams/*/submit", "/api/exams/*/draft-answer").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/leaderboard").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/exams/active-count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/exams/phase/current").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/units").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/eligible-contestants").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/settings/slogan", "/api/settings/exam-time-limit").permitAll()
                         .requestMatchers("/api/settings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/phases/**").permitAll()
@@ -60,7 +61,10 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         String allowedOriginsEnv = System.getenv("ALLOWED_ORIGINS");
         if (allowedOriginsEnv != null && !allowedOriginsEnv.isBlank()) {
-            config.setAllowedOrigins(Arrays.asList(allowedOriginsEnv.split(",")));
+            config.setAllowedOriginPatterns(Arrays.stream(allowedOriginsEnv.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList());
         } else {
             throw new IllegalArgumentException("ALLOWED_ORIGINS environment variable is required for CORS");
         }

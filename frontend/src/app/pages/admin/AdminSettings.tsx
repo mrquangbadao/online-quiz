@@ -59,7 +59,7 @@ export default function AdminSettings() {
   };
  
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 font-sans">
       <AdminSidebar active="settings" />
       <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-3xl">
  

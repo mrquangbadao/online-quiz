@@ -14,6 +14,7 @@ import AdminPhaseLeaderboard from "./pages/admin/AdminPhaseLeaderboard";
 import AdminExamDetail from "./pages/admin/AdminExamDetail";
 import AdminChangePassword from "./pages/admin/AdminChangePassword";
 import AdminAccounts from "./pages/admin/AdminAccounts";
+import AdminEligibleContestants from "./pages/admin/AdminEligibleContestants";
 import { useAuthStore } from "../store/authStore";
 import ErrorBoundary from "./components/ErrorBoundary";
 import MarqueeBanner from "./components/MarqueeBanner";
@@ -46,7 +47,7 @@ function RootLayout() {
     >
       <ErrorBoundary>
         <ToastContainer />
-        <div className="min-h-screen bg-white flex flex-col pt-12" style={{ fontFamily: '"Be Vietnam Pro", sans-serif' }}>
+        <div className="min-h-screen bg-white flex flex-col pt-12 overflow-x-hidden w-full" style={{ fontFamily: '"Be Vietnam Pro", sans-serif' }}>
           <MarqueeBanner />
           <Outlet />
         </div>
@@ -64,10 +65,10 @@ function AdminGuard() {
  
   if (expired) {
     logout(); // clear stale auth state
-    return <Navigate to="/admin/login?expired=1" replace />;
+    return <Navigate to="/admin/dang-nhap?expired=1" replace />;
   }
  
-  if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/admin/dang-nhap" replace />;
   return (
     <>
       <ToastContainer />
@@ -82,28 +83,49 @@ export const router = createBrowserRouter([
     Component: RootLayout,
     children: [
       { index: true, Component: Landing },
-      { path: "quiz", Component: Quiz },
-      { path: "result", Component: Result },
+      { path: "thi", Component: Quiz },
+      { path: "quiz", Component: () => <Navigate to="/thi" replace /> },
+      { path: "ket-qua", Component: Result },
+      { path: "result", Component: () => <Navigate to="/ket-qua" replace /> },
  
       { path: "*", Component: NotFound },
     ],
   },
   {
-    path: "/admin/login",
+    path: "/admin/dang-nhap",
     Component: AdminLogin,
+  },
+  {
+    path: "/admin/login",
+    Component: () => <Navigate to="/admin/dang-nhap" replace />,
   },
   {
     path: "/admin",
     Component: AdminGuard,
     children: [
-      { index: true, Component: () => <Navigate to="dashboard" replace /> },
-      { path: "dashboard", Component: AdminDashboard },
-      { path: "questions", Component: AdminQuestions },
-      { path: "units", Component: AdminUnits },
-      { path: "settings", Component: AdminSettings },
-      { path: "change-password", Component: AdminChangePassword },
-      { path: "accounts", Component: AdminAccounts },
+      { index: true, Component: () => <Navigate to="bang-diem" replace /> },
+      // Vietnamese primary slugs
+      { path: "bang-diem", Component: AdminDashboard },
+      { path: "thi-sinh", Component: AdminEligibleContestants },
+      { path: "cau-hoi", Component: AdminQuestions },
+      { path: "don-vi", Component: AdminUnits },
+      { path: "cai-dat", Component: AdminSettings },
+      { path: "doi-mat-khau", Component: AdminChangePassword },
+      { path: "tai-khoan", Component: AdminAccounts },
+      { path: "dot-thi/:phaseId/vinh-danh", Component: AdminPhaseLeaderboard },
+      { path: "bai-thi/:examId", Component: AdminExamDetail },
+
+      // Backward compatible aliases
+      { path: "dashboard", Component: () => <Navigate to="/admin/bang-diem" replace /> },
+      { path: "tong-quan", Component: () => <Navigate to="/admin/bang-diem" replace /> },
+      { path: "eligible-contestants", Component: () => <Navigate to="/admin/thi-sinh" replace /> },
+      { path: "questions", Component: () => <Navigate to="/admin/cau-hoi" replace /> },
+      { path: "units", Component: () => <Navigate to="/admin/don-vi" replace /> },
+      { path: "settings", Component: () => <Navigate to="/admin/cai-dat" replace /> },
+      { path: "change-password", Component: () => <Navigate to="/admin/doi-mat-khau" replace /> },
+      { path: "accounts", Component: () => <Navigate to="/admin/tai-khoan" replace /> },
       { path: "phase/:phaseId/leaderboard", Component: AdminPhaseLeaderboard },
+      { path: "dot-thi/:phaseId/xep-hang", Component: AdminPhaseLeaderboard },
       { path: "exam/:examId", Component: AdminExamDetail },
       { path: "*", Component: NotFound },
     ],

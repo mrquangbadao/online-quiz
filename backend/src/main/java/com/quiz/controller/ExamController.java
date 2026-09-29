@@ -73,6 +73,14 @@ public class ExamController {
     }
   }
 
+  @PostMapping("/{examId}/draft-answer")
+  public ResponseEntity<ApiResponse<Void>> saveDraftAnswer(
+          @PathVariable Long examId,
+          @Valid @RequestBody com.quiz.dto.request.ExamDraftAnswerRequest request) {
+    examService.saveDraftAnswer(examId, request);
+    return ResponseEntity.ok(ApiResponse.ok(null));
+  }
+
   @GetMapping("/active-count")
   public ResponseEntity<Map<String, Long>> getActiveCount() {
     return ResponseEntity.ok(Map.of("count", examService.getActiveExamCount()));

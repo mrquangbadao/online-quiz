@@ -55,6 +55,10 @@ export const adminApi = {
   stopPhase: (id: number) =>
     axiosClient.put<{ data: ContestPhase }>(`/admin/phases/${id}/stop`),
   deletePhase: (id: number) => axiosClient.delete(`/admin/phases/${id}`),
+  reactivatePhase: (id: number) =>
+    axiosClient.put<{ data: ContestPhase }>(`/admin/phases/${id}/reactivate`),
+
+  resetExam: (examId: number) => axiosClient.delete(`/admin/exams/${examId}`),
 
   getUnitStats: (phaseId?: number) =>
     axiosClient.get<{ data: UnitStat[] }>('/admin/stats/by-unit', {
@@ -67,7 +71,31 @@ export const adminApi = {
   deleteUser: (id: number) => axiosClient.delete(`/admin/users/${id}`),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     axiosClient.put('/admin/users/change-password', data),
+
+  generateSupportOtp: (email: string) =>
+    axiosClient.post<{ data: AdminSupportOtpData }>('/admin/otp/generate', { email }),
+  getOtpStatus: (email: string) =>
+    axiosClient.get<{ data: AdminOtpStatusData }>('/admin/otp/status', { params: { email } }),
 };
+
+export interface AdminSupportOtpData {
+  email: string;
+  otpCode: string;
+  expiresAt: string;
+  expiresInSeconds: number;
+  message: string;
+}
+
+export interface AdminOtpStatusData {
+  email: string;
+  hasActiveOtp: boolean;
+  used: boolean;
+  expired: boolean;
+  createdAt: string | null;
+  expiresAt: string | null;
+  attempts: number;
+  maxAttempts: number;
+}
 
 export interface ContestPhase {
   id: number;
@@ -76,6 +104,12 @@ export interface ContestPhase {
   startTime: string;
   endTime: string | null;
   createdAt: string;
+  phaseType?: string;
+  mcQuestionCount?: number;
+  timeLimitMinutes?: number;
+  hasScenarios?: boolean;
+  hasPrediction?: boolean;
+  requireWhitelist?: boolean;
 }
 
 export interface UnitStat {

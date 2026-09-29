@@ -5,11 +5,13 @@ import com.quiz.dto.response.ContestantResponse;
 import com.quiz.entity.ContestPhase;
 import com.quiz.entity.Contestant;
 import com.quiz.entity.EmailVerificationSession;
+import com.quiz.entity.EligibleContestant;
 import com.quiz.enums.PhaseStatus;
 import com.quiz.exception.BusinessException;
 import com.quiz.repository.ContestPhaseRepository;
 import com.quiz.repository.ContestantRepository;
 import com.quiz.service.ContestantService;
+import com.quiz.service.EligibleContestantService;
 import com.quiz.service.EmailOtpService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,21 +20,28 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.quiz.entity.Exam;
+import com.quiz.enums.ExamStatus;
+import com.quiz.repository.ExamRepository;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class ContestantServiceImpl implements ContestantService {
 
   private static final String DUPLICATE_REGISTRATION_MESSAGE =
-          "The email address or phone number has already participated in the current phase.";
+          "Email hoặc số điện thoại này đã hoàn thành bài thi trong đợt thi hiện tại.";
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
   private final ContestantRepository contestantRepository;
+  private final ExamRepository examRepository;
   private final ContestPhaseRepository contestPhaseRepository;
   private final EmailOtpService emailOtpService;
+  private final EligibleContestantService eligibleContestantService;
   private final PasswordEncoder passwordEncoder;
 
   @Value("${quiz.exam.start-token-ttl-minutes:10}")
@@ -43,7 +52,18 @@ public class ContestantServiceImpl implements ContestantService {
   public ContestantResponse register(ContestantRegisterRequest request) {
     ContestPhase activePhase = contestPhaseRepository.findFirstByStatus(PhaseStatus.ACTIVE)
             .orElseThrow(() -> new BusinessException("NO_ACTIVE_PHASE",
-                    "The contest phase is not active at the moment."));
+                    "Hiện tại không có đợt thi nào đang mở."));
+
+    // If the phase enforces a whitelist (e.g. Provincial Qualifier for 70 finalists),
+    // verify the contestant is on the eligible list and not yet registered.
+    EligibleContestant eligibleContestant = null;
+    if (Boolean.TRUE.equals(activePhase.getRequireWhitelist())) {
+      eligibleContestant = eligibleContestantService.validateAndMatchContestant(
+              request.getEligibleContestantId(),
+              request.getFullName(),
+              request.getUnit()
+      );
+    }
 
     String normalizedEmail = emailOtpService.normalizeEmailValue(request.getEmail());
     EmailVerificationSession verificationSession = emailOtpService.requireValidVerificationSession(
@@ -54,39 +74,76 @@ public class ContestantServiceImpl implements ContestantService {
 
     if (!normalizedEmail.equals(verificationSession.getNormalizedEmail())) {
       throw new BusinessException("VERIFICATION_TOKEN_INVALID",
-              "The verification token is invalid or has expired.");
+              "Mã xác thực không hợp lệ hoặc đã hết hạn.");
     }
 
-    if (contestantRepository.existsByNormalizedEmailAndPhaseId(normalizedEmail, activePhase.getId())) {
-      throwDuplicateRegistration();
+    // Check if contestant already exists for this email or phone in the active phase
+    Optional<Contestant> byEmail = contestantRepository.findFirstByNormalizedEmailAndPhaseId(normalizedEmail, activePhase.getId());
+    Optional<Contestant> byPhone = contestantRepository.findFirstByPhoneAndPhaseId(request.getPhone(), activePhase.getId());
+
+    if (byEmail.isPresent() && byPhone.isPresent() && !byEmail.get().getId().equals(byPhone.get().getId())) {
+      throw new BusinessException("DUPLICATE_REGISTRATION",
+              "Email và số điện thoại đang thuộc về hai hồ sơ thí sinh khác nhau trong đợt thi.");
     }
 
-    if (contestantRepository.existsByPhoneAndPhaseId(request.getPhone(), activePhase.getId())) {
-      throwDuplicateRegistration();
+    Contestant existingContestant = byEmail.orElseGet(() -> byPhone.orElse(null));
+
+    if (existingContestant != null) {
+      List<Exam> existingExams = examRepository.findByContestantIdIn(List.of(existingContestant.getId()));
+      boolean hasSubmitted = existingExams.stream().anyMatch(e -> e.getStatus() == ExamStatus.SUBMITTED);
+      if (hasSubmitted) {
+        throwDuplicateRegistration();
+      }
+      boolean hasInProgress = existingExams.stream().anyMatch(e -> e.getStatus() == ExamStatus.IN_PROGRESS);
+      if (hasInProgress) {
+        throw new BusinessException("ALREADY_PARTICIPATED",
+                "Thí sinh đang có bài thi đang diễn ra trong đợt thi hiện tại.");
+      }
     }
 
     String startExamToken = generateStartExamToken();
     LocalDateTime now = LocalDateTime.now();
 
-    Contestant contestant = Contestant.builder()
-            .fullName(request.getFullName().trim())
-            .unit(request.getUnit().trim())
-            .phone(request.getPhone())
-            .email(request.getEmail().trim())
-            .normalizedEmail(normalizedEmail)
-            // The start token is issued only after OTP verification and is consumed
-            // by the next /exams/start call to prevent contestantId-only bypasses.
-            .startExamTokenHash(passwordEncoder.encode(startExamToken))
-            .startExamTokenExpiresAt(now.plusMinutes(startExamTokenTtlMinutes))
-            .startExamTokenConsumedAt(null)
-            .phase(activePhase)
-            .build();
+    Contestant contestant;
+    if (existingContestant != null) {
+      // Reuse existing contestant record if previous attempt did not start an exam or was reset
+      contestant = existingContestant;
+      contestant.setFullName(request.getFullName().trim());
+      contestant.setUnit(request.getUnit().trim());
+      contestant.setPhone(request.getPhone());
+      contestant.setEmail(request.getEmail().trim());
+      contestant.setNormalizedEmail(normalizedEmail);
+      contestant.setStartExamTokenHash(passwordEncoder.encode(startExamToken));
+      contestant.setStartExamTokenExpiresAt(now.plusMinutes(startExamTokenTtlMinutes));
+      contestant.setStartExamTokenConsumedAt(null);
+    } else {
+      contestant = Contestant.builder()
+              .fullName(request.getFullName().trim())
+              .unit(request.getUnit().trim())
+              .phone(request.getPhone())
+              .email(request.getEmail().trim())
+              .normalizedEmail(normalizedEmail)
+              .startExamTokenHash(passwordEncoder.encode(startExamToken))
+              .startExamTokenExpiresAt(now.plusMinutes(startExamTokenTtlMinutes))
+              .startExamTokenConsumedAt(null)
+              .phase(activePhase)
+              .build();
+    }
 
     try {
       contestant = contestantRepository.saveAndFlush(contestant);
     } catch (DataIntegrityViolationException ex) {
       throwDuplicateRegistration();
       return null;
+    }
+
+    if (eligibleContestant != null) {
+      eligibleContestantService.markAsRegistered(
+              eligibleContestant,
+              contestant.getId(),
+              request.getPhone(),
+              request.getEmail().trim()
+      );
     }
 
     emailOtpService.consumeVerificationSession(verificationSession);
