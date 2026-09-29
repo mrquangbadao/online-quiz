@@ -101,7 +101,7 @@ export default function AdminSettings() {
             </div>
             <div>
               <p className="text-white text-sm font-bold">Số câu hỏi trắc nghiệm</p>
-              <p className="text-slate-400 text-xs">Quy cách bài thi chuẩn: 30 câu (Tự động đồng bộ vào đợt thi đang mở)</p>
+              <p className="text-slate-400 text-xs">Thể lệ bài thi chuẩn: 30 câu (Tự động đồng bộ vào đợt thi đang mở)</p>
             </div>
           </div>
           <div className="p-6">

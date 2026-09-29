@@ -436,7 +436,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
           )}
 
           <div className="hidden space-y-3 pt-1 lg:block">
-            <p className="text-[11px] font-black uppercase tracking-widest text-yellow-300">Quy cách bài thi</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-yellow-300">Thể lệ bài thi</p>
             <InfoCard
               icon={<BookOpen className="h-5 w-5 text-yellow-300" />}
               title={`${currentPhase?.mcQuestionCount ?? 30} câu trắc nghiệm`}

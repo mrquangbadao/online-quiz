@@ -498,7 +498,7 @@ export default function AdminDashboard() {
               <Activity className={`w-6 h-6 ${(stats?.inProgress ?? 0) > 0 ? 'animate-pulse text-amber-600' : ''}`} />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Đang thi dở dang</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Đang thi</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-3xl font-black text-amber-700">{stats?.inProgress ?? 0}</p>
                 {(stats?.inProgress ?? 0) > 0 && (
