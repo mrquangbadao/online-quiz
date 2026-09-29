@@ -2,13 +2,13 @@
 FROM maven:3.9.6-eclipse-temurin-17-alpine AS builder
 WORKDIR /app
 
-# Cache dependencies
+# Cache dependencies and plugins
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -B || true
 
-# Build application
+# Build application with cached Maven repository
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests
 
 # Stage 2: Runtime
 FROM eclipse-temurin:17-jre-alpine
