@@ -67,6 +67,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
   const [unitSearch, setUnitSearch] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const [remoteCaptchaConfig, setRemoteCaptchaConfig] = useState<{ enabled: boolean; siteKey: string } | null>(null);
   const [currentPhase, setCurrentPhase] = useState<{
     id: number;
     name: string;
@@ -135,6 +136,15 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
         }
       })
       .catch(() => {});
+
+    settingsApi
+      .getCaptchaConfig()
+      .then((res) => {
+        if (res.data?.data) {
+          setRemoteCaptchaConfig(res.data.data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -190,8 +200,9 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
   const canRetryAutoStart = !!pendingStartSession && entryStatus === 'entryFailed' && !submitting;
   const isProgressState = entryStatus === 'verifiedPreparing' || entryStatus === 'entering';
   const isFormLocked = requestingOtp || verifyingOtp || submitting || isProgressState;
-  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
-  const captchaEnabled = !!turnstileSiteKey;
+  const envSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined)?.trim();
+  const turnstileSiteKey = (remoteCaptchaConfig?.siteKey || envSiteKey) ?? '';
+  const captchaEnabled = remoteCaptchaConfig != null ? remoteCaptchaConfig.enabled : !!turnstileSiteKey;
 
   const validateField = (name: keyof RegistrationForm, value: string): string => {
     if (name === 'fullName') {
@@ -710,7 +721,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                   </span>
                 </div>
 
-                {captchaEnabled && turnstileSiteKey && (
+                {captchaEnabled && turnstileSiteKey ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <TurnstileWidget
                       siteKey={turnstileSiteKey}
@@ -719,7 +730,11 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                       onExpire={() => setCaptchaToken('')}
                     />
                   </div>
-                )}
+                ) : captchaEnabled && !turnstileSiteKey ? (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+                    ⚠️ Tính năng xác thực bot đang bật nhưng chưa có Turnstile Site Key. Vui lòng cấu hình VITE_TURNSTILE_SITE_KEY trong file .env.
+                  </div>
+                ) : null}
 
                 <div className="pt-2">
                   <button
@@ -782,7 +797,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                     />
                   </Field>
 
-                  {captchaEnabled && turnstileSiteKey && (
+                  {captchaEnabled && turnstileSiteKey ? (
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                       <TurnstileWidget
                         siteKey={turnstileSiteKey}
@@ -791,7 +806,11 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                         onExpire={() => setCaptchaToken('')}
                       />
                     </div>
-                  )}
+                  ) : captchaEnabled && !turnstileSiteKey ? (
+                    <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+                      ⚠️ Tính năng xác thực bot đang bật nhưng chưa có Turnstile Site Key. Vui lòng cấu hình VITE_TURNSTILE_SITE_KEY trong file .env.
+                    </div>
+                  ) : null}
 
                   <div className="flex justify-center pt-2">
                     <button

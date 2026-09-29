@@ -25,6 +25,16 @@ public class SettingsController {
   );
 
   private final AppSettingRepository settingRepository;
+  private final com.quiz.service.CaptchaVerificationService captchaVerificationService;
+
+  /** Public — captcha configuration for frontend */
+  @GetMapping("/captcha-config")
+  public ResponseEntity<ApiResponse<Map<String, Object>>> getCaptchaConfig() {
+    return ResponseEntity.ok(ApiResponse.ok(Map.of(
+            "enabled", captchaVerificationService.isEnabled(),
+            "siteKey", captchaVerificationService.getSiteKey() != null ? captchaVerificationService.getSiteKey() : ""
+    )));
+  }
 
   /** Public — anyone can read the slogan */
   @GetMapping("/slogan")

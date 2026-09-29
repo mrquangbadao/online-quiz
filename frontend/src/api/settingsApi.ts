@@ -1,6 +1,8 @@
 import axiosClient from './axiosClient';
 
 export const settingsApi = {
+  getCaptchaConfig: () =>
+    axiosClient.get<{ data: { enabled: boolean; siteKey: string } }>('/settings/captcha-config'),
   getSlogan: () => axiosClient.get<{ data: string }>('/settings/slogan'),
   updateSlogan: (value: string) => axiosClient.put('/settings/slogan', { value }),
   getTimeLimitMinutes: () => axiosClient.get<{ data: number }>('/settings/exam-time-limit'),
