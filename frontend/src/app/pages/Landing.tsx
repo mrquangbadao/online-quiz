@@ -225,7 +225,7 @@ export default function Landing() {
             </h2>
             <div className="w-20 h-1.5 bg-gradient-to-r from-blue-600 via-sky-500 to-yellow-400 mx-auto mt-2.5 sm:mt-3 rounded-full" />
             <p className="text-xs sm:text-sm text-slate-500 mt-2.5 sm:mt-3 max-w-2xl mx-auto leading-relaxed">
-              Chuỗi 05 chặng liên hoàn từ cơ sở xã, phường đến Vòng loại cấp tỉnh, Chung kết đối kháng sân khấu và Vòng chung kết toàn quốc tại Thủ đô Hà Nội
+              Chuỗi 05 chặng liên hoàn từ cơ sở xã, phường đến Vòng loại cấp Tỉnh, Vòng chung kết cấp Tỉnh đối kháng sân khấu và Vòng chung kết cấp toàn quốc tại Thủ đô Hà Nội
             </p>
           </div>
 
@@ -281,7 +281,7 @@ export default function Landing() {
                 <div className="w-10 h-10 rounded-full bg-white text-purple-700 font-black text-xs flex items-center justify-center shadow-sm border-2 border-purple-300">
                   <Star className="w-4 h-4 text-purple-600 fill-purple-100" />
                 </div>
-                <span className="text-[11px] font-bold text-purple-700 mt-2">Chung kết Toàn quốc</span>
+                <span className="text-[11px] font-bold text-purple-700 mt-2">Vòng chung kết cấp toàn quốc</span>
               </div>
             </div>
           </div>
@@ -359,13 +359,13 @@ export default function Landing() {
                 </div>
 
                 <h3 className="font-black text-white text-lg mb-1 tracking-tight">
-                  VÒNG LOẠI TỈNH
+                  VÒNG LOẠI CẤP TỈNH
                 </h3>
                 <p className="text-xs text-yellow-300 font-bold mb-2.5 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" /> Dự kiến 30/9/2026
                 </p>
                 <p className="text-xs text-blue-100/90 leading-relaxed">
-                  Phần thi <strong>"Bí thư Đoàn cơ sở – Kiến thức"</strong>: 30 câu trắc nghiệm / 20 phút. Tuyển chọn <strong>Top 06 thí sinh</strong> vào Chung kết.
+                  Phần thi <strong>"Bí thư Đoàn cơ sở – Kiến thức"</strong>: 30 câu trắc nghiệm / 20 phút. Tuyển chọn <strong>Top 10 thí sinh</strong> vào Vòng chung kết cấp Tỉnh.
                 </p>
               </div>
 
@@ -380,7 +380,7 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* ── CHẶNG 4: CHUNG KẾT TỈNH ── */}
+            {/* ── CHẶNG 4: VÒNG CHUNG KẾT CẤP TỈNH ── */}
             <div className="group rounded-2xl sm:rounded-3xl border border-slate-200/90 p-5 sm:p-6 bg-white hover:bg-slate-50/80 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
               <div>
@@ -393,18 +393,18 @@ export default function Landing() {
                 <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center mb-3.5 group-hover:scale-105 transition-transform">
                   <Flame className="w-5 h-5" />
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">CHUNG KẾT TỈNH</h3>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">VÒNG CHUNG KẾT CẤP TỈNH</h3>
                 <p className="text-xs text-amber-700 font-bold mb-2">Dự kiến 09/10/2026</p>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Tại Nhà khách Nghệ An với 03 phần thi đối kháng sân khấu: <strong>Thông thái</strong>, <strong>Nhạy bén</strong> và <strong>Bản lĩnh</strong>.
                 </p>
               </div>
               <div className="pt-4 mt-4 border-t border-slate-100 text-[11px] text-slate-400 font-medium">
-                Top 06 thí sinh xuất sắc
+                Top 10 thí sinh xuất sắc
               </div>
             </div>
 
-            {/* ── CHẶNG 5: CHUNG KẾT TOÀN QUỐC ── */}
+            {/* ── CHẶNG 5: VÒNG CHUNG KẾT CẤP TOÀN QUỐC ── */}
             <div className="group rounded-2xl sm:rounded-3xl border border-slate-200/90 p-5 sm:p-6 bg-white hover:bg-slate-50/80 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1 bg-purple-600" />
               <div>
@@ -417,10 +417,10 @@ export default function Landing() {
                 <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center mb-3.5 group-hover:scale-105 transition-transform">
                   <Globe2 className="w-5 h-5" />
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">TOÀN QUỐC</h3>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">VÒNG CHUNG KẾT CẤP TOÀN QUỐC</h3>
                 <p className="text-xs text-purple-700 font-bold mb-2">Tháng 11/2026</p>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  01 thí sinh đạt Giải Nhất đại diện tuổi trẻ Nghệ An tham gia Hội thi Bí thư Đoàn cơ sở giỏi toàn quốc lần thứ II tại Hà Nội.
+                  01 thí sinh đạt Giải Nhất đại diện tuổi trẻ Nghệ An tham gia Vòng chung kết cấp toàn quốc Hội thi Bí thư Đoàn cơ sở giỏi lần thứ II tại Hà Nội.
                 </p>
               </div>
               <div className="pt-4 mt-4 border-t border-slate-100 text-[11px] text-purple-600 font-bold">

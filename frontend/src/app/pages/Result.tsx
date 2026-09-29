@@ -95,7 +95,7 @@ export default function Result() {
               {/* Notice */}
               <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-600 leading-relaxed mb-6 text-left">
                 <p className="font-semibold text-slate-700 mb-1">Quy chế xét chọn vào Chung kết:</p>
-                Căn cứ tổng điểm và thời gian làm bài, Ban Tổ chức sẽ lựa chọn <strong>06 thí sinh có thành tích tốt nhất</strong> tham gia Vòng Chung Kết đối kháng sân khấu ngày 09/10/2026 tại Nhà khách Nghệ An.
+                Căn cứ tổng điểm và thời gian làm bài, Ban Tổ chức sẽ lựa chọn <strong>10 thí sinh có thành tích tốt nhất</strong> tham gia Vòng chung kết cấp Tỉnh đối kháng sân khấu ngày 09/10/2026 tại Nhà khách Nghệ An.
               </div>
 
               {/* Action buttons */}
