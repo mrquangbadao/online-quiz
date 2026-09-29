@@ -234,13 +234,16 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
     return '';
   };
 
-  const isWhitelistMode = eligibleList.length > 0 || currentPhase?.requireWhitelist !== false;
+  const [regMode, setRegMode] = useState<'eligible' | 'manual'>('eligible');
+
+  const isStrictWhitelist = currentPhase?.requireWhitelist === true;
+  const isEligibleMode = isStrictWhitelist || (regMode === 'eligible' && eligibleList.length > 0);
 
   const validateForm = (): boolean => {
-    if (isWhitelistMode && !selectedEligible) {
+    if (isEligibleMode && !selectedEligible) {
       setFormErrors((prev) => ({
         ...prev,
-        fullName: 'Vui lòng chọn tên thí sinh trong danh sách 70 thí sinh đủ điều kiện',
+        fullName: 'Vui lòng chọn tên thí sinh trong danh sách hoặc chuyển sang Tự nhập thông tin',
       }));
       return false;
     }
@@ -364,7 +367,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
           phone: form.phone.replace(/\s/g, ''),
           email: form.email.trim(),
           verificationToken: verificationToken!,
-          eligibleContestantId: selectedEligible?.id,
+          eligibleContestantId: isEligibleMode ? selectedEligible?.id : undefined,
         });
 
         const contestant = registerResponse.data.data;
@@ -420,7 +423,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
 
           <div className="pt-1">
             <p className="text-xs sm:text-sm leading-relaxed text-blue-100/90">
-              Phần thi: <strong className="text-yellow-300 font-bold">Bí thư đoàn cơ sở – Kiến thức</strong> (Vòng loại cấp tỉnh). Dành cho 70 thí sinh xuất sắc vượt qua vòng thi cấp cơ sở theo Thông báo của Ban Thường vụ Tỉnh đoàn.
+              Phần thi: <strong className="text-yellow-300 font-bold">Bí thư đoàn cơ sở – Kiến thức</strong> (Vòng loại cấp tỉnh). Dành cho các thí sinh tham gia Hội thi Bí thư Đoàn cơ sở giỏi năm 2026 do Ban Thường vụ Tỉnh đoàn tổ chức.
             </p>
           </div>
 
@@ -448,15 +451,15 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
             )}
             <InfoCard
               icon={<Scale className="h-5 w-5 text-yellow-300" />}
-              title="Tuyển chọn TOP 6"
-              description="06 thí sinh xuất sắc nhất giành vé vào Vòng Chung Kết đối kháng sân khấu"
+              title="Tuyển chọn TOP 10"
+              description="10 thí sinh xuất sắc nhất giành vé vào Vòng Chung Kết đối kháng sân khấu"
             />
           </div>
 
           <div className="flex flex-wrap gap-2 pt-1 lg:hidden">
             <InfoChip icon={<BookOpen className="h-3.5 w-3.5" />} label={`${currentPhase?.mcQuestionCount ?? 30} câu trắc nghiệm`} />
             {timeLimit !== null && <InfoChip icon={<Clock className="h-3.5 w-3.5" />} label={`${timeLimit} phút`} />}
-            <InfoChip icon={<Scale className="h-3.5 w-3.5" />} label="Top 6 vào Chung kết" />
+            <InfoChip icon={<Scale className="h-3.5 w-3.5" />} label="Top 10 vào Chung kết" />
           </div>
         </div>
 
@@ -477,20 +480,57 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                 <div>
                   <span className="rounded-full bg-green-100/60 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Bước 1/2</span>
                   <h2 className="mt-2 text-xl font-black text-slate-800 md:text-2xl">
-                    {isWhitelistMode ? 'Xác nhận thông tin dự thi' : 'Thông tin thí sinh'}
+                    {isEligibleMode ? 'Xác nhận thông tin dự thi' : 'Thông tin thí sinh'}
                   </h2>
                   <p className="mt-1 text-xs text-slate-500 md:text-sm">
-                    {isWhitelistMode
-                      ? 'Chọn tên bạn trong danh sách 70 thí sinh đủ điều kiện và cung cấp SĐT, Email để nhận mã OTP.'
+                    {isEligibleMode
+                      ? 'Chọn tên bạn trong danh sách thí sinh và cung cấp SĐT, Email để nhận mã OTP.'
                       : 'Vui lòng cung cấp chính xác thông tin để lưu trữ kết quả thi.'}
                   </p>
                 </div>
 
+                {!isStrictWhitelist && eligibleList.length > 0 && (
+                  <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                    <button
+                      type="button"
+                      disabled={isFormLocked}
+                      onClick={() => {
+                        setRegMode('eligible');
+                        setFormErrors((prev) => ({ ...prev, fullName: undefined, unit: undefined }));
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                        regMode === 'eligible'
+                          ? 'bg-white text-blue-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Chọn từ danh sách có sẵn
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isFormLocked}
+                      onClick={() => {
+                        setRegMode('manual');
+                        setSelectedEligible(null);
+                        setForm((prev) => ({ ...prev, fullName: '', unit: '' }));
+                        setFormErrors((prev) => ({ ...prev, fullName: undefined, unit: undefined }));
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                        regMode === 'manual'
+                          ? 'bg-white text-blue-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Tự nhập thông tin mới
+                    </button>
+                  </div>
+                )}
+
                 <div className="space-y-4">
-                  {isWhitelistMode ? (
+                  {isEligibleMode ? (
                     <div className="relative">
                       <Field
-                        label="Thí sinh (thuộc danh sách 70 thí sinh đủ điều kiện)"
+                        label="Thí sinh (thuộc danh sách thí sinh đủ điều kiện)"
                         required
                         icon={<User className="h-4 w-4 text-slate-400" />}
                         error={formErrors.fullName}
@@ -506,15 +546,13 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                                   <span className="text-base font-extrabold text-blue-950">{selectedEligible.fullName}</span>
                                 </div>
                                 <p className="mt-1 text-xs font-semibold text-blue-800">{selectedEligible.unit}</p>
-                                <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] font-medium text-blue-700">
-                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T1: {selectedEligible.scoreWeek1}</span>
-                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T2: {selectedEligible.scoreWeek2}</span>
-                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T3: {selectedEligible.scoreWeek3}</span>
-                                  <span className="rounded bg-blue-200/60 px-2 py-0.5">T4: {selectedEligible.scoreWeek4}</span>
-                                  <span className="rounded bg-blue-700 px-2 py-0.5 font-bold text-white">
-                                    Tổng: {selectedEligible.totalScorePreliminary}đ
-                                  </span>
-                                </div>
+                                {selectedEligible.totalScorePreliminary != null && (
+                                  <div className="mt-2.5 flex items-center">
+                                    <span className="rounded-md bg-blue-700 px-2.5 py-0.5 text-xs font-bold text-white shadow-xs">
+                                      Tổng điểm sơ loại: {selectedEligible.totalScorePreliminary}đ
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               {!isFormLocked && (
                                 <button
@@ -543,12 +581,12 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                               }}
                               onFocus={() => setShowEligibleDropdown(true)}
                               onBlur={() => window.setTimeout(() => setShowEligibleDropdown(false), 200)}
-                              placeholder="Gõ tìm kiếm họ tên hoặc đơn vị trong 70 thí sinh..."
+                              placeholder="Gõ tìm kiếm họ tên hoặc đơn vị trong danh sách..."
                             />
                             {showEligibleDropdown && !isFormLocked && (
                               <div className="absolute z-30 mt-1.5 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
                                 <div className="sticky top-0 bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                                  Danh sách 70 thí sinh đủ điều kiện ({filteredEligible.length} kết quả)
+                                  Danh sách thí sinh đủ điều kiện ({filteredEligible.length} kết quả)
                                 </div>
                                 {filteredEligible.length > 0 ? (
                                   filteredEligible.map((candidate) => (
@@ -577,18 +615,50 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                                             Đã đăng ký
                                           </span>
                                         ) : (
-                                          <span className="text-xs font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
-                                            {candidate.totalScorePreliminary}đ
-                                          </span>
+                                          candidate.totalScorePreliminary != null && (
+                                            <span className="text-xs font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                                              {candidate.totalScorePreliminary}đ
+                                            </span>
+                                          )
                                         )}
                                       </div>
                                     </button>
                                   ))
                                 ) : (
-                                  <div className="px-4 py-6 text-center text-xs italic text-slate-400">
-                                    Không tìm thấy thí sinh nào phù hợp trong danh sách 70 người
+                                  <div className="px-4 py-6 text-center text-xs text-slate-500">
+                                    <p className="italic">Không tìm thấy thí sinh nào phù hợp trong danh sách.</p>
+                                    {!isStrictWhitelist && (
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          setShowEligibleDropdown(false);
+                                          setSelectedEligible(null);
+                                          setForm((prev) => ({ ...prev, fullName: '', unit: '' }));
+                                          setRegMode('manual');
+                                        }}
+                                        className="mt-2 inline-flex items-center gap-1 font-bold text-blue-600 hover:underline"
+                                      >
+                                        Bấm vào đây để tự nhập thông tin thí sinh →
+                                      </button>
+                                    )}
                                   </div>
                                 )}
+                              </div>
+                            )}
+                            {!isStrictWhitelist && !selectedEligible && (
+                              <div className="mt-1.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedEligible(null);
+                                    setForm((prev) => ({ ...prev, fullName: '', unit: '' }));
+                                    setRegMode('manual');
+                                  }}
+                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                  Không có tên bạn trong danh sách? Tự nhập thông tin tại đây
+                                </button>
                               </div>
                             )}
                           </div>
@@ -716,7 +786,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                 <div className="rounded-2xl bg-amber-50/50 border border-amber-200/50 p-4 text-xs text-amber-800 leading-relaxed flex gap-2.5">
                   <AlertCircle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Lưu ý:</strong> Mỗi số điện thoại và email chỉ được tham gia thi <strong>01 lần duy nhất</strong> trong mỗi đợt thi. Vui lòng kiểm tra kỹ thông tin trước khi tiếp tục.
+                    <strong>Lưu ý:</strong> Mỗi số điện thoại chỉ được tham gia thi <strong>01 lần duy nhất</strong> trong mỗi đợt thi. Một địa chỉ email có thể hỗ trợ xác thực tối đa cho 10 thí sinh.
                   </span>
                 </div>
 

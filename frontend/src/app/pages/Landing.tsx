@@ -455,8 +455,8 @@ export default function Landing() {
                   <Medal className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">02 Giải Nhì</h3>
-                <p className="text-xl sm:text-2xl font-black text-[#1746b8] mt-1.5 sm:mt-2">2.000.000 đ</p>
-                <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Mỗi giải kèm Bằng khen BCH Tỉnh đoàn</p>
+                <p className="text-lg sm:text-xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
+                <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
             </div>
 
@@ -470,11 +470,11 @@ export default function Landing() {
                   <Trophy className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
                 <h3 className="text-lg sm:text-xl font-black text-slate-900 uppercase">01 Giải Nhất</h3>
-                <p className="text-2xl sm:text-3xl font-black text-[#1746b8] mt-1.5 sm:mt-2">3.000.000 đ</p>
+                <p className="text-xl sm:text-2xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
                 <p className="text-xs font-bold text-amber-800 mt-2 bg-amber-50 rounded-lg py-1 px-2 border border-amber-200 inline-block">
                   Đại diện tỉnh dự thi Chung kết toàn quốc tại Hà Nội
                 </p>
-                <p className="text-xs text-slate-500 mt-1">Bằng khen BCH Tỉnh đoàn + quà tặng</p>
+                <p className="text-xs text-slate-500 mt-1">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
             </div>
 
@@ -485,8 +485,8 @@ export default function Landing() {
                   <Award className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">03 Giải Ba</h3>
-                <p className="text-xl sm:text-2xl font-black text-[#1746b8] mt-1.5 sm:mt-2">1.000.000 đ</p>
-                <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Mỗi giải kèm Bằng khen BCH Tỉnh đoàn</p>
+                <p className="text-lg sm:text-xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
+                <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
             </div>
           </div>
@@ -529,7 +529,7 @@ export default function Landing() {
               <div className="space-y-2 text-xs text-blue-100/90">
                 <div className="flex items-start gap-2.5">
                   <MapPin className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
-                  <span>Cơ quan Tỉnh đoàn: Số 22 đường Trường Thi, TP Vinh, Nghệ An</span>
+                  <span>Cơ quan Tỉnh đoàn: Số 22 đường Trường Thi, phường Trường Vinh, Nghệ An</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <Building className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />

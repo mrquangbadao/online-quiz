@@ -79,16 +79,24 @@ public class ContestantServiceImpl implements ContestantService {
               "Mã xác thực không hợp lệ hoặc đã hết hạn.");
     }
 
-    // Check if contestant already exists for this email or phone in the active phase
-    Optional<Contestant> byEmail = contestantRepository.findFirstByNormalizedEmailAndPhaseId(normalizedEmail, activePhase.getId());
+    // Check if contestant already exists for this phone in the active phase (phone is primary unique key)
     Optional<Contestant> byPhone = contestantRepository.findFirstByPhoneAndPhaseId(request.getPhone(), activePhase.getId());
+    Contestant existingContestant = byPhone.orElse(null);
 
-    if (byEmail.isPresent() && byPhone.isPresent() && !byEmail.get().getId().equals(byPhone.get().getId())) {
-      throw new BusinessException("DUPLICATE_REGISTRATION",
-              "Email và số điện thoại đang thuộc về hai hồ sơ thí sinh khác nhau trong đợt thi.");
+    // Enforce email sharing limit (max 10 contestants per email per phase)
+    if (existingContestant == null) {
+      long emailUsageCount = contestantRepository.countByNormalizedEmailAndPhaseId(normalizedEmail, activePhase.getId());
+      if (emailUsageCount >= 10) {
+        throw new BusinessException("EMAIL_USAGE_EXCEEDED",
+                "Email này đã được sử dụng để đăng ký cho tối đa 10 thí sinh trong đợt thi.");
+      }
+    } else if (!normalizedEmail.equals(existingContestant.getNormalizedEmail())) {
+      long emailUsageCount = contestantRepository.countByNormalizedEmailAndPhaseId(normalizedEmail, activePhase.getId());
+      if (emailUsageCount >= 10) {
+        throw new BusinessException("EMAIL_USAGE_EXCEEDED",
+                "Email này đã được sử dụng để đăng ký cho tối đa 10 thí sinh trong đợt thi.");
+      }
     }
-
-    Contestant existingContestant = byEmail.orElseGet(() -> byPhone.orElse(null));
 
     if (existingContestant != null) {
       List<Exam> existingExams = examRepository.findByContestantIdIn(List.of(existingContestant.getId()));

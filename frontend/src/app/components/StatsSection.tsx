@@ -69,8 +69,8 @@ const stats = [
   },
   {
     label: "VÉ VÀO CHUNG KẾT",
-    sublabel: "Đối kháng sân khấu",
-    value: 6,
+    sublabel: "Top 10 đối kháng sân khấu",
+    value: 10,
     suffix: "",
     icon: <Trophy className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />,
     iconBg: "bg-amber-50 text-amber-600 border border-amber-200",
@@ -181,7 +181,7 @@ export default function StatsSection() {
                 Nhà khách Nghệ An
               </p>
               <p className="text-slate-500 font-medium text-xs sm:text-sm mt-0.5">
-                Số 04 Phan Đăng Lưu, TP. Vinh, Nghệ An
+                Số 04 Phan Đăng Lưu, phường Trường Vinh, Nghệ An
               </p>
             </div>
           </div>

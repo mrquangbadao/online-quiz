@@ -70,9 +70,9 @@ export default function AdminPhaseLeaderboard() {
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const top3 = entries.slice(0, 3) as LeaderboardEntry[];
-  const isTieAtSixth = entries.length >= 7 &&
-    entries[5].totalScore === entries[6].totalScore &&
-    entries[5].durationSeconds === entries[6].durationSeconds;
+  const isTieAtTenth = entries.length >= 11 &&
+    entries[9].totalScore === entries[10].totalScore &&
+    entries[9].durationSeconds === entries[10].durationSeconds;
   const showPrediction = phase?.hasPrediction !== false;
 
   const handleExport = async () => {
@@ -139,15 +139,15 @@ export default function AdminPhaseLeaderboard() {
         </div>
 
         {/* Tie-breaker Warning Banner */}
-        {isTieAtSixth && (
+        {isTieAtTenth && (
           <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 text-amber-900 flex items-start gap-3 shadow-sm">
             <AlertCircle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-extrabold text-sm sm:text-base flex items-center gap-2 text-amber-900">
-                Cảnh báo đồng hạng tại vị trí thứ 6 (Vòng Chung Kết)
+                Cảnh báo đồng hạng tại vị trí thứ 10 (Vòng Chung Kết)
               </h4>
               <p className="text-xs sm:text-sm text-amber-800 mt-1 leading-relaxed">
-                Theo Thể lệ Hội thi Bí thư Đoàn cơ sở giỏi 2026, <strong>Top 06 thí sinh</strong> có điểm số cao nhất và thời gian thi ngắn nhất sẽ giành vé vào Vòng Chung Kết sân khấu. Hiện tại thí sinh xếp thứ 6 và thí sinh thứ 7 có <strong>cùng điểm số ({entries[5].totalScore} điểm) và cùng thời gian ({fmt(entries[5].durationSeconds)})</strong>. Ban Tổ chức cần tổ chức thi tiếp các <strong>câu hỏi phụ phân định</strong> để xác định thí sinh thứ 6 chính thức vào Chung kết.
+                Theo Thể lệ Hội thi Bí thư Đoàn cơ sở giỏi 2026, <strong>Top 10 thí sinh</strong> có điểm số cao nhất và thời gian thi ngắn nhất sẽ giành vé vào Vòng Chung Kết sân khấu. Hiện tại thí sinh xếp thứ 10 và thí sinh thứ 11 có <strong>cùng điểm số ({entries[9].totalScore} điểm) và cùng thời gian ({fmt(entries[9].durationSeconds)})</strong>. Ban Tổ chức cần tổ chức thi tiếp các <strong>câu hỏi phụ phân định</strong> để xác định thí sinh thứ 10 chính thức vào Chung kết.
               </p>
             </div>
           </div>
@@ -180,17 +180,17 @@ export default function AdminPhaseLeaderboard() {
               </div>
             </div>
 
-            {/* ── Top 4 - 6 Finalists Cards ── */}
+            {/* ── Top 4 - 10 Finalists Cards ── */}
             {entries.length >= 4 && (
               <div className="bg-white rounded-2xl border border-teal-200 p-5 shadow-sm space-y-3">
                 <div className="flex items-center gap-2">
                   <Award className="w-5 h-5 text-teal-700" />
                   <h3 className="font-extrabold text-sm text-slate-800 uppercase tracking-wide">
-                    03 Thí Sinh Tiếp Theo Giành Quyền Vào Vòng Chung Kết (Hạng 4 – Hạng 6)
+                    07 Thí Sinh Tiếp Theo Giành Quyền Vào Vòng Chung Kết (Hạng 4 – Hạng 10)
                   </h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {entries.slice(3, 6).map((e, idx) => {
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {entries.slice(3, 10).map((e, idx) => {
                     const rank = idx + 4;
                     return (
                       <div
@@ -229,7 +229,7 @@ export default function AdminPhaseLeaderboard() {
                   <div className="flex items-center gap-3">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold">
                       <Award className="w-3.5 h-3.5 text-emerald-400" />
-                      Top 6 giành vé vào Vòng Chung Kết
+                      Top 10 giành vé vào Vòng Chung Kết
                     </span>
                     <span className="text-slate-400 text-xs font-medium">{entries.length} thí sinh</span>
                   </div>
@@ -261,7 +261,7 @@ export default function AdminPhaseLeaderboard() {
                               ? i === 0 ? 'bg-amber-50/60 hover:bg-amber-50'
                               : i === 1 ? 'bg-slate-50/80 hover:bg-slate-50'
                               : 'bg-orange-50/60 hover:bg-orange-50'
-                              : i < 6
+                              : i < 10
                               ? 'bg-emerald-50/30 hover:bg-emerald-50/60'
                               : 'hover:bg-slate-50'
                           }`}
@@ -274,10 +274,10 @@ export default function AdminPhaseLeaderboard() {
                           <td className="p-3">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-slate-800">{e.fullName}</span>
-                              {i < 6 && (
+                              {i < 10 && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                                   <Award className="w-3 h-3 text-emerald-600" />
-                                  Top 6 Chung Kết
+                                  Top 10 Chung Kết
                                 </span>
                               )}
                             </div>
@@ -296,7 +296,7 @@ export default function AdminPhaseLeaderboard() {
                           )}
                           <td className="p-3 text-center text-slate-500 font-medium text-xs hidden sm:table-cell">{fmt(e.durationSeconds)}</td>
                           <td className="p-3 text-center">
-                            {i < 6 ? (
+                            {i < 10 ? (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
                                 Vào Chung kết
                               </span>

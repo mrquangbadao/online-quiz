@@ -23,8 +23,7 @@ import java.time.LocalDateTime;
                 columnList = "phone, phase_id",
                 unique = true),
         @Index(name = "idx_contestants_email_phase",
-                columnList = "normalized_email, phase_id",
-                unique = true),
+                columnList = "normalized_email, phase_id"),
         @Index(name = "idx_contestants_phone",
                 columnList = "phone")})
 public class Contestant {

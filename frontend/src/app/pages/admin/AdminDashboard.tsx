@@ -161,7 +161,7 @@ export default function AdminDashboard() {
     setEndPhaseLoading(true);
     try {
       await adminApi.stopPhase(endedPhaseId);
-      toast.success('Đã kết thúc đợt thi! Toàn bộ bài thi đã nộp tự động. Đang chuyển sang trang vinh danh Top 6...');
+      toast.success('Đã kết thúc đợt thi! Toàn bộ bài thi đã nộp tự động. Đang chuyển sang trang vinh danh Top 10...');
       setShowEndPhaseModal(false);
       // Navigate to dedicated results & award podium page
       navigate(`/admin/dot-thi/${endedPhaseId}/vinh-danh`);
@@ -284,10 +284,10 @@ export default function AdminDashboard() {
     return e.fullName.toLowerCase().includes(q) || (e.unit && e.unit.toLowerCase().includes(q));
   });
 
-  // Check tie at 6th position (6 finalists rule)
-  const isTieAtSixth = lbEntries.length >= 7 &&
-    lbEntries[5].totalScore === lbEntries[6].totalScore &&
-    lbEntries[5].durationSeconds === lbEntries[6].durationSeconds;
+  // Check tie at 10th position (10 finalists rule)
+  const isTieAtTenth = lbEntries.length >= 11 &&
+    lbEntries[9].totalScore === lbEntries[10].totalScore &&
+    lbEntries[9].durationSeconds === lbEntries[10].durationSeconds;
 
   const fmtDuration = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
@@ -523,7 +523,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ── Banner dẫn sang Trang Vinh Danh Top 6 khi Đợt thi đã kết thúc ── */}
+        {/* ── Banner dẫn sang Trang Vinh Danh Top 10 khi Đợt thi đã kết thúc ── */}
         {selectedPhase?.status === 'ENDED' && (
           <div className="bg-gradient-to-r from-amber-50 via-amber-100/40 to-teal-50 border-2 border-amber-300 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
             <div className="flex items-center gap-3.5">
@@ -536,11 +536,11 @@ export default function AdminDashboard() {
                     Đợt thi đã kết thúc — Đã có kết quả chính thức
                   </h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-200 text-amber-900">
-                    Top 6 Đã Xác Định
+                    Top 10 Đã Xác Định
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 mt-1">
-                  Đợt thi <strong className="text-slate-800 font-bold">{selectedPhase.name}</strong> đã hoàn tất đóng. Mở trang vinh danh riêng biệt để xem Bục giải Nhất / Nhì / Ba và danh sách 06 thí sinh giành vé vào Vòng Chung Kết.
+                  Đợt thi <strong className="text-slate-800 font-bold">{selectedPhase.name}</strong> đã hoàn tất đóng. Mở trang vinh danh riêng biệt để xem Bục giải Nhất / Nhì / Ba và danh sách 10 thí sinh giành vé vào Vòng Chung Kết.
                 </p>
               </div>
             </div>
@@ -549,21 +549,21 @@ export default function AdminDashboard() {
               className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-300/50 transition-all flex items-center gap-2 shrink-0 active:scale-95"
             >
               <Award className="w-4 h-4 text-slate-950" />
-              MỞ TRANG VINH DANH TOP 6 →
+              MỞ TRANG VINH DANH TOP 10 →
             </button>
           </div>
         )}
 
-        {/* ── Tie warning at 6th position ── */}
-        {isTieAtSixth && (
+        {/* ── Tie warning at 10th position ── */}
+        {isTieAtTenth && (
           <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-start gap-3 text-amber-900 shadow-sm">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-black uppercase tracking-wide">
-                Lưu ý Thể lệ: Có thí sinh đồng hạng ở vị trí số 6!
+                Lưu ý Thể lệ: Có thí sinh đồng hạng ở vị trí số 10!
               </p>
               <p className="text-xs mt-1 text-amber-800">
-                Theo Thể lệ Hội thi của Tỉnh đoàn, Ban Tổ chức chọn 06 thí sinh xuất sắc nhất vào Vòng chung kết. Hiện vị trí số 6 và số 7 đang bằng điểm và bằng thời gian thi ({lbEntries[5].totalScore} điểm - {fmtDuration(lbEntries[5].durationSeconds)}). Cần tổ chức thi câu hỏi phụ theo quyết định của Ban Tổ chức.
+                Theo Thể lệ Hội thi của Tỉnh đoàn, Ban Tổ chức chọn 10 thí sinh xuất sắc nhất vào Vòng chung kết. Hiện vị trí số 10 và số 11 đang bằng điểm và bằng thời gian thi ({lbEntries[9].totalScore} điểm - {fmtDuration(lbEntries[9].durationSeconds)}). Cần tổ chức thi câu hỏi phụ theo quyết định của Ban Tổ chức.
               </p>
             </div>
           </div>
@@ -596,7 +596,7 @@ export default function AdminDashboard() {
                       ? `Đang có ${stats.inProgress} thí sinh làm bài. Vị trí các dòng tự động trượt lên / xuống theo thời gian thực khi có bài nộp mới.`
                       : isAllSubmitted
                       ? '🎉 Toàn bộ thí sinh đã nộp bài xong! Bấm "KẾT THÚC ĐỢT THI" bên trên để chốt kết quả và chuyển sang trang vinh danh.'
-                      : 'Cập nhật trực tiếp theo thời gian thực khi thí sinh nộp bài • Top 6 thí sinh đầu bảng giành quyền vào Vòng chung kết.')
+                      : 'Cập nhật trực tiếp theo thời gian thực khi thí sinh nộp bài • Top 10 thí sinh đầu bảng giành quyền vào Vòng chung kết.')
                   : 'Bảng điểm chính thức đã chốt sau khi kết thúc đợt thi.'}
               </p>
             </div>
@@ -642,7 +642,7 @@ export default function AdminDashboard() {
                 </thead>
                 <motion.tbody className="divide-y divide-slate-100">
                   {filteredEntries.map((e) => {
-                    const isTop6 = e.rank <= 6;
+                    const isTop10 = e.rank <= 10;
                     const rankDiff = rankChanges[e.examId];
                     return (
                       <motion.tr
@@ -660,7 +660,7 @@ export default function AdminDashboard() {
                         className={`transition-colors duration-300 ${
                           rankDiff && rankDiff > 0
                             ? 'bg-emerald-50/90 ring-2 ring-emerald-400'
-                            : isTop6
+                            : isTop10
                             ? 'bg-amber-50/20 hover:bg-amber-50/50'
                             : 'hover:bg-slate-50/80 bg-white'
                         }`}
@@ -671,7 +671,7 @@ export default function AdminDashboard() {
                               <span className="text-xl leading-none">{['🥇', '🥈', '🥉'][e.rank - 1]}</span>
                             ) : (
                               <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
-                                isTop6 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                                isTop10 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
                               }`}>
                                 {e.rank}
                               </span>
@@ -722,7 +722,7 @@ export default function AdminDashboard() {
                           {fmtDuration(e.durationSeconds)}
                         </td>
                         <td className="p-3 text-center">
-                          {isTop6 ? (
+                          {isTop10 ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-400 text-amber-950 shadow-sm animate-pulse">
                               ⭐ VÀO CHUNG KẾT
                             </span>
@@ -780,7 +780,7 @@ export default function AdminDashboard() {
                     ✓ 100% Đã nộp bài
                   </span>
                   <h2 className="text-lg font-black text-slate-900 uppercase">
-                    Kết Thúc Đợt Thi & Công Bố Top 6
+                    Kết Thúc Đợt Thi & Công Bố Top 10
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
                     Đợt thi: <span className="font-bold text-slate-800">{currentPhase?.name}</span>
@@ -797,7 +797,7 @@ export default function AdminDashboard() {
                       Không còn bài thi nào đang làm dở dang.
                     </li>
                     <li>
-                      Sau khi bấm kết thúc, hệ thống sẽ <strong>chốt điểm chính thức</strong> và <strong>mở giao diện vinh danh Top 6 xuất sắc</strong>.
+                      Sau khi bấm kết thúc, hệ thống sẽ <strong>chốt điểm chính thức</strong> và <strong>mở giao diện vinh danh Top 10 xuất sắc</strong>.
                     </li>
                   </ul>
                 </div>
@@ -823,7 +823,7 @@ export default function AdminDashboard() {
                         Đang xử lý...
                       </>
                     ) : (
-                      'KẾT THÚC & MỞ TOP 6'
+                      'KẾT THÚC & MỞ TOP 10'
                     )}
                   </button>
                 </div>
@@ -856,7 +856,7 @@ export default function AdminDashboard() {
                       <strong className="text-slate-900">Khi bạn bấm xác nhận:</strong> Hệ thống sẽ <strong>tự động thu bài và chấm điểm ngay lập tức</strong> cho toàn bộ thí sinh này dựa trên những câu trả lời đã lưu tạm.
                     </li>
                     <li>
-                      Đợt thi sẽ được đóng hoàn toàn và chuyển sang trang kết quả Top 6.
+                      Đợt thi sẽ được đóng hoàn toàn và chuyển sang trang kết quả Top 10.
                     </li>
                   </ul>
                 </div>

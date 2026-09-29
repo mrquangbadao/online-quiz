@@ -67,5 +67,5 @@ public class ContestPhase {
 
     @Builder.Default
     @Column(name = "require_whitelist", nullable = false)
-    private Boolean requireWhitelist = true;
+    private Boolean requireWhitelist = false;
 }
