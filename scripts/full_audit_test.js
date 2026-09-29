@@ -15,13 +15,20 @@
  * Cách chạy:
  *   node scripts/full_audit_test.js [target_url] [admin_user] [admin_pass]
  * 
- * Mặc định:
- *   node scripts/full_audit_test.js https://btdcsgioinghean.com admin Admin@12345
+ * Ví dụ:
+ *   node scripts/full_audit_test.js https://btdcsgioinghean.com admin <your_admin_password>
  */
 
-const TARGET_URL = (process.argv[2] || 'https://btdcsgioinghean.com').replace(/\/$/, '');
-const ADMIN_USER = process.argv[3] || 'admin';
-const ADMIN_PASS = process.argv[4] || 'Admin@12345';
+const TARGET_URL = (process.argv[2] || process.env.TARGET_URL || 'https://btdcsgioinghean.com').replace(/\/$/, '');
+const ADMIN_USER = process.argv[3] || process.env.ADMIN_USER || 'admin';
+const ADMIN_PASS = process.argv[4] || process.env.ADMIN_PASS || '';
+
+if (!ADMIN_PASS) {
+  console.error('[!] LỖI BẢO MẬT: Mật khẩu Admin không được cấu hình sẵn trong script.');
+  console.error('    Vui lòng truyền mật khẩu qua tham số dòng lệnh:');
+  console.error('    node scripts/full_audit_test.js ' + TARGET_URL + ' ' + ADMIN_USER + ' <mat_khau_admin>');
+  process.exit(1);
+}
 
 console.log('='.repeat(78));
 console.log('  BỘ KIỂM THỬ TOÀN DIỆN HỆ THỐNG THI (COMPREHENSIVE AUDIT SUITE)');

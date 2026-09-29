@@ -38,7 +38,7 @@ Mã nguồn đã tích hợp sẵn 2 công cụ kiểm thử mạnh mẽ chạy 
 ### 1. Script 1: Kiểm định Toàn diện 8 Tầng Hệ thống (`scripts/full_audit_test.js`)
 Kiểm tra tự động toàn bộ 8 tầng chất lượng của hệ thống, phát hiện ngay các cảnh báo cấu hình, kiểm tra an ninh chống gian lận:
 ```bash
-node scripts/full_audit_test.js https://btdcsgioinghean.com admin Admin@12345
+node scripts/full_audit_test.js https://btdcsgioinghean.com admin <mat_khau_admin>
 ```
 *Đầu ra sẽ báo chi tiết từng mục: `[PASS]`, `[WARN]`, `[FAIL]` và bảng tổng kết.*
 
@@ -61,7 +61,7 @@ node scripts/stress_test.js https://btdcsgioinghean.com 70 full
 - **T0 - 60m:** Ban Quản trị đăng nhập vào trang Admin `https://btdcsgioinghean.com/admin/login`.
 - **T0 - 45m:** Chạy lệnh audit kiểm tra trạng thái xanh toàn bộ:
   ```bash
-  node scripts/full_audit_test.js https://btdcsgioinghean.com admin Admin@12345
+  node scripts/full_audit_test.js https://btdcsgioinghean.com admin <mat_khau_admin>
   ```
 - **T0 - 30m:** Kiểm tra đợt thi:
   - Tên đợt thi: `Vòng loại cấp tỉnh - Hội thi Bí thư Đoàn cơ sở giỏi 2026`.

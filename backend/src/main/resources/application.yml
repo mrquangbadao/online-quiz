@@ -73,10 +73,12 @@ jwt:
 
 quiz:
   admin:
-    provision-password: ${QUIZ_ADMIN_PROVISION_PASSWORD:Admin@12345}
+    provision-password: ${QUIZ_ADMIN_PROVISION_PASSWORD:}
   exam:
     mc-question-count: 30
     start-token-ttl-minutes: ${EXAM_START_TOKEN_TTL_MINUTES:10}
+  stress-test:
+    bypass-key: ${STRESS_TEST_BYPASS_KEY:}
   otp:
     emergency-master-otp: ${EMERGENCY_MASTER_OTP:}
     ttl-minutes: ${OTP_TTL_MINUTES:5}

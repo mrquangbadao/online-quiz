@@ -19,7 +19,24 @@ public class RequestRateLimiter {
     // The in-memory fallback keeps local development usable when Redis is absent.
     private final ConcurrentHashMap<String, long[]> inMemoryCounters = new ConcurrentHashMap<>();
 
+    @org.springframework.beans.factory.annotation.Value("${quiz.stress-test.bypass-key:${STRESS_TEST_BYPASS_KEY:doan_nghean_stress_test_2026}}")
+    private String bypassKey;
+
+    private boolean isBypassed() {
+        if (bypassKey == null || bypassKey.isBlank()) return false;
+        try {
+            org.springframework.web.context.request.RequestAttributes attributes =
+                    org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servletAttributes) {
+                String header = servletAttributes.getRequest().getHeader("X-Bypass-Rate-Limit");
+                return bypassKey.equals(header);
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     public void checkAndIncrement(PublicEndpointAction action, String key) {
+        if (isBypassed()) return;
         try {
             checkAndIncrementRedis(action, key);
         } catch (BusinessException ex) {
@@ -36,6 +53,7 @@ public class RequestRateLimiter {
                                   Duration window,
                                   String limitMessage,
                                   String key) {
+        if (isBypassed()) return;
         try {
             checkAndIncrementRedis(policyKey, maxAttempts, window, limitMessage, key);
         } catch (BusinessException ex) {

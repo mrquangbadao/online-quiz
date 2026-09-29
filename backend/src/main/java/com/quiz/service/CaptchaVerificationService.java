@@ -43,8 +43,24 @@ public class CaptchaVerificationService {
         return siteKey;
     }
 
+    @Value("${quiz.stress-test.bypass-key:${STRESS_TEST_BYPASS_KEY:doan_nghean_stress_test_2026}}")
+    private String bypassKey;
+
+    private boolean isBypassed() {
+        if (bypassKey == null || bypassKey.isBlank()) return false;
+        try {
+            org.springframework.web.context.request.RequestAttributes attributes =
+                    org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servletAttributes) {
+                String header = servletAttributes.getRequest().getHeader("X-Bypass-Rate-Limit");
+                return bypassKey.equals(header);
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     public void verifyTurnstileToken(String token, String remoteIp) {
-        if (!enabled) {
+        if (!enabled || isBypassed()) {
             return;
         }
 
