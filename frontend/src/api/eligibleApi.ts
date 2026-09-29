@@ -19,4 +19,7 @@ export const eligibleApi = {
 
   resetRegistration: (id: number) =>
     axiosClient.put(`/admin/eligible-contestants/${id}/reset-registration`),
+
+  resetAllRegistrations: () =>
+    axiosClient.put('/admin/eligible-contestants/reset-all-registrations'),
 };

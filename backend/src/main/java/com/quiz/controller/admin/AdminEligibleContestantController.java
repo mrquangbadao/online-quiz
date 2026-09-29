@@ -52,4 +52,10 @@ public class AdminEligibleContestantController {
         eligibleContestantService.resetContestantRegistration(id);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
+
+    @org.springframework.web.bind.annotation.PutMapping("/reset-all-registrations")
+    public ResponseEntity<ApiResponse<Void>> resetAllContestantRegistrations() {
+        eligibleContestantService.resetAllContestantRegistrations();
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
 }

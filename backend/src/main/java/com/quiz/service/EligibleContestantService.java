@@ -22,4 +22,6 @@ public interface EligibleContestantService {
     void deleteEligibleContestant(Long id);
 
     void resetContestantRegistration(Long id);
+
+    void resetAllContestantRegistrations();
 }

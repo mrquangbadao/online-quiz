@@ -237,6 +237,22 @@ export default function AdminEligibleContestants() {
     });
   }, [contestants, searchTerm, statusFilter]);
 
+  const handleResetAllRegistrations = async () => {
+    if (!window.confirm('CẢNH BÁO: Thao tác này sẽ XÓA TOÀN BỘ bài thi thử nghiệm và reset trạng thái của tất cả 70 thí sinh về CHƯA ĐĂNG KÝ để sẵn sàng cho ngày thi chính thức.\n\nBạn có chắc chắn muốn thực hiện?')) {
+      return;
+    }
+    setLoading(true);
+    try {
+      await eligibleApi.resetAllRegistrations();
+      toast.success('Đã reset toàn bộ danh sách 70 thí sinh và làm sạch bài thi thử nghiệm thành công!');
+      fetchContestants();
+    } catch (err) {
+      toast.error(extractApiError(err, 'Reset danh sách thất bại'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Summary statistics
   const stats = useMemo(() => {
     const total = contestants.length;
@@ -319,6 +335,17 @@ export default function AdminEligibleContestants() {
             >
               <Key className="w-4 h-4 text-amber-600" />
               <span>Cấp OTP khẩn cấp</span>
+            </button>
+
+            {/* Reset All Contestants (Clear test data) */}
+            <button
+              onClick={handleResetAllRegistrations}
+              disabled={loading}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 text-sm font-bold transition-colors disabled:opacity-50"
+              title="Xóa toàn bộ bài thi thử nghiệm và reset trạng thái 70 thí sinh về chưa đăng ký"
+            >
+              <RotateCcw className="w-4 h-4 text-red-600" />
+              <span>Reset dữ liệu thi (Làm sạch)</span>
             </button>
 
             {/* Utility Actions */}

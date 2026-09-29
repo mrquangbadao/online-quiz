@@ -203,6 +203,28 @@ public class EligibleContestantServiceImpl implements EligibleContestantService 
         log.info("Reset registration status for eligible contestant id={} name={}", id, candidate.getFullName());
     }
 
+    @Override
+    @Transactional
+    public void resetAllContestantRegistrations() {
+        List<EligibleContestant> all = eligibleContestantRepository.findAll();
+        for (EligibleContestant candidate : all) {
+            Long contestantId = candidate.getRegisteredContestantId();
+            if (contestantId != null) {
+                List<Exam> exams = examRepository.findByContestantIdIn(List.of(contestantId));
+                if (!exams.isEmpty()) {
+                    examRepository.deleteAll(exams);
+                }
+                contestantRepository.deleteById(contestantId);
+            }
+            candidate.setIsRegistered(false);
+            candidate.setPhone(null);
+            candidate.setEmail(null);
+            candidate.setRegisteredContestantId(null);
+        }
+        eligibleContestantRepository.saveAll(all);
+        log.info("Reset all {} eligible contestant registrations and cleaned test exams.", all.size());
+    }
+
     private EligibleContestantResponse mapToPublicResponse(EligibleContestant entity) {
         return EligibleContestantResponse.builder()
                 .id(entity.getId())
