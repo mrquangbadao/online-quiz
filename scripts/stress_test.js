@@ -14,6 +14,8 @@
 const TARGET_URL = (process.argv[2] || 'https://btdcsgioinghean.com').replace(/\/$/, '');
 const NUM_USERS = parseInt(process.argv[3] || '70', 10);
 const MODE = process.argv[4] || 'full'; // 'health', 'start_only', 'full', 'draft_flood'
+const BYPASS_KEY = process.env.STRESS_TEST_BYPASS_KEY || 'doan_nghean_stress_test_2026';
+const WITH_EMAIL = process.argv.includes('--with-email');
 
 console.log('='.repeat(70));
 console.log('  KỊCH BẢN KIỂM THỬ TẢI & ÁP LỰC (STRESS TEST SIMULATION)');
@@ -22,6 +24,8 @@ console.log('='.repeat(70));
 console.log(`- Mục tiêu kiểm thử (Target URL): ${TARGET_URL}`);
 console.log(`- Số lượng thí sinh giả lập:   ${NUM_USERS} thí sinh đồng thời`);
 console.log(`- Chế độ kiểm thử (Mode):        ${MODE.toUpperCase()}`);
+console.log(`- Cơ chế Bypass Anti-Bot/Rate:  BẬT (Khóa bảo mật: ${BYPASS_KEY.substring(0, 10)}...)`);
+console.log(`- Gửi Email OTP thật qua Brevo:  ${WITH_EMAIL ? 'BẬT' : 'TẮT (Dùng Master OTP để tiết kiệm quota)'}`);
 console.log('='.repeat(70));
 
 const stats = {
@@ -64,6 +68,7 @@ async function apiCall(method, path, body = null, headers = {}) {
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'StressTestRunner/1.0',
+        'X-Bypass-Rate-Limit': BYPASS_KEY,
         ...headers
       }
     };
@@ -119,11 +124,13 @@ async function simulateCandidate(candidate, index, masterOtp = '654321') {
   const cName = candidate.fullName;
   const cUnit = candidate.unit;
 
-  // Bước 1: Yêu cầu mã OTP
-  const reqOtpRes = await apiCall('POST', '/auth/request-otp', { email: cEmail });
-  recordReq('request_otp', reqOtpRes.latency, reqOtpRes.ok, reqOtpRes.error || (reqOtpRes.data?.message));
+  // Bước 1: Yêu cầu mã OTP (chỉ gọi nếu bật cờ --with-email để tránh tiêu hao hạn mức gửi email Brevo)
+  if (WITH_EMAIL) {
+    const reqOtpRes = await apiCall('POST', '/auth/request-otp', { email: cEmail });
+    recordReq('request_otp', reqOtpRes.latency, reqOtpRes.ok, reqOtpRes.error || (reqOtpRes.data?.message));
+  }
 
-  // Bước 2: Xác thực mã OTP (thử Master OTP hoặc xác thực trực tiếp)
+  // Bước 2: Xác thực mã OTP bằng Master OTP trực tiếp
   const verifyRes = await apiCall('POST', '/auth/verify-otp', {
     email: cEmail,
     otp: masterOtp
