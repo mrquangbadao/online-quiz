@@ -101,9 +101,9 @@ export default function StatsSection() {
 
   return (
     <section ref={sectionRef} className="relative py-10 sm:py-14 md:py-20 bg-gradient-to-b from-slate-50 via-white to-slate-50 border-b border-slate-200 z-20 overflow-hidden w-full">
-      {/* Soft blue glow in background */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-blue-100/50 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-100/40 rounded-full blur-[100px] pointer-events-none" />
+      {/* Soft ambient glows (no CSS blur – lightweight for low-end devices) */}
+      <div className="absolute top-0 right-0 w-80 h-80 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(191,219,254,0.35) 0%, transparent 70%)' }} />
+      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(199,210,254,0.3) 0%, transparent 70%)' }} />
 
       <div className="max-w-[1300px] mx-auto px-3.5 sm:px-4 md:px-8 relative z-10 w-full min-w-0">
         <div

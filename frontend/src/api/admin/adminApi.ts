@@ -50,8 +50,14 @@ export const adminApi = {
 
   getPhases: () => axiosClient.get<{ data: ContestPhase[] }>('/admin/phases'),
   getCurrentPhase: () => axiosClient.get<{ data: ContestPhase | null }>('/admin/phases/current'),
-  startPhase: (name: string) =>
-    axiosClient.post<{ data: ContestPhase }>('/admin/phases/start', { name }),
+  startPhase: (config: {
+    name: string;
+    requireWhitelist?: boolean;
+    mcQuestionCount?: number;
+    timeLimitMinutes?: number;
+    hasScenarios?: boolean;
+  }) =>
+    axiosClient.post<{ data: ContestPhase }>('/admin/phases/start', config),
   stopPhase: (id: number) =>
     axiosClient.put<{ data: ContestPhase }>(`/admin/phases/${id}/stop`),
   deletePhase: (id: number) => axiosClient.delete(`/admin/phases/${id}`),

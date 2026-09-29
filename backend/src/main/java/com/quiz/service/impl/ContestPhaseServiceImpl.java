@@ -27,17 +27,30 @@ public class ContestPhaseServiceImpl implements ContestPhaseService {
   @Override
   @Transactional
   public ContestPhase startPhase(String name) {
+    return startPhase(name, null, null, null, null);
+  }
+
+  @Override
+  @Transactional
+  public ContestPhase startPhase(String name, Boolean requireWhitelist, Integer mcQuestionCount,
+                                 Integer timeLimitMinutes, Boolean hasScenarios) {
     // Only 1 contest phase can be active at the same time
     contestPhaseRepository.findFirstByStatus(PhaseStatus.ACTIVE).ifPresent(existing -> {
       throw new BusinessException("ANOTHER_PHASE_ACTIVE",
           "Đang có đợt thi '" + existing.getName() + "' đang diễn ra. Vui lòng kết thúc đợt thi hiện tại trước khi tạo đợt thi mới.");
     });
 
-    ContestPhase phase = ContestPhase.builder()
+    ContestPhase.ContestPhaseBuilder builder = ContestPhase.builder()
             .name(name)
             .status(PhaseStatus.ACTIVE)
-            .startTime(LocalDateTime.now())
-            .build();
+            .startTime(LocalDateTime.now());
+
+    if (requireWhitelist != null) builder.requireWhitelist(requireWhitelist);
+    if (mcQuestionCount != null) builder.mcQuestionCount(mcQuestionCount);
+    if (timeLimitMinutes != null) builder.timeLimitMinutes(timeLimitMinutes);
+    if (hasScenarios != null) builder.hasScenarios(hasScenarios);
+
+    ContestPhase phase = builder.build();
     return contestPhaseRepository.save(phase);
   }
 

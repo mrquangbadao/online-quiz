@@ -74,7 +74,7 @@ export default function Landing() {
       <header
         className={`fixed top-11 w-full z-50 transition-all duration-300 ${
           scrolledPastTop
-            ? "bg-[#10348c]/95 backdrop-blur-md border-b border-white/15 shadow-md"
+            ? "bg-[#10348c] border-b border-white/15 shadow-md"
             : "bg-[#1746b8] border-b border-white/10"
         }`}
       >
@@ -99,7 +99,7 @@ export default function Landing() {
           {/* Trạng thái đợt thi & Nút vào thi */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {activePhase && (
-              <div className="hidden md:flex items-center gap-2.5 bg-black/25 backdrop-blur-md border border-white/15 rounded-full px-3.5 py-1.5 shrink min-w-0 max-w-sm lg:max-w-md xl:max-w-xl">
+              <div className="hidden md:flex items-center gap-2.5 bg-[#0d2d6e] border border-white/15 rounded-full px-3.5 py-1.5 shrink min-w-0 max-w-sm lg:max-w-md xl:max-w-xl">
                 <span className="text-xs font-bold text-white tracking-wide uppercase truncate" title={activePhase.name}>
                   {activePhase.name}
                 </span>
@@ -111,7 +111,7 @@ export default function Landing() {
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      activePhase.status === "ACTIVE" ? "bg-emerald-400 animate-pulse" : "bg-slate-400"
+                      activePhase.status === "ACTIVE" ? "bg-emerald-400" : "bg-slate-400"
                     }`}
                   />
                   {activePhase.status === "ACTIVE" ? "Đang mở" : "Đã kết thúc"}
@@ -146,7 +146,7 @@ export default function Landing() {
         <div className="relative z-10 w-full max-w-[1100px] mx-auto flex flex-col items-center text-center min-w-0">
           {/* Logo Đoàn TNCS Hồ Chí Minh to, cân đối ở giữa màn hình (chuẩn cả mobile và desktop) */}
           <div className="relative mb-2.5 sm:mb-4 flex items-center justify-center">
-            <div className="absolute inset-0 bg-yellow-400/20 blur-2xl rounded-full scale-110 pointer-events-none" />
+            <div className="absolute inset-0 rounded-full scale-110 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(250,204,21,0.15) 0%, transparent 70%)' }} />
             <img
               src="/logo-doan.png"
               alt="Huy hiệu Đoàn TNCS Hồ Chí Minh"
@@ -155,7 +155,7 @@ export default function Landing() {
           </div>
 
           {/* Subheading / Đơn vị tổ chức */}
-          <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white/20 hover:bg-white/25 backdrop-blur-md border border-white/30 rounded-full px-3.5 sm:px-5 py-1 sm:py-1.5 mb-2.5 sm:mb-4 shadow-sm transition-colors">
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white/20 hover:bg-white/25 border border-white/30 rounded-full px-3.5 sm:px-5 py-1 sm:py-1.5 mb-2.5 sm:mb-4 shadow-sm transition-colors">
             <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-300 shrink-0" />
             <span className="text-[11px] sm:text-sm font-black uppercase tracking-wider text-yellow-300 drop-shadow-xs">
               TỈNH ĐOÀN NGHỆ AN
@@ -215,7 +215,7 @@ export default function Landing() {
       {/* ════════════ SECTION 3: TOÀN CẢNH LỘ TRÌNH 5 CHẶNG HỘI THI (ĐẸP MẮT & NỔI BẬT) ════════════ */}
       <section id="roadmap" className="relative py-14 sm:py-20 lg:py-24 bg-gradient-to-b from-white via-slate-50/80 to-white overflow-hidden border-b border-slate-200">
         {/* Soft background ambient lighting */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-blue-100/40 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[350px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(191,219,254,0.3) 0%, transparent 70%)' }} />
 
         <div className="max-w-[1360px] mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10 w-full min-w-0">
           {/* Section Header */}
@@ -260,13 +260,13 @@ export default function Landing() {
               {/* Step 3 Node (Active Beacon) */}
               <div className="flex flex-col items-center relative z-10">
                 <div className="relative">
-                  <span className="absolute -inset-1 rounded-full bg-blue-500/40 animate-ping" />
+                  <span className="absolute -inset-1.5 rounded-full bg-blue-400/25" />
                   <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#10348c] via-[#1746b8] to-blue-500 text-yellow-300 font-black text-sm flex items-center justify-center shadow-lg border-4 border-white relative z-10">
                     03
                   </div>
                 </div>
                 <span className="text-[11px] font-black text-[#1746b8] mt-1.5 flex items-center gap-1 uppercase tracking-wide">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   Đang diễn ra
                 </span>
               </div>
@@ -344,7 +344,7 @@ export default function Landing() {
             {/* ── CHẶNG 3: VÒNG LOẠI TỈNH (TIÊU ĐIỂM CHÍNH - HERO CARD) ── */}
             <div className="group rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0d348a] via-[#1243af] to-[#0b2b73] text-white p-5 sm:p-6 shadow-xl shadow-blue-900/25 border-2 border-yellow-400 ring-4 ring-blue-500/20 flex flex-col justify-between relative overflow-hidden lg:-translate-y-2 transition-all duration-300">
               {/* Highlight ribbon accent */}
-              <div className="absolute top-0 right-0 w-28 h-28 bg-yellow-400/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="absolute top-0 right-0 w-28 h-28 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(250,204,21,0.08) 0%, transparent 70%)' }} />
 
               <div>
                 <div className="flex items-center justify-between mb-3.5">
@@ -352,12 +352,12 @@ export default function Landing() {
                     Chặng 03 · TIÊU ĐIỂM
                   </span>
                   <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-yellow-400 text-blue-950 uppercase tracking-wide flex items-center gap-1.5 shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-red-600" />
                     Đang diễn ra
                   </span>
                 </div>
 
-                <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-xs text-yellow-300 border border-white/20 flex items-center justify-center mb-3.5 shadow-xs">
+                <div className="w-11 h-11 rounded-2xl bg-white/15 text-yellow-300 border border-white/20 flex items-center justify-center mb-3.5 shadow-xs">
                   <Laptop className="w-5 h-5" />
                 </div>
 

@@ -54,10 +54,10 @@ public class ContestantServiceImpl implements ContestantService {
             .orElseThrow(() -> new BusinessException("NO_ACTIVE_PHASE",
                     "Hiện tại không có đợt thi nào đang mở."));
 
-    // If the phase enforces a whitelist (e.g. Provincial Qualifier for 70 finalists),
-    // verify the contestant is on the eligible list and not yet registered.
+    // If the phase enforces a whitelist (e.g. Provincial Qualifier for 70 finalists)
+    // or an eligibleContestantId was selected, verify the contestant is on the eligible list.
     EligibleContestant eligibleContestant = null;
-    if (Boolean.TRUE.equals(activePhase.getRequireWhitelist())) {
+    if (Boolean.TRUE.equals(activePhase.getRequireWhitelist()) || request.getEligibleContestantId() != null) {
       eligibleContestant = eligibleContestantService.validateAndMatchContestant(
               request.getEligibleContestantId(),
               request.getFullName(),

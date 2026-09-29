@@ -224,8 +224,10 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
     return '';
   };
 
+  const isWhitelistMode = eligibleList.length > 0 || currentPhase?.requireWhitelist !== false;
+
   const validateForm = (): boolean => {
-    if (currentPhase?.requireWhitelist && !selectedEligible) {
+    if (isWhitelistMode && !selectedEligible) {
       setFormErrors((prev) => ({
         ...prev,
         fullName: 'Vui lòng chọn tên thí sinh trong danh sách 70 thí sinh đủ điều kiện',
@@ -465,17 +467,17 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                 <div>
                   <span className="rounded-full bg-green-100/60 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Bước 1/2</span>
                   <h2 className="mt-2 text-xl font-black text-slate-800 md:text-2xl">
-                    {currentPhase?.requireWhitelist ? 'Xác nhận thông tin dự thi' : 'Thông tin thí sinh'}
+                    {isWhitelistMode ? 'Xác nhận thông tin dự thi' : 'Thông tin thí sinh'}
                   </h2>
                   <p className="mt-1 text-xs text-slate-500 md:text-sm">
-                    {currentPhase?.requireWhitelist
+                    {isWhitelistMode
                       ? 'Chọn tên bạn trong danh sách 70 thí sinh đủ điều kiện và cung cấp SĐT, Email để nhận mã OTP.'
                       : 'Vui lòng cung cấp chính xác thông tin để lưu trữ kết quả thi.'}
                   </p>
                 </div>
 
                 <div className="space-y-4">
-                  {currentPhase?.requireWhitelist ? (
+                  {isWhitelistMode ? (
                     <div className="relative">
                       <Field
                         label="Thí sinh (thuộc danh sách 70 thí sinh đủ điều kiện)"
@@ -530,6 +532,7 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
                                 setShowEligibleDropdown(true);
                               }}
                               onFocus={() => setShowEligibleDropdown(true)}
+                              onBlur={() => window.setTimeout(() => setShowEligibleDropdown(false), 200)}
                               placeholder="Gõ tìm kiếm họ tên hoặc đơn vị trong 70 thí sinh..."
                             />
                             {showEligibleDropdown && !isFormLocked && (

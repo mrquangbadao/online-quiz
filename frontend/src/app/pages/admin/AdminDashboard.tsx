@@ -50,6 +50,9 @@ export default function AdminDashboard() {
   const [endPhaseLoading, setEndPhaseLoading] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
   const [newPhaseName, setNewPhaseName] = useState('');
+  const [newPhaseWhitelist, setNewPhaseWhitelist] = useState(true);
+  const [newPhaseMcCount, setNewPhaseMcCount] = useState(30);
+  const [newPhaseTimeLimit, setNewPhaseTimeLimit] = useState(20);
   const [deletePhaseId, setDeletePhaseId] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -174,9 +177,18 @@ export default function AdminDashboard() {
     if (!newPhaseName.trim()) return;
     setPhaseLoading(true);
     try {
-      await adminApi.startPhase(newPhaseName.trim());
+      await adminApi.startPhase({
+        name: newPhaseName.trim(),
+        requireWhitelist: newPhaseWhitelist,
+        mcQuestionCount: newPhaseMcCount,
+        timeLimitMinutes: newPhaseTimeLimit,
+        hasScenarios: false,
+      });
       setShowStartModal(false);
       setNewPhaseName('');
+      setNewPhaseWhitelist(true);
+      setNewPhaseMcCount(30);
+      setNewPhaseTimeLimit(20);
       const { currentPhase: newCurrent } = await loadPhases();
       if (newCurrent) {
         setSelectedPhaseId(newCurrent.id);
@@ -883,7 +895,7 @@ export default function AdminDashboard() {
       {/* ── Start Phase Modal ── */}
       {showStartModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 border border-slate-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 border border-slate-200">
             {currentPhase && currentPhase.status === 'ACTIVE' ? (
               <div className="space-y-4">
                 <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
@@ -913,16 +925,64 @@ export default function AdminDashboard() {
               <>
                 <h2 className="text-base font-black text-slate-800">Mở đợt thi mới</h2>
                 <p className="text-xs text-slate-500">
-                  Nhập tên đợt thi (ví dụ: Vòng sơ khảo, Vòng bán kết hoặc Vòng thi bổ sung). Đợt thi sẽ được kích hoạt ngay khi tạo.
+                  Cấu hình đợt thi cho cuộc thi Bí thư Đoàn cơ sở giỏi. Đợt thi sẽ được kích hoạt ngay khi tạo.
                 </p>
                 <input
                   autoFocus
                   className="w-full rounded-xl border-2 border-slate-200 px-4 py-2.5 text-xs focus:border-teal-500 focus:ring-0 outline-none transition-all"
-                  placeholder="Tên đợt thi..."
+                  placeholder="Tên đợt thi (VD: Vòng thi cấp tỉnh)..."
                   value={newPhaseName}
                   onChange={(e) => setNewPhaseName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleStartPhase()}
                 />
+
+                {/* Phase config options */}
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Cấu hình đợt thi</p>
+
+                  {/* Require Whitelist */}
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newPhaseWhitelist}
+                      onChange={(e) => setNewPhaseWhitelist(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-700">Chọn thí sinh từ danh sách (Whitelist)</span>
+                      <p className="text-[10px] text-slate-500">Thí sinh phải chọn tên từ danh sách 70 thí sinh đủ điều kiện thay vì tự nhập.</p>
+                    </div>
+                  </label>
+
+                  {/* MC Question Count */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-bold text-slate-700 shrink-0">Số câu trắc nghiệm:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      className="w-20 rounded-lg border-2 border-slate-200 px-3 py-1.5 text-xs text-center focus:border-teal-500 focus:ring-0 outline-none"
+                      value={newPhaseMcCount}
+                      onChange={(e) => setNewPhaseMcCount(Number(e.target.value) || 30)}
+                    />
+                    <span className="text-[10px] text-slate-400">câu</span>
+                  </div>
+
+                  {/* Time Limit */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-bold text-slate-700 shrink-0">Thời gian làm bài:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={120}
+                      className="w-20 rounded-lg border-2 border-slate-200 px-3 py-1.5 text-xs text-center focus:border-teal-500 focus:ring-0 outline-none"
+                      value={newPhaseTimeLimit}
+                      onChange={(e) => setNewPhaseTimeLimit(Number(e.target.value) || 20)}
+                    />
+                    <span className="text-[10px] text-slate-400">phút</span>
+                  </div>
+                </div>
+
                 <div className="flex gap-3">
                   <button
                     onClick={() => { setShowStartModal(false); setNewPhaseName(''); }}

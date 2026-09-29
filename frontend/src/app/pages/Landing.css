@@ -111,9 +111,7 @@
   inset: -30% 0 auto 0;
   height: 60%;
   background: radial-gradient(60% 80% at 50% 0%, rgba(250, 204, 21, 0.25), transparent 70%);
-  filter: blur(10px);
   pointer-events: none;
-  animation: footer-float 9s ease-in-out infinite;
 }
 
 .landing-footer__noise {
