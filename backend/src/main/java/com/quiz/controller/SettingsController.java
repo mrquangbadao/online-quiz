@@ -2,7 +2,9 @@ package com.quiz.controller;
 
 import com.quiz.dto.response.ApiResponse;
 import com.quiz.entity.AppSetting;
+import com.quiz.enums.PhaseStatus;
 import com.quiz.repository.AppSettingRepository;
+import com.quiz.repository.ContestPhaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,10 +23,12 @@ public class SettingsController {
   private static final Set<String> ALLOWED_KEYS = Set.of(
           "slogan",
           "exam_time_limit_minutes",
+          "exam_mc_question_count",
           "prediction_answer"
   );
 
   private final AppSettingRepository settingRepository;
+  private final ContestPhaseRepository contestPhaseRepository;
   private final com.quiz.service.CaptchaVerificationService captchaVerificationService;
 
   /** Public — captcha configuration for frontend */
@@ -51,6 +55,15 @@ public class SettingsController {
     int value = settingRepository.findById("exam_time_limit_minutes")
             .map(s -> { try { return Integer.parseInt(s.getValue()); } catch (NumberFormatException e) { return 0; } })
             .orElse(0);
+    return ResponseEntity.ok(ApiResponse.ok(value));
+  }
+
+  /** Public — anyone can read the exam MC question count */
+  @GetMapping("/mc-question-count")
+  public ResponseEntity<ApiResponse<Integer>> getMcQuestionCount() {
+    int value = settingRepository.findById("exam_mc_question_count")
+            .map(s -> { try { return Integer.parseInt(s.getValue()); } catch (NumberFormatException e) { return 30; } })
+            .orElse(30);
     return ResponseEntity.ok(ApiResponse.ok(value));
   }
 
@@ -81,7 +94,29 @@ public class SettingsController {
             .orElse(AppSetting.builder().key(key).build());
     setting.setValue(value);
     settingRepository.save(setting);
-    log.info("Setting '{}' updated by admin", key);
+    log.info("Setting '{}' updated by admin to '{}'", key, value);
+
+    // Sync to active contest phase if active
+    if ("exam_time_limit_minutes".equals(key)) {
+      try {
+        int minutes = Integer.parseInt(value);
+        contestPhaseRepository.findFirstByStatus(PhaseStatus.ACTIVE).ifPresent(phase -> {
+          phase.setTimeLimitMinutes(minutes);
+          contestPhaseRepository.save(phase);
+          log.info("Active phase '{}' time limit synced to {} minutes", phase.getName(), minutes);
+        });
+      } catch (NumberFormatException ignored) {}
+    } else if ("exam_mc_question_count".equals(key)) {
+      try {
+        int count = Integer.parseInt(value);
+        contestPhaseRepository.findFirstByStatus(PhaseStatus.ACTIVE).ifPresent(phase -> {
+          phase.setMcQuestionCount(count);
+          contestPhaseRepository.save(phase);
+          log.info("Active phase '{}' question count synced to {} questions", phase.getName(), count);
+        });
+      } catch (NumberFormatException ignored) {}
+    }
+
     return ResponseEntity.ok(ApiResponse.ok(null));
   }
 }

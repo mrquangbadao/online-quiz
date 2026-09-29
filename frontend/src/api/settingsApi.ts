@@ -8,6 +8,9 @@ export const settingsApi = {
   getTimeLimitMinutes: () => axiosClient.get<{ data: number }>('/settings/exam-time-limit'),
   updateTimeLimitMinutes: (minutes: number) =>
     axiosClient.put('/settings/exam_time_limit_minutes', { value: String(minutes) }),
+  getMcQuestionCount: () => axiosClient.get<{ data: number }>('/settings/mc-question-count'),
+  updateMcQuestionCount: (count: number) =>
+    axiosClient.put('/settings/exam_mc_question_count', { value: String(count) }),
   getPredictionAnswer: () => axiosClient.get<{ data: number }>('/settings/prediction-answer'),
   updatePredictionAnswer: (answer: number) =>
     axiosClient.put('/settings/prediction_answer', { value: String(answer) }),

@@ -1,13 +1,15 @@
 import { useNavigate } from "react-router-dom";
-import VietnamEmblem from "../components/VietnamEmblem";
+import BrandMark from "../components/BrandMark";
 
 export default function NotFound() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-lime-50 px-6 py-16">
-      <div className="mx-auto max-w-xl rounded-3xl bg-white p-10 text-center shadow-xl border border-slate-100">
-        <VietnamEmblem size={72} className="mx-auto mb-4" />
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-lime-50 px-6 py-16 flex items-center justify-center">
+      <div className="mx-auto max-w-md w-full rounded-3xl bg-white p-8 sm:p-10 text-center shadow-xl border border-slate-100">
+        <div className="flex justify-center mb-5">
+          <BrandMark size={72} showBorder={false} />
+        </div>
         <div className="mt-2 inline-flex items-center rounded-full border border-lime-300 bg-lime-100 px-4 py-2 text-sm font-semibold text-teal-800">
           Lỗi 404
         </div>

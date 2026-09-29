@@ -51,15 +51,15 @@ public class ContestPhase {
 
     @Builder.Default
     @Column(name = "mc_question_count", nullable = false)
-    private Integer mcQuestionCount = 10;
+    private Integer mcQuestionCount = 30;
 
     @Builder.Default
     @Column(name = "time_limit_minutes", nullable = false)
-    private Integer timeLimitMinutes = 15;
+    private Integer timeLimitMinutes = 20;
 
     @Builder.Default
     @Column(name = "has_scenarios", nullable = false)
-    private Boolean hasScenarios = true;
+    private Boolean hasScenarios = false;
 
     @Builder.Default
     @Column(name = "has_prediction", nullable = false)

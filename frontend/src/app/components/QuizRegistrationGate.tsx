@@ -24,7 +24,6 @@ import { toast } from './ui/Toast';
 import type { ExamStartResponse, EligibleContestant } from '../../types';
 import BrandMark from './BrandMark';
 import TurnstileWidget from './TurnstileWidget';
-import VietnamEmblem from './VietnamEmblem';
 
 type RegistrationForm = {
   fullName: string;

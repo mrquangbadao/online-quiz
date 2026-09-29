@@ -14,6 +14,7 @@ import com.quiz.service.ContestantService;
 import com.quiz.service.EligibleContestantService;
 import com.quiz.service.EmailOtpService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,6 +30,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ContestantServiceImpl implements ContestantService {

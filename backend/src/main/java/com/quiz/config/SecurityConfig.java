@@ -47,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/exams/phase/current").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/units").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/eligible-contestants").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/settings/slogan", "/api/settings/exam-time-limit").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/settings/slogan", "/api/settings/exam-time-limit", "/api/settings/mc-question-count").permitAll()
                         .requestMatchers("/api/settings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/phases/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

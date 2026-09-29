@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AdminSidebar } from './AdminDashboard';
 import { settingsApi } from '../../../api/settingsApi';
 import { adminApi } from '../../../api/admin/adminApi';
-import { Timer, Megaphone, Check } from 'lucide-react';
+import { Timer, Megaphone, Check, BookOpen } from 'lucide-react';
 import { extractApiError } from '../../../hooks/useApiError';
  
 export default function AdminSettings() {
@@ -13,9 +13,14 @@ export default function AdminSettings() {
   const [sloganMsg, setSloganMsg] = useState('');
  
   // Time limit
-  const [timeLimitInput, setTimeLimitInput] = useState<string>('0');
+  const [timeLimitInput, setTimeLimitInput] = useState<string>('20');
   const [timeLimitSaving, setTimeLimitSaving] = useState(false);
   const [timeLimitMsg, setTimeLimitMsg] = useState('');
+
+  // MC Question count
+  const [mcCountInput, setMcCountInput] = useState<string>('30');
+  const [mcCountSaving, setMcCountSaving] = useState(false);
+  const [mcCountMsg, setMcCountMsg] = useState('');
  
   useEffect(() => {
     settingsApi.getSlogan().then((res) => {
@@ -23,7 +28,10 @@ export default function AdminSettings() {
       setSloganInput(res.data.data ?? '');
     }).catch(() => {});
     settingsApi.getTimeLimitMinutes().then((res) => {
-      setTimeLimitInput(String(res.data.data ?? 0));
+      setTimeLimitInput(String(res.data.data ?? 20));
+    }).catch(() => {});
+    settingsApi.getMcQuestionCount().then((res) => {
+      setMcCountInput(String(res.data.data ?? 30));
     }).catch(() => {});
   }, []);
  
@@ -57,6 +65,22 @@ export default function AdminSettings() {
       setTimeLimitSaving(false);
     }
   };
+
+  const handleSaveMcCount = async () => {
+    const count = parseInt(mcCountInput, 10);
+    if (isNaN(count) || count < 1 || count > 100) return;
+    setMcCountSaving(true);
+    setMcCountMsg('');
+    try {
+      await settingsApi.updateMcQuestionCount(count);
+      setMcCountMsg(`Đã đặt: ${count} câu hỏi trắc nghiệm (đã đồng bộ vào đợt thi)`);
+      setTimeout(() => setMcCountMsg(''), 3000);
+    } catch (err) {
+      setMcCountMsg(extractApiError(err, 'Lưu thất bại'));
+    } finally {
+      setMcCountSaving(false);
+    }
+  };
  
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 font-sans">
@@ -68,6 +92,51 @@ export default function AdminSettings() {
           <h1 className="text-2xl font-extrabold text-slate-800">Cấu hình</h1>
           <p className="text-sm text-slate-500 mt-1">Thiết lập thông số cho cuộc thi</p>
         </div>
+
+        {/* ── MC Question Count ── */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-slate-800 px-5 py-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-white text-sm font-bold">Số câu hỏi trắc nghiệm</p>
+              <p className="text-slate-400 text-xs">Quy cách bài thi chuẩn: 30 câu (Tự động đồng bộ vào đợt thi đang mở)</p>
+            </div>
+          </div>
+          <div className="p-6">
+            <p className="text-sm text-slate-500 mb-5">
+              Quy cách chuẩn của Vòng loại Hội thi là <strong className="text-slate-700">30 câu</strong>. Khi lưu, cấu hình sẽ được áp dụng cho toàn hệ thống và đồng bộ ngay vào đợt thi đang chạy.
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="relative w-44">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  className="w-full rounded-xl border-2 border-slate-200 pl-4 pr-16 py-3 text-sm font-bold focus:border-teal-500 focus:ring-0 outline-none transition-all"
+                  value={mcCountInput}
+                  onChange={(e) => setMcCountInput(e.target.value)}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">câu</span>
+              </div>
+              <button
+                onClick={handleSaveMcCount}
+                disabled={mcCountSaving || isNaN(parseInt(mcCountInput, 10)) || parseInt(mcCountInput, 10) < 1}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                {mcCountSaving ? 'Đang lưu...' : 'Lưu'}
+              </button>
+              <span className="text-xs text-slate-400 font-medium">
+                📚 {mcCountInput} câu / đề thi
+              </span>
+            </div>
+            {mcCountMsg && (
+              <p className="mt-3 text-sm font-semibold text-teal-700">{mcCountMsg}</p>
+            )}
+          </div>
+        </div>
  
         {/* ── Time Limit ── */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -77,12 +146,12 @@ export default function AdminSettings() {
             </div>
             <div>
               <p className="text-white text-sm font-bold">Thời gian làm bài</p>
-              <p className="text-slate-400 text-xs">Giới hạn tính từ lúc thí sinh bấm "Bắt đầu"</p>
+              <p className="text-slate-400 text-xs">Giới hạn tính từ lúc thí sinh bấm "Bắt đầu" (Tự động đồng bộ vào đợt thi đang mở)</p>
             </div>
           </div>
           <div className="p-6">
             <p className="text-sm text-slate-500 mb-5">
-              Nhập <strong className="text-slate-700">0</strong> để không giới hạn thời gian. Khi hết giờ, bài thi tự động nộp và bị đánh dấu <strong className="text-red-600">Hết hạn</strong> nếu thí sinh chưa nộp.
+              Quy cách chuẩn của Vòng loại Hội thi là <strong className="text-slate-700">20 phút</strong>. Khi hết giờ, bài thi tự động nộp. Nhập <strong className="text-slate-700">0</strong> để không giới hạn thời gian.
             </p>
             <div className="flex items-center gap-3">
               <div className="relative w-44">

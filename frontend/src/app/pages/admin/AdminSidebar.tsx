@@ -54,7 +54,7 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* ── Brand Header ── */}
-      <div className="p-4 sm:p-5 border-b border-white/10 bg-white/5 flex items-center justify-between">
+      <div className="p-4 sm:p-5 border-b border-white/10 bg-white/5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <BrandMark size={40} showBorder={false} />
           <div>
@@ -73,7 +73,7 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
       </div>
 
       {/* ── Quick Link: View Public Quiz Page ── */}
-      <div className="px-3 pt-3">
+      <div className="px-3 pt-3 shrink-0">
         <a
           href="/"
           target="_blank"
@@ -90,7 +90,7 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
       </div>
 
       {/* ── Navigation Links (Grouped) ── */}
-      <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-4 overflow-y-auto min-h-0">
         {menuGroups.map((grp) => (
           <div key={grp.group} className="space-y-1">
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-blue-300/50 mb-1">
@@ -118,7 +118,7 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
       </nav>
 
       {/* ── User Profile Badge & Logout ── */}
-      <div className="p-3 border-t border-white/10 bg-black/15 space-y-2">
+      <div className="p-3 border-t border-white/10 bg-black/15 space-y-2 shrink-0">
         {/* Profile Card */}
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
           <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-yellow-300 font-bold text-xs shrink-0 uppercase">
@@ -194,10 +194,12 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
         </div>
       )}
 
-      {/* ── Desktop Static Sidebar (lg:flex) ── */}
-      <aside className="hidden lg:flex w-72 bg-gradient-to-b from-[#0b286d] via-[#0d348a] to-[#081d52] flex-col min-h-screen shrink-0 border-r border-blue-900/40 sticky top-0 h-screen">
+      {/* ── Desktop Fixed Sidebar (lg:flex) ── */}
+      <aside className="hidden lg:flex w-72 bg-gradient-to-b from-[#0b286d] via-[#0d348a] to-[#081d52] flex-col shrink-0 border-r border-blue-900/40 fixed inset-y-0 left-0 z-30 h-screen">
         {sidebarContent}
       </aside>
+      {/* ── Spacer for desktop flex flow ── */}
+      <div className="hidden lg:block w-72 shrink-0" aria-hidden="true" />
     </>
   );
 }
