@@ -201,8 +201,8 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
   const isProgressState = entryStatus === 'verifiedPreparing' || entryStatus === 'entering';
   const isFormLocked = requestingOtp || verifyingOtp || submitting || isProgressState;
   const envSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined)?.trim();
-  const turnstileSiteKey = (remoteCaptchaConfig?.siteKey || envSiteKey || '0x4AAAAAADTK7-2gGuSQLkjV');
-  const captchaEnabled = remoteCaptchaConfig != null ? remoteCaptchaConfig.enabled : true;
+  const turnstileSiteKey = (remoteCaptchaConfig?.siteKey || envSiteKey) ?? '';
+  const captchaEnabled = remoteCaptchaConfig != null ? remoteCaptchaConfig.enabled : !!turnstileSiteKey;
 
   const validateField = (name: keyof RegistrationForm, value: string): string => {
     if (name === 'fullName') {
