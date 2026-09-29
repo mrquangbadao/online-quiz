@@ -12,6 +12,7 @@ public interface ExamService {
   ExamResultResponse submitExam(Long examId, ExamSubmitRequest request);
   void saveDraftAnswer(Long examId, ExamDraftAnswerRequest request);
   void autoSubmitInProgressExamsForPhase(Long phaseId);
+  void autoSubmitOverdueExams();
   long getActiveExamCount();
   void resetExam(Long examId);
 }

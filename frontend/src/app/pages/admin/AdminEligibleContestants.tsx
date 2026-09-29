@@ -17,7 +17,7 @@ export default function AdminEligibleContestants() {
   const [contestants, setContestants] = useState<EligibleContestant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'REGISTERED' | 'NOT_REGISTERED' | 'SUBMITTED' | 'IN_PROGRESS'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'WHITELIST' | 'SELF_REGISTERED' | 'REGISTERED' | 'NOT_REGISTERED' | 'SUBMITTED' | 'IN_PROGRESS'>('ALL');
 
   // Add / Edit Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -229,6 +229,8 @@ export default function AdminEligibleContestants() {
       if (!matchSearch) return false;
 
       // Status filter
+      if (statusFilter === 'WHITELIST') return !c.isSelfRegistered;
+      if (statusFilter === 'SELF_REGISTERED') return Boolean(c.isSelfRegistered);
       if (statusFilter === 'REGISTERED') return c.isRegistered;
       if (statusFilter === 'NOT_REGISTERED') return !c.isRegistered;
       if (statusFilter === 'SUBMITTED') return c.examStatus === 'SUBMITTED';
@@ -256,13 +258,15 @@ export default function AdminEligibleContestants() {
   // Summary statistics
   const stats = useMemo(() => {
     const total = contestants.length;
+    const whitelistCount = contestants.filter((c) => !c.isSelfRegistered).length;
+    const selfRegisteredCount = contestants.filter((c) => c.isSelfRegistered).length;
     const registered = contestants.filter((c) => c.isRegistered).length;
     const submitted = contestants.filter((c) => c.examStatus === 'SUBMITTED').length;
     const inProgress = contestants.filter((c) => c.examStatus === 'IN_PROGRESS').length;
     const submittedExams = contestants.filter((c) => c.examScore != null);
     const maxScore = submittedExams.length > 0 ? Math.max(...submittedExams.map((c) => c.examScore ?? 0)) : null;
 
-    return { total, registered, submitted, inProgress, maxScore };
+    return { total, whitelistCount, selfRegisteredCount, registered, submitted, inProgress, maxScore };
   }, [contestants]);
 
   const fmtDuration = (s?: number) => {
@@ -271,10 +275,11 @@ export default function AdminEligibleContestants() {
   };
 
   const exportCSV = () => {
-    const headers = ['STT', 'Họ và tên', 'Đơn vị', 'Điểm Tuần 1', 'Điểm Tuần 2', 'Điểm Tuần 3', 'Điểm Tuần 4', 'Tổng điểm Sơ khảo', 'Trạng thái ĐK', 'SĐT', 'Email', 'Trạng thái thi', 'Điểm thi Vòng loại', 'Thời gian làm bài'];
+    const headers = ['STT', 'Họ và tên', 'Phân loại', 'Đơn vị', 'Điểm Tuần 1', 'Điểm Tuần 2', 'Điểm Tuần 3', 'Điểm Tuần 4', 'Tổng điểm Sơ khảo', 'Trạng thái ĐK', 'SĐT', 'Email', 'Trạng thái thi', 'Điểm thi Vòng loại', 'Thời gian làm bài'];
     const rows = contestants.map((c) => [
       c.orderNumber,
       `"${c.fullName}"`,
+      c.isSelfRegistered ? '"Đăng ký tự do"' : '"Danh sách duyệt"',
       `"${c.unit}"`,
       `"${c.scoreWeek1 || ''}"`,
       `"${c.scoreWeek2 || ''}"`,
@@ -374,9 +379,14 @@ export default function AdminEligibleContestants() {
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tổng số đủ điều kiện</p>
-                <p className="text-3xl font-black text-slate-800 mt-1">{stats.total}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Theo danh sách Tỉnh đoàn ban hành</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tổng số thí sinh</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <p className="text-3xl font-black text-slate-800">{stats.total}</p>
+                  <p className="text-xs font-bold text-slate-500">
+                    ({stats.whitelistCount} duyệt + {stats.selfRegisteredCount} tự do)
+                  </p>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">Vòng loại cấp tỉnh</p>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center">
                 <Users className="w-6 h-6 text-teal-600" />
@@ -451,24 +461,24 @@ export default function AdminEligibleContestants() {
               Tất cả ({contestants.length})
             </button>
             <button
-              onClick={() => setStatusFilter('REGISTERED')}
+              onClick={() => setStatusFilter('WHITELIST')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                statusFilter === 'REGISTERED'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                statusFilter === 'WHITELIST'
+                  ? 'bg-teal-700 text-white shadow-sm'
+                  : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
               }`}
             >
-              Đã kích hoạt ({stats.registered})
+              Danh sách duyệt ({stats.whitelistCount})
             </button>
             <button
-              onClick={() => setStatusFilter('NOT_REGISTERED')}
+              onClick={() => setStatusFilter('SELF_REGISTERED')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                statusFilter === 'NOT_REGISTERED'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                statusFilter === 'SELF_REGISTERED'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
               }`}
             >
-              Chưa kích hoạt ({stats.total - stats.registered})
+              Đăng ký tự do ({stats.selfRegisteredCount})
             </button>
             <button
               onClick={() => setStatusFilter('SUBMITTED')}
@@ -492,6 +502,26 @@ export default function AdminEligibleContestants() {
                 Đang thi ({stats.inProgress})
               </button>
             )}
+            <button
+              onClick={() => setStatusFilter('REGISTERED')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                statusFilter === 'REGISTERED'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Đã kích hoạt ({stats.registered})
+            </button>
+            <button
+              onClick={() => setStatusFilter('NOT_REGISTERED')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                statusFilter === 'NOT_REGISTERED'
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Chưa kích hoạt ({stats.total - stats.registered})
+            </button>
           </div>
 
           {/* Search Box */}
@@ -545,8 +575,19 @@ export default function AdminEligibleContestants() {
                         {c.orderNumber}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-800">{c.fullName}</div>
-                        <div className="text-xs text-slate-500">{c.unit}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-800">{c.fullName}</span>
+                          {c.isSelfRegistered ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              Tự do
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                              Duyệt
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">{c.unit}</div>
                       </td>
                       <td className="py-3 px-4 hidden md:table-cell">
                         {c.isRegistered ? (

@@ -155,6 +155,14 @@ public class ContestantServiceImpl implements ContestantService {
               request.getPhone(),
               request.getEmail().trim()
       );
+    } else {
+      eligibleContestantService.registerFreeContestant(
+              contestant.getId(),
+              request.getFullName().trim(),
+              request.getUnit().trim(),
+              request.getPhone(),
+              request.getEmail().trim()
+      );
     }
 
     emailOtpService.consumeVerificationSession(verificationSession);

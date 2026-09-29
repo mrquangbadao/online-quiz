@@ -31,6 +31,7 @@ export interface EligibleContestant {
   examStatus?: string;
   examScore?: number;
   examDurationSeconds?: number;
+  isSelfRegistered?: boolean;
 }
 
 export interface ContestantResponse {

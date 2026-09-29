@@ -32,7 +32,7 @@ public class EligibleContestantServiceImpl implements EligibleContestantService 
     @Override
     @Transactional(readOnly = true)
     public List<EligibleContestantResponse> getPublicEligibleList() {
-        return eligibleContestantRepository.findAllByOrderByOrderNumberAsc().stream()
+        return eligibleContestantRepository.findByIsSelfRegisteredFalseOrIsSelfRegisteredIsNullOrderByOrderNumberAsc().stream()
                 .map(this::mapToPublicResponse)
                 .collect(Collectors.toList());
     }
@@ -68,6 +68,7 @@ public class EligibleContestantServiceImpl implements EligibleContestantService 
                             .scoreWeek4(c.getScoreWeek4())
                             .totalScorePreliminary(c.getTotalScorePreliminary())
                             .isRegistered(Boolean.TRUE.equals(c.getIsRegistered()))
+                            .isSelfRegistered(Boolean.TRUE.equals(c.getIsSelfRegistered()))
                             .phone(c.getPhone())
                             .email(c.getEmail())
                             .examId(exam != null ? exam.getId() : null)
@@ -77,6 +78,41 @@ public class EligibleContestantServiceImpl implements EligibleContestantService 
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void registerFreeContestant(Long contestantId, String fullName, String unit, String phone, String email) {
+        Optional<EligibleContestant> existing = eligibleContestantRepository.findFirstByRegisteredContestantId(contestantId);
+        if (existing.isPresent()) {
+            EligibleContestant ec = existing.get();
+            ec.setFullName(fullName);
+            ec.setUnit(unit);
+            ec.setPhone(phone);
+            ec.setEmail(email);
+            ec.setIsRegistered(true);
+            ec.setIsSelfRegistered(true);
+            eligibleContestantRepository.save(ec);
+            return;
+        }
+
+        int maxOrder = eligibleContestantRepository.findMaxOrderNumber().orElse(0);
+        EligibleContestant newEc = EligibleContestant.builder()
+                .orderNumber(maxOrder + 1)
+                .fullName(fullName)
+                .unit(unit)
+                .phone(phone)
+                .email(email)
+                .isRegistered(true)
+                .isSelfRegistered(true)
+                .registeredContestantId(contestantId)
+                .scoreWeek1("-")
+                .scoreWeek2("-")
+                .scoreWeek3("-")
+                .scoreWeek4("-")
+                .totalScorePreliminary(0)
+                .build();
+        eligibleContestantRepository.save(newEc);
     }
 
     @Override

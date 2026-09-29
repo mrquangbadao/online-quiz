@@ -16,5 +16,10 @@ public interface EligibleContestantRepository extends JpaRepository<EligibleCont
 
     Optional<EligibleContestant> findFirstByRegisteredContestantId(Long registeredContestantId);
 
+    List<EligibleContestant> findByIsSelfRegisteredFalseOrIsSelfRegisteredIsNullOrderByOrderNumberAsc();
+
+    @org.springframework.data.jpa.repository.Query("SELECT MAX(e.orderNumber) FROM EligibleContestant e")
+    Optional<Integer> findMaxOrderNumber();
+
     boolean existsByOrderNumber(Integer orderNumber);
 }

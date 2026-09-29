@@ -22,4 +22,5 @@ public class EligibleContestantResponse {
     private String examStatus;
     private Integer examScore;
     private Long examDurationSeconds;
+    private Boolean isSelfRegistered;
 }

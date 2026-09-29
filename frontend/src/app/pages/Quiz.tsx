@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft,
@@ -23,24 +23,73 @@ type Phase = 'info' | 'loading' | 'mc' | 'scenario' | 'prediction' | 'submitting
 
 const ACTIVE_SESSION_STORAGE_KEY = 'quiz_live_exam_session';
 
+interface StoredExamSession {
+  examId: number;
+  submitToken: string;
+  clientStartedAtMs: number;
+  timeLimitMinutes: number;
+  multipleChoiceQuestions: MCQuestion[];
+  scenarioQuestions: ScenarioQuestion[];
+  contestantId: number;
+  answers: Record<string, string>;
+  currentIdx: number;
+  currentPhase: Phase;
+  lastElapsed: number;
+}
+
+function getInitialExamSession(): (StoredExamSession & { computedElapsed: number; limitSecs: number }) | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const session: StoredExamSession = JSON.parse(raw);
+    if (!session || !session.examId) return null;
+
+    const limitSecs = session.timeLimitMinutes > 0 ? session.timeLimitMinutes * 60 : 20 * 60;
+    
+    let elapsedSecs = session.lastElapsed || 0;
+    if (session.clientStartedAtMs && typeof session.clientStartedAtMs === 'number') {
+      const calculated = Math.floor((Date.now() - session.clientStartedAtMs) / 1000);
+      if (calculated > elapsedSecs) {
+        elapsedSecs = calculated;
+      }
+    }
+
+    if (elapsedSecs < limitSecs + 180) {
+      return {
+        ...session,
+        computedElapsed: elapsedSecs,
+        limitSecs,
+      };
+    } else {
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      return null;
+    }
+  } catch {
+    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
 export default function Quiz() {
   const navigate = useNavigate();
   const store = useExamStore();
 
-  const [phase, setPhase] = useState<Phase>('info');
+  const initialSession = useMemo(() => getInitialExamSession(), []);
+
+  const [phase, setPhase] = useState<Phase>(() => initialSession ? (initialSession.currentPhase || 'mc') : 'info');
   const [error, setError] = useState('');
 
   // Exam data
-  const [examId, setExamId] = useState<number | null>(null);
-  const [submitToken, setSubmitToken] = useState<string>('');
-  const [mcQuestions, setMcQuestions] = useState<MCQuestion[]>([]);
-  const [scenarioQuestions, setScenarioQuestions] = useState<ScenarioQuestion[]>([]);
+  const [examId, setExamId] = useState<number | null>(() => initialSession ? initialSession.examId : null);
+  const [submitToken, setSubmitToken] = useState<string>(() => initialSession ? initialSession.submitToken : '');
+  const [mcQuestions, setMcQuestions] = useState<MCQuestion[]>(() => initialSession ? (initialSession.multipleChoiceQuestions || []) : []);
+  const [scenarioQuestions, setScenarioQuestions] = useState<ScenarioQuestion[]>(() => initialSession ? (initialSession.scenarioQuestions || []) : []);
 
   // Quiz state
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [elapsed, setElapsed] = useState(0);
-  const [timeLimitSecs, setTimeLimitSecs] = useState(0); // 0 = no limit (default 20 min = 1200s)
+  const [currentIdx, setCurrentIdx] = useState(() => initialSession ? (initialSession.currentIdx || 0) : 0);
+  const [answers, setAnswers] = useState<Record<string, string>>(() => initialSession ? (initialSession.answers || {}) : {});
+  const [elapsed, setElapsed] = useState(() => initialSession ? initialSession.computedElapsed : 0);
+  const [timeLimitSecs, setTimeLimitSecs] = useState(() => initialSession ? initialSession.limitSecs : 0);
   const [autoSubmitTriggered, setAutoSubmitTriggered] = useState(false);
   const [activeCount, setActiveCount] = useState(0);
   const [prediction, setPrediction] = useState('');
@@ -63,44 +112,42 @@ export default function Quiz() {
     } catch {}
   }, []);
 
-  // F5 Recovery: Check and restore active exam session from localStorage
+  // On mount: sync restored contestantId to store and inform user
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-      if (!raw) return;
-      const session = JSON.parse(raw);
-      if (!session || !session.examId || !session.startTime) return;
-
-      const limitSecs = session.timeLimitMinutes > 0 ? session.timeLimitMinutes * 60 : 20 * 60;
-      const startMs = new Date(session.startTime).getTime();
-      const elapsedSecs = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-
-      if (elapsedSecs < limitSecs + 180) { // Still valid within time limit + 3 min grace
-        setExamId(session.examId);
-        setSubmitToken(session.submitToken);
-        setMcQuestions(session.multipleChoiceQuestions || []);
-        setScenarioQuestions(session.scenarioQuestions || []);
-        setAnswers(session.answers || {});
-        setCurrentIdx(session.currentIdx || 0);
-        setElapsed(elapsedSecs);
-        setTimeLimitSecs(limitSecs);
-        if (session.contestantId) store.setContestantId(session.contestantId);
-        setPhase(session.currentPhase || 'mc');
-        toast.success('Hệ thống đã tự động khôi phục bài thi đang làm dở của bạn!');
-      } else {
-        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-      }
-    } catch {
-      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    if (initialSession?.contestantId) {
+      store.setContestantId(initialSession.contestantId);
+      toast.info('Hệ thống đã tự động khôi phục bài thi đang làm dở của bạn!');
     }
-  }, [store]);
+  }, [initialSession, store]);
+
+  // Prevent accidental F5 / reload / tab close during active exam
+  useEffect(() => {
+    if (phase !== 'mc' && phase !== 'scenario' && phase !== 'prediction') return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'Bạn đang trong quá trình làm bài thi trực tuyến. Bạn có chắc chắn muốn rời khỏi hoặc tải lại trang?';
+      return e.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [phase]);
 
   // Timer — only runs during active quiz phases
   useEffect(() => {
     if (phase !== 'mc' && phase !== 'scenario' && phase !== 'prediction') return;
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    const t = setInterval(() => {
+      setElapsed((s) => {
+        const next = s + 1;
+        if (next % 5 === 0) {
+          syncSessionStorage({ lastElapsed: next });
+        }
+        return next;
+      });
+    }, 1000);
     return () => clearInterval(t);
-  }, [phase]);
+  }, [phase, syncSessionStorage]);
 
   // Derived: remaining seconds
   const remaining = timeLimitSecs > 0 ? Math.max(0, timeLimitSecs - elapsed) : undefined;
@@ -302,13 +349,15 @@ export default function Quiz() {
       store.setExam(exam);
       setPhase('mc');
 
+      const clientStartedAtMs = Date.now() - initialElapsed * 1000;
+
       try {
         localStorage.setItem(
           ACTIVE_SESSION_STORAGE_KEY,
           JSON.stringify({
             examId: exam.examId,
             submitToken: exam.submitToken,
-            startTime: exam.startTime || new Date().toISOString(),
+            clientStartedAtMs,
             timeLimitMinutes: exam.timeLimitMinutes,
             multipleChoiceQuestions: exam.multipleChoiceQuestions,
             scenarioQuestions: exam.scenarioQuestions,
@@ -316,6 +365,7 @@ export default function Quiz() {
             answers: initialAnswers,
             currentIdx: 0,
             currentPhase: 'mc',
+            lastElapsed: initialElapsed,
           })
         );
       } catch {}

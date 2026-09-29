@@ -529,7 +529,7 @@ export default function Landing() {
               <div className="space-y-2 text-xs text-blue-100/90">
                 <div className="flex items-start gap-2.5">
                   <MapPin className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
-                  <span>Cơ quan Tỉnh đoàn: Số 22 đường Trường Thi, phường Trường Vinh, Nghệ An</span>
+                  <span>Số 22 đường Trường Thi, phường Trường Vinh, Nghệ An</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <Building className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />

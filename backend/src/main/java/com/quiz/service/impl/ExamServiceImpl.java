@@ -253,9 +253,17 @@ public class ExamServiceImpl implements ExamService {
       long allowedSeconds = (long) limitMinutes * 60;
       long elapsed = java.time.temporal.ChronoUnit.SECONDS.between(exam.getStartTime(), LocalDateTime.now());
       if (elapsed > allowedSeconds + 180) {
-        exam.setStatus(ExamStatus.EXPIRED);
-        examRepository.save(exam);
-        throw new BusinessException("EXAM_EXPIRED", "Hết thời gian làm bài. Bài thi không được tính.");
+        log.warn("Exam id={} submitted late (elapsed={}s > allowed={}s + grace). Auto-grading answers and accepting.",
+                examId, elapsed, allowedSeconds);
+        gradeAndSubmitExam(exam, LocalDateTime.now(), allowedSeconds);
+        return ExamResultResponse.builder()
+                .examId(exam.getId())
+                .mcScore(exam.getMcScore() != null ? exam.getMcScore() : 0)
+                .scenarioScore(exam.getScenarioScore() != null ? exam.getScenarioScore() : 0)
+                .totalScore(exam.getTotalScore() != null ? exam.getTotalScore() : 0)
+                .durationSeconds(allowedSeconds)
+                .prediction(exam.getPrediction() != null ? exam.getPrediction() : 0)
+                .build();
       }
     }
 
@@ -375,35 +383,77 @@ public class ExamServiceImpl implements ExamService {
 
     LocalDateTime now = LocalDateTime.now();
     for (Exam exam : inProgressExams) {
-      List<ExamAnswer> answers = examAnswerRepository.findByExamId(exam.getId());
+      gradeAndSubmitExam(exam, now, 0);
+    }
+  }
 
-      int mcScore = 0;
-      int scenarioScore = 0;
-      for (ExamAnswer ans : answers) {
-        if (Boolean.TRUE.equals(ans.getIsCorrect())) {
-          if ("MC".equals(ans.getQuestionType())) {
-            mcScore++;
-          } else {
-            scenarioScore++;
-          }
+  @Override
+  @Transactional
+  public void autoSubmitOverdueExams() {
+    List<Exam> inProgressExams = examRepository.findByStatus(ExamStatus.IN_PROGRESS);
+    if (inProgressExams.isEmpty()) {
+      return;
+    }
+
+    int defaultLimitMinutes = settingRepository.findById("exam_time_limit_minutes")
+            .map(s -> {
+              try { return Integer.parseInt(s.getValue()); }
+              catch (NumberFormatException e) { return 0; }
+            }).orElse(0);
+
+    LocalDateTime now = LocalDateTime.now();
+    for (Exam exam : inProgressExams) {
+      int limitMinutes = (exam.getPhase() != null && exam.getPhase().getTimeLimitMinutes() != null && exam.getPhase().getTimeLimitMinutes() > 0)
+              ? exam.getPhase().getTimeLimitMinutes()
+              : defaultLimitMinutes;
+
+      if (limitMinutes <= 0) continue;
+
+      if (exam.getStartTime() != null) {
+        long elapsedSecs = ChronoUnit.SECONDS.between(exam.getStartTime(), now);
+        long allowedSecs = (long) limitMinutes * 60;
+        // Auto-grade if elapsed exceeds time limit + 30s grace
+        if (elapsedSecs >= allowedSecs + 30) {
+          log.info("Auto-grading overdue exam id={} for contestant id={} (elapsed={}s >= allowed={}s)",
+                  exam.getId(), exam.getContestant().getId(), elapsedSecs, allowedSecs);
+          gradeAndSubmitExam(exam, now, allowedSecs);
         }
       }
-
-      long duration = exam.getStartTime() != null
-              ? Math.max(0, ChronoUnit.SECONDS.between(exam.getStartTime(), now))
-              : 0;
-
-      exam.setMcScore(mcScore);
-      exam.setScenarioScore(scenarioScore);
-      exam.setTotalScore(mcScore + scenarioScore);
-      exam.setDurationSeconds(duration);
-      exam.setEndTime(now);
-      exam.setStatus(ExamStatus.SUBMITTED);
-      exam.setSubmitTokenConsumedAt(now);
-      examRepository.save(exam);
-      log.info("Auto-submitted exam id={} for contestant id={} with totalScore={}",
-              exam.getId(), exam.getContestant().getId(), exam.getTotalScore());
     }
+  }
+
+  private void gradeAndSubmitExam(Exam exam, LocalDateTime now, long maxDurationSeconds) {
+    List<ExamAnswer> answers = examAnswerRepository.findByExamId(exam.getId());
+
+    int mcScore = 0;
+    int scenarioScore = 0;
+    for (ExamAnswer ans : answers) {
+      if (Boolean.TRUE.equals(ans.getIsCorrect())) {
+        if ("MC".equals(ans.getQuestionType())) {
+          mcScore++;
+        } else {
+          scenarioScore++;
+        }
+      }
+    }
+
+    long duration = exam.getStartTime() != null
+            ? Math.max(0, ChronoUnit.SECONDS.between(exam.getStartTime(), now))
+            : 0;
+    if (maxDurationSeconds > 0 && duration > maxDurationSeconds) {
+      duration = maxDurationSeconds;
+    }
+
+    exam.setMcScore(mcScore);
+    exam.setScenarioScore(scenarioScore);
+    exam.setTotalScore(mcScore + scenarioScore);
+    exam.setDurationSeconds(duration);
+    exam.setEndTime(now);
+    exam.setStatus(ExamStatus.SUBMITTED);
+    exam.setSubmitTokenConsumedAt(now);
+    examRepository.save(exam);
+    log.info("Auto-submitted exam id={} for contestant id={} with totalScore={}/{} questions answered",
+            exam.getId(), exam.getContestant().getId(), exam.getTotalScore(), answers.size());
   }
 
   @Override

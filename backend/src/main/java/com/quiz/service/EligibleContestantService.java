@@ -24,4 +24,6 @@ public interface EligibleContestantService {
     void resetContestantRegistration(Long id);
 
     void resetAllContestantRegistrations();
+
+    void registerFreeContestant(Long contestantId, String fullName, String unit, String phone, String email);
 }

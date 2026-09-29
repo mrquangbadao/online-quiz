@@ -38,6 +38,8 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
 
   long countByStatus(ExamStatus status);
 
+  List<Exam> findByStatus(ExamStatus status);
+
   List<Exam> findByPhaseIdAndStatus(Long phaseId, ExamStatus status);
 
   List<Exam> findByStatusAndStartTimeBefore(ExamStatus status, LocalDateTime cutoff);

@@ -62,6 +62,10 @@ public class EligibleContestant {
     @Column(name = "is_registered")
     private Boolean isRegistered = false;
 
+    @Builder.Default
+    @Column(name = "is_self_registered")
+    private Boolean isSelfRegistered = false;
+
     @Size(max = 20)
     @Column(name = "phone", length = 20)
     private String phone;
