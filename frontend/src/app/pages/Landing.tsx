@@ -175,17 +175,14 @@ export default function Landing() {
             </p>
           </div>
 
-          {/* Khẩu hiệu chính thức & Thông tin phụ (Ngắt nhịp chuẩn xác 3 vế cân đối trên mọi màn hình) */}
+          {/* Khẩu hiệu chính thức Đoàn TNCS Hồ Chí Minh */}
           <div className="mt-3 sm:mt-5 max-w-xl mx-auto px-2 min-w-0 w-full">
-            <p className="text-[11px] min-[375px]:text-xs sm:text-sm md:text-base font-bold text-white italic tracking-wide drop-shadow-xs mb-1.5 sm:mb-2 leading-relaxed text-center">
+            <p className="text-xs min-[375px]:text-sm sm:text-base md:text-lg font-black text-yellow-300 italic tracking-wide drop-shadow-md leading-relaxed text-center">
               <span className="inline-block whitespace-nowrap">“Khát vọng cống hiến</span>
-              <span className="text-yellow-300 font-bold mx-1">–</span>
+              <span className="text-white font-bold mx-1.5">–</span>
               <span className="inline-block whitespace-nowrap">Rèn đức luyện tài</span>
-              <span className="text-yellow-300 font-bold mx-1">–</span>
+              <span className="text-white font-bold mx-1.5">–</span>
               <span className="inline-block whitespace-nowrap">Vững bước tương lai”</span>
-            </p>
-            <p className="text-[11px] sm:text-xs md:text-sm text-white/90 font-medium leading-relaxed max-w-lg mx-auto text-balance">
-              Sân chơi rèn luyện bản lĩnh chính trị, chuyên môn nghiệp vụ và kỹ năng công tác cho đội ngũ cán bộ Đoàn cơ sở tỉnh Nghệ An.
             </p>
           </div>
 

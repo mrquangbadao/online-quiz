@@ -14,6 +14,8 @@ public class ExamStartResponse {
     private int timeLimitMinutes;   // 0 = no limit
     private List<MCQuestionDto> multipleChoiceQuestions;
     private List<ScenarioQuestionDto> scenarioQuestions;
+    private java.util.Map<String, String> draftAnswers;
+    private boolean isResumed;
 
     @Data @Builder
     public static class MCQuestionDto {

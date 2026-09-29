@@ -111,10 +111,10 @@ export default function StatsSection() {
           style={{ opacity: 0, transform: 'translateY(16px)', transition: 'opacity 0.5s ease-out, transform 0.5s ease-out' }}
         >
           <span className="text-[10px] sm:text-[11px] md:text-xs font-black tracking-widest text-blue-700 uppercase bg-blue-100/70 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2 sm:mb-2.5 border border-blue-200">
-            📊 THỂ LỆ CHÍNH THỨC
+            📊 THÔNG TIN VÒNG LOẠI
           </span>
           <h2 className="text-lg min-[360px]:text-xl sm:text-2xl md:text-4xl font-black text-slate-800 tracking-tight leading-snug">
-            QUY CÁCH VÒNG LOẠI CẤP TỈNH
+            THỂ LỆ VÒNG LOẠI CẤP TỈNH
           </h2>
           <div className="w-16 h-1 bg-blue-600 mx-auto mt-2.5 sm:mt-3 rounded-full" />
         </div>
