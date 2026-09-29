@@ -63,9 +63,9 @@ security:
 
 captcha:
   turnstile:
-    enabled: ${CAPTCHA_TURNSTILE_ENABLED:false}
-    secret-key: ${CAPTCHA_TURNSTILE_SECRET_KEY:}
-    site-key: ${VITE_TURNSTILE_SITE_KEY:${CAPTCHA_TURNSTILE_SITE_KEY:}}
+    enabled: ${CAPTCHA_TURNSTILE_ENABLED:true}
+    secret-key: ${CAPTCHA_TURNSTILE_SECRET_KEY:0x4AAAAAADTK79_mEPe5DEPfJj3VpVysTBU}
+    site-key: ${VITE_TURNSTILE_SITE_KEY:${CAPTCHA_TURNSTILE_SITE_KEY:0x4AAAAAADTK7-2gGuSQLkjV}}
 
 jwt:
   secret: ${JWT_SECRET}
