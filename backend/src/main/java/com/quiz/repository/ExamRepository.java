@@ -21,6 +21,8 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
 
   boolean existsByContestantIdAndStatusIn(Long contestantId, List<ExamStatus> statuses);
 
+  Optional<Exam> findFirstByContestantIdAndStatus(Long contestantId, ExamStatus status);
+
   @Query("SELECT e FROM Exam e JOIN FETCH e.contestant WHERE e.contestant.id IN :contestantIds")
   List<Exam> findByContestantIdIn(@Param("contestantIds") List<Long> contestantIds);
 

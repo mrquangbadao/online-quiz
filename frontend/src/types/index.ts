@@ -96,6 +96,8 @@ export interface ExamStartResponse {
   timeLimitMinutes: number;
   multipleChoiceQuestions: MCQuestion[];
   scenarioQuestions: ScenarioQuestion[];
+  draftAnswers?: Record<string, string>;
+  isResumed?: boolean;
 }
 
 export interface AnswerItem {

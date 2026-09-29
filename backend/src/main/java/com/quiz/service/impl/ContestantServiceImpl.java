@@ -96,8 +96,9 @@ public class ContestantServiceImpl implements ContestantService {
       }
       boolean hasInProgress = existingExams.stream().anyMatch(e -> e.getStatus() == ExamStatus.IN_PROGRESS);
       if (hasInProgress) {
-        throw new BusinessException("ALREADY_PARTICIPATED",
-                "Thí sinh đang có bài thi đang diễn ra trong đợt thi hiện tại.");
+        // Allow contestant to resume their in-progress exam session
+        log.info("Contestant id={} already has an IN_PROGRESS exam. Allowing re-authentication to resume session.",
+                existingContestant.getId());
       }
     }
 

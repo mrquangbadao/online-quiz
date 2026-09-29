@@ -21,6 +21,8 @@ import type { MCQuestion, ScenarioQuestion, AnswerItem, ExamStartResponse } from
 
 type Phase = 'info' | 'loading' | 'mc' | 'scenario' | 'prediction' | 'submitting';
 
+const ACTIVE_SESSION_STORAGE_KEY = 'quiz_live_exam_session';
+
 export default function Quiz() {
   const navigate = useNavigate();
   const store = useExamStore();
@@ -49,6 +51,49 @@ export default function Quiz() {
   const [showSubmitWarning, setShowSubmitWarning] = useState(false);
   const [showFinalSubmitModal, setShowFinalSubmitModal] = useState(false);
   const [isMobileGridOpen, setIsMobileGridOpen] = useState(false);
+
+  // Helper to persist partial session state to localStorage
+  const syncSessionStorage = useCallback((patch: Record<string, any>) => {
+    try {
+      const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, JSON.stringify({ ...parsed, ...patch }));
+      }
+    } catch {}
+  }, []);
+
+  // F5 Recovery: Check and restore active exam session from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (!raw) return;
+      const session = JSON.parse(raw);
+      if (!session || !session.examId || !session.startTime) return;
+
+      const limitSecs = session.timeLimitMinutes > 0 ? session.timeLimitMinutes * 60 : 20 * 60;
+      const startMs = new Date(session.startTime).getTime();
+      const elapsedSecs = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+
+      if (elapsedSecs < limitSecs + 180) { // Still valid within time limit + 3 min grace
+        setExamId(session.examId);
+        setSubmitToken(session.submitToken);
+        setMcQuestions(session.multipleChoiceQuestions || []);
+        setScenarioQuestions(session.scenarioQuestions || []);
+        setAnswers(session.answers || {});
+        setCurrentIdx(session.currentIdx || 0);
+        setElapsed(elapsedSecs);
+        setTimeLimitSecs(limitSecs);
+        if (session.contestantId) store.setContestantId(session.contestantId);
+        setPhase(session.currentPhase || 'mc');
+        toast.success('Hệ thống đã tự động khôi phục bài thi đang làm dở của bạn!');
+      } else {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      }
+    } catch {
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    }
+  }, [store]);
 
   // Timer — only runs during active quiz phases
   useEffect(() => {
@@ -101,6 +146,10 @@ export default function Quiz() {
         prediction: prediction ? parseInt(prediction, 10) : undefined,
       });
 
+      try {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      } catch {}
+
       store.setResult(res.data.data);
       navigate('/ket-qua', { replace: true });
     } catch (err: any) {
@@ -144,7 +193,11 @@ export default function Quiz() {
 
   function selectAnswer(key: string) {
     if (!q) return;
-    setAnswers((prev) => ({ ...prev, [answerKey]: key }));
+    setAnswers((prev) => {
+      const next = { ...prev, [answerKey]: key };
+      syncSessionStorage({ answers: next, currentIdx, currentPhase: phase });
+      return next;
+    });
     if (examId) {
       examApi.saveDraftAnswer(examId, {
         questionId: q.questionId,
@@ -171,10 +224,18 @@ export default function Quiz() {
   }, [phase, handleSubmit]);
 
   const handleNext = () => {
-    if (currentIdx < totalCurrentSection - 1) setCurrentIdx((prev) => prev + 1);
+    if (currentIdx < totalCurrentSection - 1) {
+      const next = currentIdx + 1;
+      setCurrentIdx(next);
+      syncSessionStorage({ currentIdx: next });
+    }
   };
   const handlePrev = () => {
-    if (currentIdx > 0) setCurrentIdx((prev) => prev - 1);
+    if (currentIdx > 0) {
+      const prev = currentIdx - 1;
+      setCurrentIdx(prev);
+      syncSessionStorage({ currentIdx: prev });
+    }
   };
 
   const handleToScenario = () => {
@@ -184,6 +245,7 @@ export default function Quiz() {
     setShowSectionConfirm(false);
     setCurrentIdx(0);
     setPhase('scenario');
+    syncSessionStorage({ currentIdx: 0, currentPhase: 'scenario' });
   };
 
   const handleToPrediction = () => {
@@ -192,6 +254,7 @@ export default function Quiz() {
       setShowSubmitWarning(true);
     } else {
       setPhase('prediction');
+      syncSessionStorage({ currentPhase: 'prediction' });
     }
   };
 
@@ -215,9 +278,21 @@ export default function Quiz() {
       setMcQuestions(exam.multipleChoiceQuestions);
       setScenarioQuestions(exam.scenarioQuestions);
       setCurrentIdx(0);
-      setAnswers({});
-      setElapsed(0);
-      setTimeLimitSecs(exam.timeLimitMinutes > 0 ? exam.timeLimitMinutes * 60 : 20 * 60);
+
+      const limitSecs = exam.timeLimitMinutes > 0 ? exam.timeLimitMinutes * 60 : 20 * 60;
+      setTimeLimitSecs(limitSecs);
+
+      let initialElapsed = 0;
+      let initialAnswers: Record<string, string> = {};
+      if (exam.isResumed && exam.startTime) {
+        const startMs = new Date(exam.startTime).getTime();
+        initialElapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+        initialAnswers = exam.draftAnswers || {};
+        toast.info('Hệ thống đã tự động kết nối lại phiên thi đang làm dở của bạn!');
+      }
+
+      setElapsed(initialElapsed);
+      setAnswers(initialAnswers);
       setAutoSubmitTriggered(false);
       setPrediction('');
       setShowSectionConfirm(false);
@@ -226,6 +301,24 @@ export default function Quiz() {
       store.setContestantId(contestantId);
       store.setExam(exam);
       setPhase('mc');
+
+      try {
+        localStorage.setItem(
+          ACTIVE_SESSION_STORAGE_KEY,
+          JSON.stringify({
+            examId: exam.examId,
+            submitToken: exam.submitToken,
+            startTime: exam.startTime || new Date().toISOString(),
+            timeLimitMinutes: exam.timeLimitMinutes,
+            multipleChoiceQuestions: exam.multipleChoiceQuestions,
+            scenarioQuestions: exam.scenarioQuestions,
+            contestantId,
+            answers: initialAnswers,
+            currentIdx: 0,
+            currentPhase: 'mc',
+          })
+        );
+      } catch {}
     },
     [store]
   );
@@ -797,7 +890,12 @@ export default function Quiz() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+                  } catch {}
+                  navigate('/');
+                }}
                 className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-xs sm:text-sm hover:bg-red-700"
               >
                 Rời phòng thi

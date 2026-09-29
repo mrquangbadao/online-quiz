@@ -87,6 +87,55 @@ public class ExamServiceImpl implements ExamService {
             .map(s -> { try { return Integer.parseInt(s.getValue()); } catch (NumberFormatException e) { return 0; } })
             .orElse(0);
 
+    // If contestant already has an IN_PROGRESS exam, resume that exact exam
+    Optional<Exam> existingInProgress = examRepository.findFirstByContestantIdAndStatus(
+            contestant.getId(), ExamStatus.IN_PROGRESS);
+    if (existingInProgress.isPresent()) {
+      Exam inProgress = existingInProgress.get();
+      log.info("Resuming existing IN_PROGRESS exam id={} for contestant id={}", inProgress.getId(), contestant.getId());
+
+      String submitToken = java.util.UUID.randomUUID().toString();
+      inProgress.setSubmitTokenHash(passwordEncoder.encode(submitToken));
+      inProgress.setSubmitTokenExpiresAt(LocalDateTime.now().plusMinutes(timeLimitMinutes > 0 ? timeLimitMinutes + 5 : 120));
+      inProgress.setSubmitTokenConsumedAt(null);
+      examRepository.save(inProgress);
+
+      List<ExamStartResponse.MCQuestionDto> mcDtos = inProgress.getExamQuestions().stream()
+              .sorted(java.util.Comparator.comparingInt(ExamQuestion::getDisplayOrder))
+              .map(eq -> {
+                Question q = eq.getQuestion();
+                return ExamStartResponse.MCQuestionDto.builder()
+                        .order(eq.getDisplayOrder())
+                        .questionId(q.getId())
+                        .content(q.getContent())
+                        .optionA(q.getOptionA())
+                        .optionB(q.getOptionB())
+                        .optionC(q.getOptionC())
+                        .optionD(q.getOptionD())
+                        .optionE(q.getOptionE())
+                        .build();
+              }).collect(Collectors.toList());
+
+      Map<String, String> draftMap = examAnswerRepository.findByExamId(inProgress.getId()).stream()
+              .filter(a -> a.getSelectedAnswer() != null)
+              .collect(Collectors.toMap(
+                      a -> a.getQuestionType() + "-" + a.getQuestionId(),
+                      ExamAnswer::getSelectedAnswer,
+                      (ex, rep) -> rep
+              ));
+
+      return ExamStartResponse.builder()
+              .examId(inProgress.getId())
+              .submitToken(submitToken)
+              .startTime(inProgress.getStartTime())
+              .timeLimitMinutes(timeLimitMinutes)
+              .multipleChoiceQuestions(mcDtos)
+              .scenarioQuestions(List.of())
+              .draftAnswers(draftMap)
+              .isResumed(true)
+              .build();
+    }
+
     int questionCount = (activePhase.getMcQuestionCount() != null && activePhase.getMcQuestionCount() > 0)
             ? activePhase.getMcQuestionCount()
             : mcQuestionCount;
