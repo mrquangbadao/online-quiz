@@ -14,8 +14,10 @@
 const TARGET_URL = (process.argv[2] || 'https://btdcsgioinghean.com').replace(/\/$/, '');
 const NUM_USERS = parseInt(process.argv[3] || '70', 10);
 const MODE = process.argv[4] || 'full'; // 'health', 'start_only', 'full', 'draft_flood'
+const MASTER_OTP = process.env.EMERGENCY_MASTER_OTP || process.env.MASTER_OTP || (process.argv.find(a => /^\d{6}$/.test(a))) || '888666';
 const BYPASS_KEY = process.env.STRESS_TEST_BYPASS_KEY || 'doan_nghean_stress_test_2026';
 const WITH_EMAIL = process.argv.includes('--with-email');
+const RUN_ID = Date.now().toString().slice(-4);
 
 console.log('='.repeat(70));
 console.log('  KỊCH BẢN KIỂM THỬ TẢI & ÁP LỰC (STRESS TEST SIMULATION)');
@@ -24,6 +26,7 @@ console.log('='.repeat(70));
 console.log(`- Mục tiêu kiểm thử (Target URL): ${TARGET_URL}`);
 console.log(`- Số lượng thí sinh giả lập:   ${NUM_USERS} thí sinh đồng thời`);
 console.log(`- Chế độ kiểm thử (Mode):        ${MODE.toUpperCase()}`);
+console.log(`- Mã Master OTP bypass:          ${MASTER_OTP}`);
 console.log(`- Cơ chế Bypass Anti-Bot/Rate:  BẬT (Khóa bảo mật: ${BYPASS_KEY.substring(0, 10)}...)`);
 console.log(`- Gửi Email OTP thật qua Brevo:  ${WITH_EMAIL ? 'BẬT' : 'TẮT (Dùng Master OTP để tiết kiệm quota)'}`);
 console.log('='.repeat(70));
@@ -118,11 +121,11 @@ async function checkHealth() {
 }
 
 // Giả lập 1 thí sinh hoàn chỉnh
-async function simulateCandidate(candidate, index, masterOtp = '654321') {
-  const cEmail = `test_thi_sinh_${index + 1}@btdcsgioinghean.com`;
-  const cPhone = `0987${String(index + 1).padStart(6, '0')}`;
-  const cName = candidate.fullName;
-  const cUnit = candidate.unit;
+async function simulateCandidate(candidate, index, masterOtp = MASTER_OTP, requireWhitelist = false) {
+  const cEmail = `test_thi_sinh_${index + 1}_${RUN_ID}@btdcsgioinghean.com`;
+  const cPhone = `098${String(index + 1).padStart(3, '0')}${RUN_ID}`;
+  const cName = candidate.fullName || `Thí sinh Thử Nghiệm ${index + 1}`;
+  const cUnit = candidate.unit || `Đoàn cơ sở ${index + 1}`;
 
   // Bước 1: Yêu cầu mã OTP (chỉ gọi nếu bật cờ --with-email để tránh tiêu hao hạn mức gửi email Brevo)
   if (WITH_EMAIL) {
@@ -142,15 +145,19 @@ async function simulateCandidate(candidate, index, masterOtp = '654321') {
     return { index, candidate: cName, success: false, step: 'verify_otp', error: verifyRes.data?.message || 'Không có token' };
   }
 
-  // Bước 3: Đăng ký thí sinh (liên kết với SBD của 70 người)
-  const regRes = await apiCall('POST', '/contestant/register', {
+  // Bước 3: Đăng ký thí sinh (chỉ liên kết eligibleContestantId nếu đợt thi yêu cầu Whitelist)
+  const regPayload = {
     fullName: cName,
     unit: cUnit,
     phone: cPhone,
     email: cEmail,
-    verificationToken: token,
-    eligibleContestantId: candidate.id
-  });
+    verificationToken: token
+  };
+  if (requireWhitelist && candidate && candidate.id) {
+    regPayload.eligibleContestantId = candidate.id;
+  }
+
+  const regRes = await apiCall('POST', '/contestant/register', regPayload);
   recordReq('register', regRes.latency, regRes.ok, regRes.error || (regRes.data?.message));
 
   const contestantId = regRes.data?.data?.contestantId;
@@ -172,7 +179,8 @@ async function simulateCandidate(candidate, index, masterOtp = '654321') {
   }
 
   const examId = examData.examId;
-  const questions = examData.mcQuestions || [];
+  const submitToken = examData.submitToken;
+  const questions = examData.multipleChoiceQuestions || examData.mcQuestions || [];
 
   if (MODE === 'start_only') {
     return { index, candidate: cName, success: true, examId, questionsCount: questions.length };
@@ -182,11 +190,12 @@ async function simulateCandidate(candidate, index, masterOtp = '654321') {
   const options = ['A', 'B', 'C', 'D'];
   for (let qIdx = 0; qIdx < questions.length; qIdx++) {
     const q = questions[qIdx];
+    const qId = q.questionId || q.id;
     const pickedAnswer = options[Math.floor(Math.random() * options.length)];
     
     // Gửi draft answer
     const draftRes = await apiCall('POST', `/exams/${examId}/draft-answer`, {
-      questionId: q.id,
+      questionId: qId,
       questionType: 'MC',
       selectedAnswer: pickedAnswer
     });
@@ -198,12 +207,13 @@ async function simulateCandidate(candidate, index, masterOtp = '654321') {
 
   // Bước 6: Nộp bài thi
   const submitRes = await apiCall('POST', `/exams/${examId}/submit`, {
-    mcAnswers: questions.map((q) => ({
-      questionId: q.id,
+    submitToken: submitToken,
+    answers: questions.map((q) => ({
+      questionId: q.questionId || q.id,
+      questionType: 'MC',
       selectedAnswer: options[Math.floor(Math.random() * options.length)]
     })),
-    scenarioAnswers: [],
-    predictionCount: 0
+    prediction: 0
   });
   recordReq('submit_exam', submitRes.latency, submitRes.ok, submitRes.error || (submitRes.data?.message));
 
@@ -226,16 +236,28 @@ async function run() {
   }
 
   const eligible = init.eligible;
-  const countToTest = Math.min(NUM_USERS, eligible.length > 0 ? eligible.length : NUM_USERS);
+  const isWhitelist = Boolean(init.phase?.requireWhitelist);
+
+  let candidatesToTest = [];
+  if (isWhitelist) {
+    candidatesToTest = eligible.filter((c) => !c.isRegistered);
+    if (candidatesToTest.length < NUM_USERS) {
+      console.warn(`⚠️ Cảnh báo: Đợt thi yêu cầu Whitelist nhưng chỉ còn ${candidatesToTest.length} thí sinh chưa thi.`);
+    }
+  } else {
+    candidatesToTest = eligible;
+  }
+
+  const countToTest = Math.min(NUM_USERS, candidatesToTest.length > 0 ? candidatesToTest.length : NUM_USERS);
   console.log(`\n[2/4] Đang kích hoạt đồng thời ${countToTest} thí sinh kiểm thử áp lực...`);
-  console.log(`      (Mô phỏng 70 thí sinh cùng nộp và tải trong cùng một thời điểm)`);
+  console.log(`      (Mô phỏng ${countToTest} thí sinh cùng nộp và tải trong cùng một thời điểm)`);
 
   const startTime = Date.now();
   const promises = [];
 
   for (let i = 0; i < countToTest; i++) {
-    const cand = eligible[i] || { id: i + 1, fullName: `Thí sinh Thử Nghiệm ${i + 1}`, unit: `Đoàn cơ sở ${i + 1}` };
-    promises.push(simulateCandidate(cand, i));
+    const cand = candidatesToTest[i] || { id: i + 1, fullName: `Thí sinh Thử Nghiệm ${i + 1}`, unit: `Đoàn cơ sở ${i + 1}` };
+    promises.push(simulateCandidate(cand, i, MASTER_OTP, isWhitelist));
   }
 
   const results = await Promise.all(promises);
