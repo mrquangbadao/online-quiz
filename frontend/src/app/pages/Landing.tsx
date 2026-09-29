@@ -454,7 +454,7 @@ export default function Landing() {
                 <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mb-3">
                   <Medal className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
-                <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">02 Giải Nhì</h3>
+                <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">03 Giải Nhì</h3>
                 <p className="text-lg sm:text-xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
                 <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
@@ -484,7 +484,7 @@ export default function Landing() {
                 <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mb-3">
                   <Award className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
-                <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">03 Giải Ba</h3>
+                <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">06 Giải Ba</h3>
                 <p className="text-lg sm:text-xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
                 <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
