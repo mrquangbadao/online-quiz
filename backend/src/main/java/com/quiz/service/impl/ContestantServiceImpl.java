@@ -100,15 +100,10 @@ public class ContestantServiceImpl implements ContestantService {
 
     if (existingContestant != null) {
       List<Exam> existingExams = examRepository.findByContestantIdIn(List.of(existingContestant.getId()));
-      boolean hasSubmitted = existingExams.stream().anyMatch(e -> e.getStatus() == ExamStatus.SUBMITTED);
-      if (hasSubmitted) {
+      boolean hasActiveOrSubmittedExam = existingExams.stream()
+              .anyMatch(e -> e.getStatus() == ExamStatus.IN_PROGRESS || e.getStatus() == ExamStatus.SUBMITTED);
+      if (hasActiveOrSubmittedExam) {
         throwDuplicateRegistration();
-      }
-      boolean hasInProgress = existingExams.stream().anyMatch(e -> e.getStatus() == ExamStatus.IN_PROGRESS);
-      if (hasInProgress) {
-        // Allow contestant to resume their in-progress exam session
-        log.info("Contestant id={} already has an IN_PROGRESS exam. Allowing re-authentication to resume session.",
-                existingContestant.getId());
       }
     }
 

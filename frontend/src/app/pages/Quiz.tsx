@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft,
@@ -72,9 +72,11 @@ function getInitialExamSession(): (StoredExamSession & { computedElapsed: number
 
 export default function Quiz() {
   const navigate = useNavigate();
-  const store = useExamStore();
+  const setContestantId = useExamStore((state) => state.setContestantId);
+  const setExam = useExamStore((state) => state.setExam);
+  const setResult = useExamStore((state) => state.setResult);
 
-  const initialSession = useMemo(() => getInitialExamSession(), []);
+  const [initialSession] = useState(() => getInitialExamSession());
 
   const [phase, setPhase] = useState<Phase>(() => initialSession ? (initialSession.currentPhase || 'mc') : 'info');
   const [error, setError] = useState('');
@@ -115,10 +117,10 @@ export default function Quiz() {
   // On mount: sync restored contestantId to store and inform user
   useEffect(() => {
     if (initialSession?.contestantId) {
-      store.setContestantId(initialSession.contestantId);
+      setContestantId(initialSession.contestantId);
       toast.info('Hệ thống đã tự động khôi phục bài thi đang làm dở của bạn!');
     }
-  }, [initialSession, store]);
+  }, [initialSession, setContestantId]);
 
   // Prevent accidental F5 / reload / tab close during active exam
   useEffect(() => {
@@ -197,13 +199,13 @@ export default function Quiz() {
         localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       } catch {}
 
-      store.setResult(res.data.data);
+      setResult(res.data.data);
       navigate('/ket-qua', { replace: true });
     } catch (err: any) {
       toast.error(err.response?.data?.message ?? 'Nộp bài thất bại. Vui lòng thử lại.');
       setPhase('mc');
     }
-  }, [examId, submitToken, mcQuestions, scenarioQuestions, answers, prediction, store, navigate]);
+  }, [examId, submitToken, mcQuestions, scenarioQuestions, answers, prediction, setResult, navigate]);
 
   // Auto-submit when timer reaches 0
   useEffect(() => {
@@ -345,8 +347,8 @@ export default function Quiz() {
       setShowSectionConfirm(false);
       setShowSubmitWarning(false);
       setIsMobileGridOpen(false);
-      store.setContestantId(contestantId);
-      store.setExam(exam);
+      setContestantId(contestantId);
+      setExam(exam);
       setPhase('mc');
 
       const clientStartedAtMs = Date.now() - initialElapsed * 1000;
@@ -370,7 +372,7 @@ export default function Quiz() {
         );
       } catch {}
     },
-    [store]
+    [setContestantId, setExam]
   );
 
   // Phase 1: Thí sinh đăng ký & chọn danh sách triệu tập
@@ -925,10 +927,10 @@ export default function Quiz() {
               <AlertCircle className="w-6 h-6" />
             </div>
             <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-2">
-              Bạn muốn rời khỏi bài thi?
+              Rời phòng thi và nộp bài?
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-5 leading-relaxed">
-              Thời gian thi vẫn tiếp tục đếm ngược. Nếu hết 20 phút mà chưa hoàn thành, hệ thống sẽ tự động chấm các câu đã chọn.
+              Bài thi sẽ được nộp ngay với các đáp án đã chọn. Sau khi rời phòng, bạn không thể tiếp tục bài thi này.
             </p>
             <div className="flex gap-2.5">
               <button
@@ -941,10 +943,8 @@ export default function Quiz() {
               <button
                 type="button"
                 onClick={() => {
-                  try {
-                    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-                  } catch {}
-                  navigate('/');
+                  setShowExitConfirm(false);
+                  handleSubmit();
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-xs sm:text-sm hover:bg-red-700"
               >
