@@ -74,6 +74,7 @@ jwt:
 quiz:
   admin:
     provision-password: ${QUIZ_ADMIN_PROVISION_PASSWORD:}
+    force-reset-password: ${QUIZ_ADMIN_FORCE_RESET_PASSWORD:false}
   exam:
     mc-question-count: 30
     start-token-ttl-minutes: ${EXAM_START_TOKEN_TTL_MINUTES:10}
