@@ -518,7 +518,7 @@ export default function Landing() {
                 </div>
               </div>
               <p className="text-blue-100/75 text-xs sm:text-sm leading-relaxed max-w-lg mt-1">
-                Hội thi Bí thư Đoàn cơ sở giỏi tỉnh Nghệ An năm 2026 nhằm nâng cao chất lượng đội ngũ cán bộ Đoàn cơ sở, đặc biệt là Bí thư Đoàn xã, phường, thị trấn; bồi dưỡng kiến thức, rèn luyện kỹ năng, đánh giá tư duy, khả năng xử lý tình huống và bản lĩnh thực tiễn, đồng thời phát hiện, tôn vinh những Bí thư Đoàn cơ sở tiêu biểu.
+                Hội thi Bí thư Đoàn cơ sở giỏi tỉnh Nghệ An năm 2026 nhằm nâng cao chất lượng đội ngũ cán bộ Đoàn cơ sở, đặc biệt là Bí thư Đoàn xã, phường; bồi dưỡng kiến thức, rèn luyện kỹ năng, đánh giá tư duy, khả năng xử lý tình huống và bản lĩnh thực tiễn, đồng thời phát hiện, tôn vinh những Bí thư Đoàn cơ sở tiêu biểu.
               </p>
             </div>
 
