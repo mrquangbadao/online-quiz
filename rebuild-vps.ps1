@@ -87,8 +87,8 @@ try {
     Write-Host "  DEPLOY HOAN TAT THANH CONG!                             " -ForegroundColor Green
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host "  - IP VPS:    http://$vpsHost/" -ForegroundColor Yellow
-    Write-Host "  - Domain:    http://btdcsgioinghean.com/" -ForegroundColor Yellow
-    Write-Host "  - Admin:     http://btdcsgioinghean.com/admin/login" -ForegroundColor Yellow
+    Write-Host "  - Domain:    https://btdcsgioinghean.com/" -ForegroundColor Yellow
+    Write-Host "  - Admin:     https://btdcsgioinghean.com/admin/login" -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Green
 }
 catch {
