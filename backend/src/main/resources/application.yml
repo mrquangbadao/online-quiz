@@ -12,6 +12,12 @@ spring:
     username: ${DB_USER:postgres}
     password: ${DB_PASS:123456}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
 
   jpa:
     hibernate:
@@ -66,8 +72,10 @@ jwt:
   expiration-ms: 28800000
 
 quiz:
+  admin:
+    provision-password: ${QUIZ_ADMIN_PROVISION_PASSWORD:Admin@12345}
   exam:
-    mc-question-count: 10
+    mc-question-count: 30
     start-token-ttl-minutes: ${EXAM_START_TOKEN_TTL_MINUTES:10}
   otp:
     emergency-master-otp: ${EMERGENCY_MASTER_OTP:}
