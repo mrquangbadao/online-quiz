@@ -13,6 +13,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests
 # Stage 2: Runtime
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
+ENV TZ=Asia/Ho_Chi_Minh
 
 # Run as non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

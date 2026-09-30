@@ -116,6 +116,7 @@ public class AdminReportController {
                 .prediction(exam.getPrediction())
                 .status(exam.getStatus().name())
                 .phaseName(exam.getPhase() != null ? exam.getPhase().getName() : null)
+                .hasScenarios(exam.getPhase() != null && Boolean.TRUE.equals(exam.getPhase().getHasScenarios()))
                 .answers(answerDetails)
                 .build();
 

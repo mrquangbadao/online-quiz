@@ -161,6 +161,7 @@ export interface AdminExamDetail {
   prediction: number | null;
   status: string;
   phaseName: string | null;
+  hasScenarios?: boolean;
   answers: {
     questionId: number;
     questionType: string;

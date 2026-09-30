@@ -12,18 +12,61 @@ function fmt(s: number | null | undefined) {
   return `${Math.floor(s / 60)} phút ${s % 60} giây`;
 }
  
-function fmtTime(iso: string | null | undefined) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
+function parseDate(iso: string) {
+  // If the ISO string does not have timezone info, treat it as ICT (Asia/Ho_Chi_Minh, +07:00).
+  const normalized = iso.includes('Z') || /[+-]\d{2}(:\d{2})?$/.test(iso)
+    ? iso
+    : `${iso}+07:00`;
+  return new Date(normalized);
 }
- 
+
+function fmtExamPeriod(startIso?: string | null, endIso?: string | null) {
+  if (!startIso) return '—';
+  const dStart = parseDate(startIso);
+  if (isNaN(dStart.getTime())) return startIso;
+
+  const timeFormat: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  };
+  const dateFormat: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  };
+
+  const startTimeStr = dStart.toLocaleTimeString('vi-VN', timeFormat);
+  const startDateStr = dStart.toLocaleDateString('vi-VN', dateFormat);
+
+  if (!endIso) {
+    return `${startTimeStr} ngày ${startDateStr}`;
+  }
+
+  const dEnd = parseDate(endIso);
+  if (isNaN(dEnd.getTime())) {
+    return `${startTimeStr} ngày ${startDateStr} → ${endIso}`;
+  }
+
+  const endTimeStr = dEnd.toLocaleTimeString('vi-VN', timeFormat);
+  const endDateStr = dEnd.toLocaleDateString('vi-VN', dateFormat);
+
+  if (startDateStr === endDateStr) {
+    return `${startTimeStr} – ${endTimeStr} (${startDateStr})`;
+  }
+  return `${startTimeStr} ${startDateStr} – ${endTimeStr} ${endDateStr}`;
+}
+
 export default function AdminExamDetail() {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<AdminExamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
- 
+
   useEffect(() => {
     if (!examId) return;
     setLoading(true);
@@ -33,9 +76,12 @@ export default function AdminExamDetail() {
       .catch(() => setError('Không thể tải thông tin bài thi.'))
       .finally(() => setLoading(false));
   }, [examId]);
- 
+
   const mcAnswers = detail?.answers.filter((a) => a.questionType === 'MC') ?? [];
   const scAnswers = detail?.answers.filter((a) => a.questionType === 'SC') ?? [];
+  const hasScenarios = Boolean(detail?.hasScenarios || scAnswers.length > 0);
+  const totalQuestions = mcAnswers.length + (hasScenarios ? scAnswers.length : 0);
+  const maxScore = totalQuestions > 0 ? totalQuestions : (detail?.hasScenarios ? 20 : 30);
  
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 font-sans">
@@ -112,14 +158,13 @@ export default function AdminExamDetail() {
                     <div>
                       <p className="text-xs text-slate-400 font-medium">Thời gian thi</p>
                       <p className="text-sm font-semibold text-slate-700">
-                        {fmtTime(detail.startTime)}
-                        {detail.endTime && ` → ${fmtTime(detail.endTime)}`}
+                        {fmtExamPeriod(detail.startTime, detail.endTime)}
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
- 
+
               {/* Score summary */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="bg-amber-500 px-5 py-3 flex items-center gap-2">
@@ -131,19 +176,35 @@ export default function AdminExamDetail() {
                   <div className="flex items-center justify-center mb-5">
                     <div className="w-24 h-24 rounded-full border-4 border-teal-600 flex flex-col items-center justify-center">
                       <span className="text-3xl font-black text-teal-700">{detail.totalScore}</span>
-                      <span className="text-xs text-slate-400 font-medium">/20 điểm</span>
+                      <span className="text-xs text-slate-400 font-medium">/{maxScore} điểm</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-teal-50 border border-teal-100 rounded-xl p-3 text-center">
-                      <p className="text-xs text-slate-500 font-medium mb-1">Trắc nghiệm</p>
-                      <p className="text-xl font-black text-teal-700">{detail.mcScore}<span className="text-slate-400 font-normal text-xs">/10</span></p>
+                  {hasScenarios ? (
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="bg-teal-50 border border-teal-100 rounded-xl p-3 text-center">
+                        <p className="text-xs text-slate-500 font-medium mb-1">Trắc nghiệm</p>
+                        <p className="text-xl font-black text-teal-700">
+                          {detail.mcScore}
+                          <span className="text-slate-400 font-normal text-xs">/{mcAnswers.length || 10}</span>
+                        </p>
+                      </div>
+                      <div className="bg-lime-50 border border-lime-200 rounded-xl p-3 text-center">
+                        <p className="text-xs text-slate-500 font-medium mb-1">Tình huống</p>
+                        <p className="text-xl font-black text-teal-700">
+                          {detail.scenarioScore}
+                          <span className="text-slate-400 font-normal text-xs">/{scAnswers.length || 10}</span>
+                        </p>
+                      </div>
                     </div>
-                    <div className="bg-lime-50 border border-lime-200 rounded-xl p-3 text-center">
-                      <p className="text-xs text-slate-500 font-medium mb-1">Tình huống</p>
-                      <p className="text-xl font-black text-teal-700">{detail.scenarioScore}<span className="text-slate-400 font-normal text-xs">/10</span></p>
+                  ) : (
+                    <div className="bg-teal-50 border border-teal-100 rounded-xl p-3 text-center mb-4">
+                      <p className="text-xs text-slate-500 font-medium mb-1">Số câu đúng</p>
+                      <p className="text-xl font-black text-teal-700">
+                        {detail.mcScore}
+                        <span className="text-slate-400 font-normal text-sm"> / {mcAnswers.length || 30} câu</span>
+                      </p>
                     </div>
-                  </div>
+                  )}
                   <div className="flex items-center justify-between text-sm bg-slate-50 rounded-xl px-4 py-2.5">
                     <span className="text-slate-500 font-medium flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5" /> Thời gian làm bài
@@ -159,13 +220,15 @@ export default function AdminExamDetail() {
                 </div>
               </div>
             </div>
- 
+
             {/* MC Answers */}
             {mcAnswers.length > 0 && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="bg-slate-800 px-5 py-3 flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-slate-300" />
-                  <span className="text-white text-sm font-bold uppercase tracking-wider">Phần 1 — Trắc nghiệm</span>
+                  <span className="text-white text-sm font-bold uppercase tracking-wider">
+                    {hasScenarios ? 'Phần 1 — Trắc nghiệm' : 'Câu hỏi trắc nghiệm'}
+                  </span>
                   <span className="ml-auto text-slate-400 text-xs">
                     {mcAnswers.filter((a) => a.isCorrect).length}/{mcAnswers.length} câu đúng
                   </span>
@@ -223,7 +286,7 @@ export default function AdminExamDetail() {
             )}
  
             {/* SC Answers */}
-            {scAnswers.length > 0 && (
+            {hasScenarios && scAnswers.length > 0 && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="bg-slate-800 px-5 py-3 flex items-center gap-2">
                   <Video className="w-4 h-4 text-slate-300" />

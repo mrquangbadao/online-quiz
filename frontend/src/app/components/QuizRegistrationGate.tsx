@@ -89,13 +89,13 @@ export default function QuizRegistrationGate({ onExamStarted }: Props) {
   const formatDateTime = (isoString?: string) => {
     if (!isoString) return '';
     try {
-      const date = new Date(isoString);
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      return `${hours}:${minutes} ngày ${day}/${month}/${year}`;
+      const normalized = isoString.includes('Z') || /[+-]\d{2}(:\d{2})?$/.test(isoString)
+        ? isoString
+        : `${isoString}+07:00`;
+      const date = new Date(normalized);
+      const hours = date.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
+      const datePart = date.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
+      return `${hours} ngày ${datePart}`;
     } catch {
       return isoString;
     }

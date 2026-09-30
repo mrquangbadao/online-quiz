@@ -1,5 +1,6 @@
 package com.quiz.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Data;
 
@@ -14,7 +15,9 @@ public class AdminExamDetailResponse {
     private String unit;
     private String phone;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime startTime;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime endTime;
     private Long durationSeconds;
 
@@ -24,6 +27,7 @@ public class AdminExamDetailResponse {
     private Integer prediction;
     private String status;
     private String phaseName;
+    private Boolean hasScenarios;
 
     private List<AnswerDetail> answers;
 
