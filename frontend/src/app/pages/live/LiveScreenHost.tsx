@@ -29,6 +29,7 @@ import {
 import { liveApi } from '../../../api/liveApi';
 import { adminLiveApi } from '../../../api/admin/adminLiveApi';
 import BrandMark from '../../components/BrandMark';
+import DigitalTechBackground from '../../components/DigitalTechBackground';
 import { useLiveSocket } from '../../../hooks/useLiveSocket';
 import { liveSound } from '../../../utils/liveSound';
 import {
@@ -550,25 +551,31 @@ export default function LiveScreenHost() {
 
   return (
     <div
-      className="min-h-screen bg-slate-100 text-slate-900 flex flex-col justify-between overflow-hidden relative select-none"
+      className="min-h-screen bg-gradient-to-b from-[#134bc4] via-[#1d63ea] to-[#1448b8] text-white flex flex-col justify-between overflow-hidden relative select-none"
       style={{ fontFamily: '"Be Vietnam Pro", sans-serif' }}
     >
-      {/* Background: Light subtle pattern, consistent with modern clean theme */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/70 via-slate-100 to-slate-200 pointer-events-none" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+      {/* Digital Transformation Vector Graphic Background matching Homepage */}
+      <DigitalTechBackground />
+      <div
+        className="absolute inset-0 opacity-[0.04] pointer-events-none"
+        style={{
+          backgroundImage: "radial-gradient(#ffffff 1.5px, transparent 1.5px)",
+          backgroundSize: "20px 20px",
+        }}
+      />
 
-      {/* TOP BAR: Clean high-contrast white navbar with Đoàn TNCS brand */}
-      <header className="relative z-10 px-8 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white/95 backdrop-blur-md shadow-xs">
+      {/* TOP BAR: Clean high-contrast navbar with Đoàn TNCS brand matching Homepage */}
+      <header className="relative z-10 px-8 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#10348c]/90 backdrop-blur-md shadow-md text-white">
         <div className="flex items-center gap-4">
           <BrandMark size={52} showBorder={false} className="shrink-0" />
           <div>
-            <p className="text-xs font-black tracking-wider uppercase text-red-600">
+            <p className="text-xs font-black tracking-wider uppercase text-yellow-300">
               TỈNH ĐOÀN NGHỆ AN
             </p>
-            <h1 className="text-xl font-extrabold uppercase tracking-wide text-blue-900">
+            <h1 className="text-xl font-extrabold uppercase tracking-wide text-white drop-shadow-xs">
               HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI NĂM 2026
             </h1>
-            <div className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+            <div className="text-xs font-semibold text-sky-200 tracking-wide uppercase">
               Vòng Chung kết: Thông thái • Nhạy bén • Bản lĩnh
             </div>
           </div>
@@ -576,8 +583,8 @@ export default function LiveScreenHost() {
 
         {/* Stage Status Pill */}
         <div className="flex items-center gap-4">
-          <div className="px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-xs">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+          <div className="px-4 py-1.5 rounded-full bg-white/15 border border-white/20 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-xs">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             {isPreviewFinished && '👁️ XEM TRƯỚC: TỔNG KẾT 3 VÒNG'}
             {!isPreviewFinished && session?.status === 'LOBBY' && 'SẢNH CHỜ • ĐIỂM DANH THÍ SINH'}
             {!isPreviewFinished && session?.status === 'ROUND1' && (round1State === 'IDLE' ? 'VÒNG 1: THÔNG THÁI • PHỔ BIẾN THỂ LỆ' : `VÒNG 1: THÔNG THÁI • CÂU ${session?.currentQuestionIndex || 1}/10`)}
@@ -586,7 +593,7 @@ export default function LiveScreenHost() {
             {!isPreviewFinished && session?.status === 'FINISHED' && 'LỄ TRAO GIẢI & VINH DANH'}
           </div>
 
-          <div className="flex items-center gap-2 text-slate-600">
+          <div className="flex items-center gap-2 text-white">
             {isPreviewFinished ? (
               <button
                 onClick={() => {
@@ -594,7 +601,7 @@ export default function LiveScreenHost() {
                   searchParams.delete('view');
                   setSearchParams(searchParams);
                 }}
-                className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1 shadow-xs transition-colors"
+                className="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs flex items-center gap-1 shadow-md transition-all active:scale-95"
                 title="Quay lại trạng thái trực tiếp của phiên thi"
               >
                 <span>✕ Thoát Xem trước</span>
@@ -605,23 +612,23 @@ export default function LiveScreenHost() {
                   searchParams.set('preview', 'final');
                   setSearchParams(searchParams);
                 }}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold text-xs flex items-center gap-1 shadow-xs transition-colors"
+                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 font-bold text-xs flex items-center gap-1 shadow-xs transition-colors"
                 title="Bật xem trước màn hình tổng kết 3 vòng chung cuộc"
               >
-                <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                <Trophy className="w-3.5 h-3.5 text-yellow-300" />
                 <span>Xem trước Bảng 3 vòng</span>
               </button>
             )}
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className="p-2 rounded-xl bg-white border border-slate-200 hover:text-slate-900 hover:bg-slate-50 transition-colors shadow-xs"
+              className="p-2 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 text-white transition-colors shadow-xs"
               title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4 text-rose-500" />}
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-300" /> : <VolumeX className="w-4 h-4 text-rose-300" />}
             </button>
             <button
               onClick={toggleFullscreen}
-              className="p-2 rounded-xl bg-white border border-slate-200 hover:text-slate-900 hover:bg-slate-50 transition-colors shadow-xs"
+              className="p-2 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 text-white transition-colors shadow-xs"
               title="Toàn màn hình"
             >
               <Maximize2 className="w-4 h-4" />
@@ -636,12 +643,12 @@ export default function LiveScreenHost() {
         {!isFinalView && session?.status === 'LOBBY' && (
           <div className="space-y-6 animate-fadeIn">
             <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 text-xs font-bold uppercase tracking-wider mb-2 shadow-xs">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" /> 10 GƯƠNG MẶT XUẤT SẮC NHẤT
+              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-white/20 border border-white/30 text-yellow-300 text-xs font-black uppercase tracking-wider mb-2 shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300" /> 10 GƯƠNG MẶT XUẤT SẮC NHẤT
               </div>
-              <h2 className="text-3xl font-black text-slate-900">DANH SÁCH THÍ SINH VÒNG CHUNG KẾT</h2>
-              <p className="text-sm text-slate-600 mt-1">
-                Hiện có <strong className="text-emerald-600 font-bold">{checkedInCount} / 10</strong> thí sinh đã điểm danh
+              <h2 className="text-3xl font-black text-white drop-shadow-md">DANH SÁCH THÍ SINH VÒNG CHUNG KẾT</h2>
+              <p className="text-sm text-sky-100 mt-1">
+                Hiện có <strong className="text-yellow-300 font-bold">{checkedInCount} / 10</strong> thí sinh đã điểm danh
               </p>
             </div>
 
@@ -694,10 +701,10 @@ export default function LiveScreenHost() {
                     <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
                     VÒNG 1: BÍ THƯ ĐOÀN CƠ SỞ - THÔNG THÁI
                   </div>
-                  <h2 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight uppercase">
+                  <h2 className="text-3xl lg:text-4xl font-black text-white tracking-tight uppercase drop-shadow-md">
                     THỂ LỆ & QUY TẮC THI ĐẤU
                   </h2>
-                  <p className="text-sm font-medium text-slate-600 mt-1 max-w-2xl mx-auto">
+                  <p className="text-sm font-medium text-sky-100 mt-1 max-w-2xl mx-auto">
                     10 thí sinh thao tác trực tiếp trên thiết bị di động cá nhân • Phương án xáo trộn độc lập • Đảm bảo tính khách quan và công bằng tuyệt đối
                   </p>
                 </div>
@@ -1013,12 +1020,12 @@ export default function LiveScreenHost() {
                       CÂU {session?.currentQuestionIndex} / 10
                     </span>
                     <div className="hidden sm:block text-left">
-                      <div className="text-xs font-black uppercase tracking-wider text-slate-800">
+                      <div className="text-xs font-black uppercase tracking-wider text-white drop-shadow-xs">
                         {round1State === 'QUESTION_READING'
                           ? 'MC ĐANG ĐỌC NỘI DUNG CÂU HỎI'
                           : 'ĐANG ĐẾM NGƯỢC THỜI GIAN LÀM BÀI'}
                       </div>
-                      <div className="text-[11px] text-slate-500 font-medium">
+                      <div className="text-[11px] text-sky-200 font-medium">
                         {round1State === 'QUESTION_READING'
                           ? 'Thí sinh chú ý lắng nghe trên sân khấu'
                           : 'Thí sinh chọn 01 phương án trên thiết bị di động'}
@@ -1243,10 +1250,10 @@ export default function LiveScreenHost() {
                 </div>
 
                 {/* Real-time Submissions Indicator for 10 Contestants */}
-                <div className="pt-2 border-t border-slate-200">
-                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center justify-between">
-                    <span>TIẾN ĐỘ TRẢ LỜI CỦA 10 THÍ SINH:</span>
-                    <span className="text-blue-700 font-black">{answeredPlayers.size} / 10 ĐÃ NỘP BÀI</span>
+                <div className="pt-2 border-t border-white/20">
+                  <div className="text-xs font-black text-white uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-yellow-300" /> TIẾN ĐỘ TRẢ LỜI CỦA 10 THÍ SINH:</span>
+                    <span className="text-yellow-300 font-black">{answeredPlayers.size} / 10 ĐÃ NỘP BÀI</span>
                   </div>
                   <div className="grid grid-cols-10 gap-2">
                     {session?.players?.map((p) => {
@@ -2496,12 +2503,12 @@ export default function LiveScreenHost() {
       </main>
 
       {/* BOTTOM FOOTER BAR */}
-      <footer className="relative z-10 px-8 py-3 border-t border-slate-200 bg-white/95 backdrop-blur-md flex items-center justify-between text-xs text-slate-600 shadow-xs">
+      <footer className="relative z-10 px-8 py-3 border-t border-white/15 bg-[#10348c]/90 backdrop-blur-md flex items-center justify-between text-xs text-sky-100 shadow-md">
         <div className="flex items-center gap-3">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Hệ thống chấm điểm & điều hành sân khấu trực tiếp thời gian thực</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-white/90 font-medium">Hệ thống chấm điểm & điều hành sân khấu trực tiếp thời gian thực</span>
         </div>
-        <div className="font-semibold text-slate-500">
+        <div className="font-bold text-yellow-300 uppercase tracking-wider">
           BAN THƯỜNG VỤ TỈNH ĐOÀN NGHỆ AN
         </div>
       </footer>
