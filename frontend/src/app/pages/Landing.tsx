@@ -19,8 +19,11 @@ import {
   CheckCircle2,
   Clock,
   Star,
+  Users,
 } from "lucide-react";
 import { examApi } from "../../api/examApi";
+import { liveApi } from "../../api/liveApi";
+import { LivePlayerDto } from "../../types/live";
 import BrandMark from "../components/BrandMark";
 import StatsSection from "../components/StatsSection";
 import DigitalTechBackground from "../components/DigitalTechBackground";
@@ -28,7 +31,13 @@ import { toast } from "../components/ui/Toast";
 
 export default function Landing() {
   const navigate = useNavigate();
-  const [activePhase, setActivePhase] = useState<{ id: number; name: string; status: string } | null>(null);
+  const [activePhase, setActivePhase] = useState<{
+    id: number;
+    name: string;
+    status: string;
+    phaseType?: string;
+  } | null>(null);
+  const [finalists, setFinalists] = useState<LivePlayerDto[]>([]);
   const [checkingPhase, setCheckingPhase] = useState(false);
   const [scrolledPastTop, setScrolledPastTop] = useState(false);
 
@@ -44,12 +53,27 @@ export default function Landing() {
         console.error("Failed to fetch active phase:", err);
       });
 
+    liveApi
+      .getFinalists()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setFinalists(data);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch finalists:", err);
+      });
+
     const handleScroll = () => {
       setScrolledPastTop(window.scrollY > 40);
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const isFinalsPhase =
+    activePhase?.phaseType === "LIVE_ARENA" ||
+    activePhase?.name?.toLowerCase().includes("chung kết");
 
   const handleEnterQuiz = async () => {
     setCheckingPhase(true);
@@ -60,7 +84,11 @@ export default function Landing() {
         toast.error("Hội thi hiện chưa mở. Vui lòng chờ thông báo từ Ban Tổ chức Tỉnh đoàn.");
         return;
       }
-      navigate("/thi");
+      if (phase.phaseType === "LIVE_ARENA") {
+        navigate("/live/play");
+      } else {
+        navigate("/thi");
+      }
     } catch {
       toast.error("Không thể kết nối máy chủ. Vui lòng thử lại.");
     } finally {
@@ -123,15 +151,15 @@ export default function Landing() {
               disabled={checkingPhase}
               className="px-3.5 sm:px-6 py-1.5 sm:py-2 rounded-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs sm:text-sm font-black shadow-md hover:shadow-lg transition-all disabled:opacity-50 uppercase tracking-wide shrink-0 active:scale-95"
             >
-              {checkingPhase ? "Đang kiểm tra..." : "Vào thi"}
+              {checkingPhase ? "Đang kiểm tra..." : isFinalsPhase ? "Vào thi Chung kết" : "Vào thi"}
             </button>
           </div>
         </div>
       </header>
 
-      {/* ════════════ SECTION 1: HERO (Tone xanh sáng hiện đại, bố cục cân đối chuẩn chỉnh) ════════════ */}
+      {/* ════════════ SECTION 1: HERO (Tone xanh hiện đại chuẩn Đoàn TNCS Hồ Chí Minh) ════════════ */}
       <section className="relative bg-gradient-to-b from-[#134bc4] via-[#1d63ea] to-[#1448b8] text-white pt-24 sm:pt-28 md:pt-32 pb-10 sm:pb-16 md:pb-20 px-3 sm:px-4 overflow-hidden flex flex-col items-center justify-start w-full">
-        {/* Digital Transformation Vector Graphic Background (Chạy 2 bên mép, không đè chữ) */}
+        {/* Digital Transformation Vector Graphic Background */}
         <DigitalTechBackground />
 
         {/* Subtle geometric dot matrix */}
@@ -144,7 +172,7 @@ export default function Landing() {
         />
 
         <div className="relative z-10 w-full max-w-[1100px] mx-auto flex flex-col items-center text-center min-w-0">
-          {/* Logo Đoàn TNCS Hồ Chí Minh to, cân đối ở giữa màn hình (chuẩn cả mobile và desktop) */}
+          {/* Logo Đoàn TNCS Hồ Chí Minh to ở giữa */}
           <div className="relative mb-2.5 sm:mb-4 flex items-center justify-center">
             <div className="absolute inset-0 rounded-full scale-110 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(250,204,21,0.15) 0%, transparent 70%)' }} />
             <img
@@ -162,7 +190,7 @@ export default function Landing() {
             </span>
           </div>
 
-          {/* Tiêu đề chính chuẩn bố cục biểu ngữ Đoàn (3 dòng chuẩn, không ngắt vụn chữ) */}
+          {/* Tiêu đề chính chuẩn bố cục biểu ngữ Đoàn */}
           <div className="max-w-4xl mx-auto w-full px-2 min-w-0">
             <p className="text-[11px] sm:text-base md:text-lg text-sky-200 font-black uppercase tracking-[0.2em] mb-0.5 sm:mb-1 drop-shadow-xs">
               HỘI THI
@@ -173,6 +201,16 @@ export default function Landing() {
             <p className="text-[16px] min-[360px]:text-lg sm:text-2xl md:text-3xl lg:text-4xl font-black text-yellow-300 uppercase tracking-wide mt-1 sm:mt-2 drop-shadow-md">
               TỈNH NGHỆ AN NĂM 2026
             </p>
+
+            {/* Điểm nhấn Chặng 04: Vòng Chung kết cấp tỉnh */}
+            <div className="mt-3.5 sm:mt-5 inline-flex items-center gap-2 bg-gradient-to-r from-red-600 via-amber-600 to-yellow-500 text-white font-black text-xs sm:text-sm md:text-base uppercase tracking-wider px-4 sm:px-6 py-1.5 sm:py-2 rounded-full shadow-lg shadow-blue-950/40 border border-yellow-300/40">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-300" />
+              </span>
+              <span>CHẶNG 04: VÒNG CHUNG KẾT CẤP TỈNH</span>
+              <Flame className="w-4 h-4 text-yellow-200 shrink-0" />
+            </div>
           </div>
 
           {/* Khẩu hiệu chính thức Đoàn TNCS Hồ Chí Minh */}
@@ -193,32 +231,141 @@ export default function Landing() {
               disabled={checkingPhase}
               className="w-full sm:w-auto px-6 sm:px-9 py-2.5 sm:py-3.5 rounded-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs sm:text-sm uppercase tracking-wider shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              <span>Vào thi Vòng loại ngay</span>
+              <span>Vào phòng thi Chung kết ngay</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <a
-              href="#roadmap"
+              href="#the-le"
               className="w-full sm:w-auto px-5 sm:px-8 py-2.5 sm:py-3.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 text-white font-bold text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center"
             >
-              Xem Toàn cảnh Hội thi
+              Xem Thể lệ 3 Phần thi
             </a>
           </div>
         </div>
       </section>
 
-      {/* ════════════ SECTION 2: STATS & QUY CÁCH VÒNG LOẠI ════════════ */}
+      {/* ════════════ SECTION: 10 GƯƠNG MẶT VÒNG CHUNG KẾT CẤP TỈNH (ĐẶT NGAY DƯỚI HERO) ════════════ */}
+      {finalists.length > 0 && (
+        <section id="finalists" className="py-12 sm:py-16 lg:py-20 bg-gradient-to-b from-blue-50/70 via-white to-slate-50 border-b border-slate-200">
+          <div className="max-w-[1360px] mx-auto px-3.5 sm:px-6 lg:px-8">
+            <div className="text-center mb-8 sm:mb-12">
+              <span className="text-[10px] sm:text-xs font-black tracking-widest text-[#10348c] uppercase bg-blue-100/90 px-4 py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2.5 border border-blue-200 shadow-xs">
+                <Trophy className="w-3.5 h-3.5 text-amber-500" /> DANH SÁCH 10 THÍ SINH
+              </span>
+              <h2 className="text-xl sm:text-3xl lg:text-4xl font-black text-slate-900 uppercase tracking-tight">
+                10 GƯƠNG MẶT XUẤT SẮC BƯỚC VÀO VÒNG CHUNG KẾT
+              </h2>
+              <div className="w-20 h-1.5 bg-gradient-to-r from-blue-600 via-sky-500 to-yellow-400 mx-auto mt-3 rounded-full" />
+              <p className="text-xs sm:text-sm text-slate-600 mt-3 max-w-2xl mx-auto leading-relaxed">
+                Vượt qua 70 thí sinh tại Vòng loại trực tuyến ngày 02/10/2026, 10 Bí thư Đoàn cơ sở xuất sắc nhất đã tự hào góp mặt tranh tài trên sân khấu Hội thi cấp tỉnh.
+              </p>
+            </div>
+
+            {/* 10 Contestants Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5 sm:gap-4 md:gap-5">
+              {finalists.map((player, idx) => {
+                // Trích xuất chữ cái đầu trong từ cuối của họ tên (Quy tắc tiếng Việt)
+                const lastWord = player.fullName.trim().split(' ').slice(-1)[0] || '';
+                const initialChar = lastWord.charAt(0).toUpperCase();
+
+                // Bảng màu gradient phong phú phân biệt cho từng thí sinh nếu chưa có ảnh
+                const bgColors = [
+                  'from-blue-600 to-indigo-700 text-yellow-300',
+                  'from-emerald-600 to-teal-700 text-white',
+                  'from-amber-500 to-orange-600 text-slate-950',
+                  'from-purple-600 to-pink-600 text-white',
+                  'from-rose-600 to-red-700 text-white',
+                  'from-cyan-600 to-blue-700 text-white',
+                  'from-indigo-600 to-violet-700 text-yellow-300',
+                  'from-teal-600 to-emerald-700 text-white',
+                  'from-amber-600 to-yellow-600 text-slate-950',
+                  'from-sky-600 to-blue-800 text-white',
+                ];
+                const colorClass = bgColors[idx % bgColors.length];
+
+                return (
+                  <div
+                    key={player.id}
+                    className="group bg-white rounded-2xl border border-slate-200/90 hover:border-blue-500 p-4 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center relative overflow-hidden"
+                  >
+                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-[#10348c] text-[10px] font-black uppercase shadow-2xs">
+                      SBD {String(player.orderNumber).padStart(2, "0")}
+                    </div>
+
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 p-0.5 shadow-md mt-4 mb-3 group-hover:scale-105 transition-transform duration-300">
+                      <div className="w-full h-full rounded-[14px] bg-slate-100 overflow-hidden flex items-center justify-center">
+                        {player.avatarUrl ? (
+                          <img
+                            src={player.avatarUrl}
+                            alt={player.fullName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div
+                            className={`w-full h-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-2xl sm:text-3xl font-black shadow-inner`}
+                          >
+                            {initialChar}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <h3 className="font-black text-slate-900 text-xs sm:text-sm tracking-tight line-clamp-1 group-hover:text-blue-700 transition-colors">
+                      {player.fullName}
+                    </h3>
+                    <p className="text-[11px] font-bold text-blue-600 mt-0.5 line-clamp-1">
+                      {player.unit}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
+                      {player.position || "Bí thư Đoàn cơ sở"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Quick Live Links Bar */}
+            <div className="mt-8 sm:mt-10 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#10348c] via-[#1746b8] to-[#1243af] text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg border border-blue-400/30">
+              <div className="flex items-center gap-3 text-center sm:text-left">
+                <div className="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 font-black flex items-center justify-center shrink-0">
+                  <Flame className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black uppercase text-yellow-300">
+                    SÀN ĐẤU VÒNG CHUNG KẾT CẤP TỈNH ĐANG SẴN SÀNG
+                  </h4>
+                  <p className="text-xs text-blue-100/90 mt-0.5">
+                    Thí sinh bấm Vào thi để chọn danh tính và đăng nhập vào phòng chờ thi đấu.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center shrink-0 w-full sm:w-auto">
+                <button
+                  onClick={handleEnterQuiz}
+                  disabled={checkingPhase}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs sm:text-sm font-black uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer disabled:opacity-50"
+                >
+                  {checkingPhase ? "Đang kiểm tra..." : isFinalsPhase ? "Vào thi Chung kết" : "Vào thi"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ════════════ SECTION 2: STATS & THỂ LỆ VÒNG CHUNG KẾT ════════════ */}
       <StatsSection />
 
-      {/* ════════════ SECTION 3: TOÀN CẢNH LỘ TRÌNH 5 CHẶNG HỘI THI (ĐẸP MẮT & NỔI BẬT) ════════════ */}
+      {/* ════════════ SECTION 3: TOÀN CẢNH LỘ TRÌNH 5 CHẶNG HỘI THI ════════════ */}
       <section id="roadmap" className="relative py-14 sm:py-20 lg:py-24 bg-gradient-to-b from-white via-slate-50/80 to-white overflow-hidden border-b border-slate-200">
-        {/* Soft background ambient lighting */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[350px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(191,219,254,0.3) 0%, transparent 70%)' }} />
 
         <div className="max-w-[1360px] mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10 w-full min-w-0">
           {/* Section Header */}
           <div className="text-center mb-8 sm:mb-12 md:mb-16 px-2">
-            <span className="text-[10px] sm:text-xs font-black tracking-widest text-[#1746b8] uppercase bg-blue-100/80 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2.5 sm:mb-3 border border-blue-200 shadow-2xs">
-              <Flag className="w-3.5 h-3.5 text-[#1746b8]" /> TOÀN CẢNH CUỘC THI
+            <span className="text-[10px] sm:text-xs font-black tracking-widest text-[#10348c] uppercase bg-blue-100/80 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2.5 sm:mb-3 border border-blue-200">
+              <Flag className="w-3.5 h-3.5 text-[#10348c]" /> TOÀN CẢNH CUỘC THI
             </span>
             <h2 className="text-lg min-[360px]:text-xl sm:text-3xl lg:text-4xl font-black text-slate-800 tracking-tight leading-snug">
               LỘ TRÌNH TỪ CƠ SỞ ĐẾN TOÀN QUỐC
@@ -234,8 +381,8 @@ export default function Landing() {
             <div className="grid grid-cols-5 gap-5 relative">
               {/* Connecting Track Line behind nodes */}
               <div className="absolute top-5 left-[10%] right-[10%] h-1 bg-slate-200 -z-0">
-                {/* Active progress fill up to Step 3 */}
-                <div className="h-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-[#1746b8] w-[50%]" />
+                {/* Active progress fill up to Step 4 */}
+                <div className="h-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-[#10348c] w-[75%]" />
               </div>
 
               {/* Step 1 Node */}
@@ -254,26 +401,26 @@ export default function Landing() {
                 <span className="text-[11px] font-bold text-emerald-700 mt-2">Chặng 2: Hoàn thành</span>
               </div>
 
-              {/* Step 3 Node (Active Beacon) */}
+              {/* Step 3 Node */}
+              <div className="flex flex-col items-center relative z-10">
+                <div className="w-10 h-10 rounded-full bg-emerald-500 text-white font-black text-xs flex items-center justify-center shadow-md border-4 border-white">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold text-emerald-700 mt-2">Chặng 3: Hoàn thành</span>
+              </div>
+
+              {/* Step 4 Node (Active Beacon) */}
               <div className="flex flex-col items-center relative z-10">
                 <div className="relative">
-                  <span className="absolute -inset-1.5 rounded-full bg-blue-400/25" />
+                  <span className="absolute -inset-1.5 rounded-full bg-blue-400/25 animate-ping" />
                   <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#10348c] via-[#1746b8] to-blue-500 text-yellow-300 font-black text-sm flex items-center justify-center shadow-lg border-4 border-white relative z-10">
-                    03
+                    04
                   </div>
                 </div>
-                <span className="text-[11px] font-black text-[#1746b8] mt-1.5 flex items-center gap-1 uppercase tracking-wide">
+                <span className="text-[11px] font-black text-[#10348c] mt-1.5 flex items-center gap-1 uppercase tracking-wide">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   Đang diễn ra
                 </span>
-              </div>
-
-              {/* Step 4 Node */}
-              <div className="flex flex-col items-center relative z-10">
-                <div className="w-10 h-10 rounded-full bg-white text-amber-700 font-black text-xs flex items-center justify-center shadow-sm border-2 border-amber-300">
-                  04
-                </div>
-                <span className="text-[11px] font-bold text-slate-500 mt-2">Chặng 4: Sắp diễn ra</span>
               </div>
 
               {/* Step 5 Node */}
@@ -281,7 +428,7 @@ export default function Landing() {
                 <div className="w-10 h-10 rounded-full bg-white text-purple-700 font-black text-xs flex items-center justify-center shadow-sm border-2 border-purple-300">
                   <Star className="w-4 h-4 text-purple-600 fill-purple-100" />
                 </div>
-                <span className="text-[11px] font-bold text-purple-700 mt-2">Vòng chung kết cấp toàn quốc</span>
+                <span className="text-[11px] font-bold text-purple-700 mt-2">Chung kết toàn quốc</span>
               </div>
             </div>
           </div>
@@ -299,7 +446,7 @@ export default function Landing() {
                     Đã xong
                   </span>
                 </div>
-                <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#1746b8] border border-blue-100 flex items-center justify-center mb-3.5 group-hover:scale-105 transition-transform">
+                <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#10348c] border border-blue-100 flex items-center justify-center mb-3.5 group-hover:scale-105 transition-transform">
                   <Building className="w-5 h-5" />
                 </div>
                 <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">CẤP XÃ, PHƯỜNG</h3>
@@ -338,15 +485,39 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* ── CHẶNG 3: VÒNG LOẠI TỈNH (TIÊU ĐIỂM CHÍNH - HERO CARD) ── */}
+            {/* ── CHẶNG 3: VÒNG LOẠI TỈNH (ĐÃ HOÀN THÀNH) ── */}
+            <div className="group rounded-2xl sm:rounded-3xl border border-slate-200/90 p-5 sm:p-6 bg-white hover:bg-slate-50/80 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+              <div>
+                <div className="flex items-center justify-between mb-3.5">
+                  <span className="text-xs font-black text-emerald-700 uppercase tracking-wide">Chặng 03</span>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Đã hoàn thành
+                  </span>
+                </div>
+                <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#10348c] border border-blue-100 flex items-center justify-center mb-3.5 group-hover:scale-105 transition-transform">
+                  <Laptop className="w-5 h-5" />
+                </div>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">VÒNG LOẠI CẤP TỈNH</h3>
+                <p className="text-xs text-blue-700 font-bold mb-2">02/10/2026</p>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Thi trắc nghiệm trực tuyến 30 câu / 20 phút với 70 thí sinh; đã tuyển chọn thành công <strong>Top 10 thí sinh xuất sắc nhất</strong> vào Vòng chung kết cấp Tỉnh.
+                </p>
+              </div>
+              <div className="pt-4 mt-4 border-t border-slate-100 text-[11px] text-emerald-700 font-bold">
+                Tuyển chọn 10 thí sinh
+              </div>
+            </div>
+
+            {/* ── CHẶNG 4: VÒNG CHUNG KẾT CẤP TỈNH (TIÊU ĐIỂM CHÍNH - HERO CARD) ── */}
             <div className="group rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0d348a] via-[#1243af] to-[#0b2b73] text-white p-5 sm:p-6 shadow-xl shadow-blue-900/25 border-2 border-yellow-400 ring-4 ring-blue-500/20 flex flex-col justify-between relative overflow-hidden lg:-translate-y-2 transition-all duration-300">
-              {/* Highlight ribbon accent */}
               <div className="absolute top-0 right-0 w-28 h-28 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(250,204,21,0.08) 0%, transparent 70%)' }} />
 
               <div>
                 <div className="flex items-center justify-between mb-3.5">
                   <span className="text-xs font-black uppercase tracking-wider text-yellow-300">
-                    Chặng 03 · TIÊU ĐIỂM
+                    Chặng 04 · TIÊU ĐIỂM
                   </span>
                   <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-yellow-400 text-blue-950 uppercase tracking-wide flex items-center gap-1.5 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-red-600" />
@@ -355,17 +526,17 @@ export default function Landing() {
                 </div>
 
                 <div className="w-11 h-11 rounded-2xl bg-white/15 text-yellow-300 border border-white/20 flex items-center justify-center mb-3.5 shadow-xs">
-                  <Laptop className="w-5 h-5" />
+                  <Flame className="w-5 h-5" />
                 </div>
 
                 <h3 className="font-black text-white text-lg mb-1 tracking-tight">
-                  VÒNG LOẠI CẤP TỈNH
+                  VÒNG CHUNG KẾT CẤP TỈNH
                 </h3>
                 <p className="text-xs text-yellow-300 font-bold mb-2.5 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Dự kiến 30/9/2026
+                  <Clock className="w-3.5 h-3.5" /> 09/10/2026 · Nhà khách Nghệ An
                 </p>
                 <p className="text-xs text-blue-100/90 leading-relaxed">
-                  Phần thi <strong>"Bí thư Đoàn cơ sở – Kiến thức"</strong>: 30 câu trắc nghiệm / 20 phút. Tuyển chọn <strong>Top 10 thí sinh</strong> vào Vòng chung kết cấp Tỉnh.
+                  Tại sân khấu Nhà khách Nghệ An với 03 phần thi liên hoàn: <strong>Thông thái</strong> (bấm nút trực tiếp), <strong>Nhạy bén</strong> (nghiệp vụ phần mềm) và <strong>Bản lĩnh</strong> (05 cặp đối kháng).
                 </p>
               </div>
 
@@ -374,33 +545,9 @@ export default function Landing() {
                   onClick={handleEnterQuiz}
                   className="w-full py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md active:scale-98 transition-all"
                 >
-                  <span>Vào thi vòng loại</span>
+                  <span>Vào phòng thi Chung kết</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-              </div>
-            </div>
-
-            {/* ── CHẶNG 4: VÒNG CHUNG KẾT CẤP TỈNH ── */}
-            <div className="group rounded-2xl sm:rounded-3xl border border-slate-200/90 p-5 sm:p-6 bg-white hover:bg-slate-50/80 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-              <div>
-                <div className="flex items-center justify-between mb-3.5">
-                  <span className="text-xs font-black text-slate-500 uppercase tracking-wide">Chặng 04</span>
-                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                    Sắp diễn ra
-                  </span>
-                </div>
-                <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center mb-3.5 group-hover:scale-105 transition-transform">
-                  <Flame className="w-5 h-5" />
-                </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">VÒNG CHUNG KẾT CẤP TỈNH</h3>
-                <p className="text-xs text-amber-700 font-bold mb-2">Dự kiến 09/10/2026</p>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Tại Nhà khách Nghệ An với 03 phần thi đối kháng sân khấu: <strong>Thông thái</strong>, <strong>Nhạy bén</strong> và <strong>Bản lĩnh</strong>.
-                </p>
-              </div>
-              <div className="pt-4 mt-4 border-t border-slate-100 text-[11px] text-slate-400 font-medium">
-                Top 10 thí sinh xuất sắc
               </div>
             </div>
 
@@ -431,68 +578,76 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ════════════ SECTION 4: CƠ CẤU GIẢI THƯỞNG VÒNG TỈNH ════════════ */}
+
+
+      {/* ════════════ SECTION 5: CƠ CẤU GIẢI THƯỞNG VÒNG TỈNH ════════════ */}
       <section className="py-10 sm:py-14 md:py-20 bg-slate-50 border-t border-slate-200 w-full overflow-hidden">
         <div className="max-w-[1100px] mx-auto px-3.5 sm:px-4 md:px-8 w-full min-w-0">
           <div className="text-center mb-8 sm:mb-10 md:mb-12 px-2">
-            <span className="text-[10px] sm:text-xs font-black tracking-widest text-[#1746b8] uppercase bg-blue-100 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2 sm:mb-2.5">
-              <Trophy className="w-3.5 h-3.5 text-[#1746b8]" /> KHEN THƯỞNG
+            <span className="text-[10px] sm:text-xs font-black tracking-widest text-[#10348c] uppercase bg-blue-100 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2 sm:mb-2.5">
+              <Trophy className="w-3.5 h-3.5 text-[#10348c]" /> KHEN THƯỞNG
             </span>
             <h2 className="text-lg min-[360px]:text-xl sm:text-2xl md:text-4xl font-black text-slate-800 tracking-tight leading-snug">
-              CƠ CẤU GIẢI THƯỞNG VÒNG THI CẤP TỈNH
+              CƠ CẤU GIẢI THƯỞNG VÒNG CHUNG KẾT CẤP TỈNH
             </h2>
             <div className="w-16 h-1 bg-yellow-400 mx-auto mt-2.5 sm:mt-3 rounded-full" />
             <p className="text-xs sm:text-sm text-slate-500 mt-2.5 sm:mt-3">
-              Kèm theo Bằng khen của Ban Chấp hành Tỉnh đoàn và Giấy chứng nhận cho toàn bộ thí sinh
+              Kèm theo Bằng khen của Ban Chấp hành Tỉnh đoàn và quà tặng / biểu trưng Hội thi
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-stretch w-full min-w-0">
-            {/* Giải Nhì */}
+            {/* 03 Giải Nhì */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 text-center shadow-xs flex flex-col justify-between order-2 md:order-1">
               <div>
                 <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mb-3">
                   <Medal className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">03 Giải Nhì</h3>
-                <p className="text-lg sm:text-xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
-                <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
+                <p className="text-base sm:text-lg font-black text-[#10348c] mt-2.5 tracking-tight leading-snug">
+                  Tiền mặt + Bằng khen BCH Tỉnh đoàn
+                </p>
+                <p className="text-xs text-slate-500 mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
             </div>
 
-            {/* Giải Nhất */}
+            {/* 01 Giải Nhất */}
             <div className="bg-gradient-to-b from-blue-50 to-white rounded-2xl border-2 border-yellow-400 p-5 sm:p-7 text-center shadow-md relative flex flex-col justify-between order-1 md:order-2">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-blue-950 text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs">
-                Giải Cao Nhất
+                Quán Quân Hội Thi
               </div>
               <div>
                 <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center mb-3 mt-1">
                   <Trophy className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
                 <h3 className="text-lg sm:text-xl font-black text-slate-900 uppercase">01 Giải Nhất</h3>
-                <p className="text-xl sm:text-2xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
-                <p className="text-xs font-bold text-amber-800 mt-2 bg-amber-50 rounded-lg py-1 px-2 border border-amber-200 inline-block">
-                  Đại diện tỉnh dự thi Chung kết toàn quốc tại Hà Nội
+                <p className="text-lg sm:text-xl font-black text-[#10348c] mt-2.5 tracking-tight leading-snug">
+                  Tiền mặt + Bằng khen BCH Tỉnh đoàn
                 </p>
-                <p className="text-xs text-slate-500 mt-1">Kèm biểu trưng / quà tặng Hội thi</p>
+                <p className="text-xs font-bold text-amber-800 mt-2.5 bg-amber-50 rounded-lg py-1.5 px-2.5 border border-amber-200 inline-block leading-relaxed">
+                  Đại diện tuổi trẻ Nghệ An dự Chung kết toàn quốc tại Hà Nội
+                </p>
+                <p className="text-xs text-slate-500 mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
             </div>
 
-            {/* Giải Ba */}
+            {/* 06 Giải Ba */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 text-center shadow-xs flex flex-col justify-between order-3">
               <div>
                 <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mb-3">
                   <Award className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase">06 Giải Ba</h3>
-                <p className="text-lg sm:text-xl font-black text-[#1746b8] mt-1.5 sm:mt-2">Tiền mặt + Bằng khen BCH Tỉnh đoàn</p>
-                <p className="text-xs text-slate-500 mt-1.5 sm:mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
+                <p className="text-base sm:text-lg font-black text-[#10348c] mt-2.5 tracking-tight leading-snug">
+                  Tiền mặt + Bằng khen BCH Tỉnh đoàn
+                </p>
+                <p className="text-xs text-slate-500 mt-2">Kèm biểu trưng / quà tặng Hội thi</p>
               </div>
             </div>
           </div>
 
-          <div className="mt-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200/80 text-center text-xs text-blue-900 font-medium max-w-xl mx-auto">
-            Các cá nhân tham gia vòng thi cấp tỉnh (không lọt vào chung kết) được nhận <strong>Giấy chứng nhận tham gia</strong> của Ban Tổ chức Hội thi.
+          <div className="mt-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200/80 text-center text-xs text-blue-900 font-medium max-w-xl mx-auto leading-relaxed">
+            Các cá nhân tham gia vòng thi cấp tỉnh (không lọt vào chung kết) được nhận <strong>Giấy chứng nhận tham gia vòng thi Bí thư Đoàn cơ sở giỏi tỉnh Nghệ An năm 2026</strong> của Ban Tổ chức Hội thi.
           </div>
         </div>
       </section>
@@ -524,7 +679,7 @@ export default function Landing() {
 
             <div className="flex flex-col gap-2.5">
               <h4 className="font-bold text-xs sm:text-sm text-yellow-300 uppercase tracking-wider mb-1">
-                Thông tin Ban Tổ chức
+                Thông tin Ban Tổ chức & Thường trực
               </h4>
               <div className="space-y-2 text-xs text-blue-100/90">
                 <div className="flex items-start gap-2.5">
@@ -537,7 +692,7 @@ export default function Landing() {
                 </div>
                 <div className="flex items-center gap-2.5">
                   <FileCheck2 className="w-4 h-4 text-yellow-300 shrink-0" />
-                  <span>Căn cứ Kế hoạch số 435-KH/TĐTN-CTĐ&TTN ngày 17/7/2026</span>
+                  <span>Căn cứ Kế hoạch 435-KH/TĐTN-CTĐ&TTN và Thể lệ Vòng thi cấp tỉnh ngày 28/9/2026</span>
                 </div>
               </div>
             </div>
@@ -545,7 +700,7 @@ export default function Landing() {
 
           <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-blue-200/60 text-center sm:text-left">
             <p>Bản quyền © 2026 Ban Thường vụ Tỉnh đoàn Nghệ An</p>
-            <p>Hệ thống thi trực tuyến Vòng loại cấp tỉnh</p>
+            <p>Hệ thống thi trực tuyến Vòng Chung kết cấp tỉnh</p>
           </div>
         </div>
       </footer>

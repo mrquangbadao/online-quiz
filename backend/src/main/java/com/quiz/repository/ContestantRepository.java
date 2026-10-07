@@ -12,5 +12,7 @@ public interface ContestantRepository extends JpaRepository<Contestant, Long> {
     Optional<Contestant> findFirstByNormalizedEmailAndPhaseId(String normalizedEmail, Long phaseId);
     Optional<Contestant> findFirstByPhoneAndPhaseId(String phone, Long phaseId);
     long countByNormalizedEmailAndPhaseId(String normalizedEmail, Long phaseId);
+    java.util.List<Contestant> findByPhaseId(Long phaseId);
+    void deleteByPhaseId(Long phaseId);
 }
 

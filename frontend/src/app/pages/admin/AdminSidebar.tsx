@@ -4,7 +4,7 @@ import { useAuthStore } from '../../../store/authStore';
 import BrandMark from '../../components/BrandMark';
 import {
   Activity, Users, FileText, Building2, Settings,
-  UserPlus, KeyRound, LogOut, ExternalLink, Menu, X, ShieldCheck
+  UserPlus, KeyRound, LogOut, ExternalLink, Menu, X, ShieldCheck, Trophy
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -17,6 +17,13 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const menuGroups = [
+    {
+      group: 'Vòng Chung kết (Sân khấu)',
+      items: [
+        { key: 'live-config', altKey: 'chung-ket-config', label: 'Cấu hình Vòng CK', icon: Settings, path: '/admin/chung-ket-config' },
+        { key: 'live-control', altKey: 'chung-ket', label: 'Điều hành Vòng CK', icon: Trophy, path: '/admin/chung-ket' },
+      ],
+    },
     {
       group: 'Tổ chức thi',
       items: [

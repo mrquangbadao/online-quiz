@@ -33,6 +33,7 @@ public class ContestPhaseController {
     @PostMapping("/start")
     public ResponseEntity<ApiResponse<ContestPhase>> startPhase(@RequestBody Map<String, Object> body) {
         String name = body.getOrDefault("name", "Giai đoạn thi").toString();
+        String phaseType = body.getOrDefault("phaseType", "STANDARD").toString();
         Boolean requireWhitelist = body.containsKey("requireWhitelist")
                 ? Boolean.valueOf(body.get("requireWhitelist").toString()) : null;
         Integer mcQuestionCount = body.containsKey("mcQuestionCount")
@@ -43,7 +44,7 @@ public class ContestPhaseController {
                 ? Boolean.valueOf(body.get("hasScenarios").toString()) : null;
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(contestPhaseService.startPhase(
-                        name, requireWhitelist, mcQuestionCount, timeLimitMinutes, hasScenarios)));
+                        name, phaseType, requireWhitelist, mcQuestionCount, timeLimitMinutes, hasScenarios)));
     }
 
     @PutMapping("/{id}/stop")

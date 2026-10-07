@@ -23,16 +23,26 @@ public class ContestPhaseServiceImpl implements ContestPhaseService {
   private final ExamRepository examRepository;
   private final EligibleContestantRepository eligibleContestantRepository;
   private final com.quiz.service.ExamService examService;
+  private final com.quiz.repository.LiveSessionRepository liveSessionRepository;
+  private final com.quiz.service.LiveArenaService liveArenaService;
+  private final com.quiz.repository.ContestantRepository contestantRepository;
 
   @Override
   @Transactional
   public ContestPhase startPhase(String name) {
-    return startPhase(name, null, null, null, null);
+    return startPhase(name, "STANDARD", null, null, null, null);
   }
 
   @Override
   @Transactional
   public ContestPhase startPhase(String name, Boolean requireWhitelist, Integer mcQuestionCount,
+                                 Integer timeLimitMinutes, Boolean hasScenarios) {
+    return startPhase(name, "STANDARD", requireWhitelist, mcQuestionCount, timeLimitMinutes, hasScenarios);
+  }
+
+  @Override
+  @Transactional
+  public ContestPhase startPhase(String name, String phaseType, Boolean requireWhitelist, Integer mcQuestionCount,
                                  Integer timeLimitMinutes, Boolean hasScenarios) {
     // Only 1 contest phase can be active at the same time
     contestPhaseRepository.findFirstByStatus(PhaseStatus.ACTIVE).ifPresent(existing -> {
@@ -40,18 +50,42 @@ public class ContestPhaseServiceImpl implements ContestPhaseService {
           "Đang có đợt thi '" + existing.getName() + "' đang diễn ra. Vui lòng kết thúc đợt thi hiện tại trước khi tạo đợt thi mới.");
     });
 
+    String type = (phaseType != null && !phaseType.isBlank()) ? phaseType.trim().toUpperCase() : "STANDARD";
+
     ContestPhase.ContestPhaseBuilder builder = ContestPhase.builder()
             .name(name)
+            .phaseType(type)
             .status(PhaseStatus.ACTIVE)
             .startTime(LocalDateTime.now());
 
-    if (requireWhitelist != null) builder.requireWhitelist(requireWhitelist);
-    if (mcQuestionCount != null) builder.mcQuestionCount(mcQuestionCount);
-    if (timeLimitMinutes != null) builder.timeLimitMinutes(timeLimitMinutes);
-    if (hasScenarios != null) builder.hasScenarios(hasScenarios);
+    if ("LIVE_ARENA".equals(type)) {
+      builder.requireWhitelist(true);
+      builder.mcQuestionCount(10);
+      builder.timeLimitMinutes(40);
+      builder.hasScenarios(true);
+    } else {
+      if (requireWhitelist != null) builder.requireWhitelist(requireWhitelist);
+      if (mcQuestionCount != null) builder.mcQuestionCount(mcQuestionCount);
+      if (timeLimitMinutes != null) builder.timeLimitMinutes(timeLimitMinutes);
+      if (hasScenarios != null) builder.hasScenarios(hasScenarios);
+    }
 
-    ContestPhase phase = builder.build();
-    return contestPhaseRepository.save(phase);
+    ContestPhase phase = contestPhaseRepository.save(builder.build());
+
+    if ("LIVE_ARENA".equals(type)) {
+      liveSessionRepository.findFirstByPhaseIdOrderByCreatedAtDesc(phase.getId()).orElseGet(() -> {
+        return liveSessionRepository.save(com.quiz.entity.LiveSession.builder()
+                .phaseId(phase.getId())
+                .name(phase.getName())
+                .status("LOBBY")
+                .currentRound(1)
+                .currentQuestionIndex(0)
+                .round1State("IDLE")
+                .build());
+      });
+    }
+
+    return phase;
   }
 
   @Override
@@ -69,6 +103,16 @@ public class ContestPhaseServiceImpl implements ContestPhaseService {
     // Auto-submit all in-progress exams for this phase immediately
     examService.autoSubmitInProgressExamsForPhase(id);
 
+    // If live arena, mark live session as FINISHED
+    if ("LIVE_ARENA".equalsIgnoreCase(phase.getPhaseType())) {
+      liveSessionRepository.findFirstByPhaseIdOrderByCreatedAtDesc(id).ifPresent(s -> {
+        if (!"FINISHED".equals(s.getStatus())) {
+          s.setStatus("FINISHED");
+          liveSessionRepository.save(s);
+        }
+      });
+    }
+
     return savedPhase;
   }
 
@@ -78,24 +122,37 @@ public class ContestPhaseServiceImpl implements ContestPhaseService {
     ContestPhase phase = contestPhaseRepository.findById(id)
             .orElseThrow(() -> new BusinessException("PHASE_NOT_FOUND", "Không tìm thấy giai đoạn thi"));
 
-    // 1. Reset any eligible contestants linked to this phase
+    // 1. Xóa toàn bộ các phiên thi Vòng Chung kết (LiveSession) liên quan
+    liveArenaService.deleteAllSessionsByPhaseId(id);
+    if ("LIVE_ARENA".equalsIgnoreCase(phase.getPhaseType()) || "FINALS".equalsIgnoreCase(phase.getPhaseType())) {
+      // Nếu là đợt thi Chung kết, dọn dẹp sạch toàn bộ các live sessions còn tồn đọng trong hệ thống
+      List<com.quiz.entity.LiveSession> allSessions = liveSessionRepository.findAll();
+      for (com.quiz.entity.LiveSession s : allSessions) {
+        liveArenaService.deleteSession(s.getId());
+      }
+    }
+
+    // 2. Reset toàn bộ danh sách 70 thí sinh đủ điều kiện (Eligible Contestant) để làm sạch hoàn toàn dữ liệu test
     List<EligibleContestant> eligibleList = eligibleContestantRepository.findAll();
     for (EligibleContestant ec : eligibleList) {
-        if (Boolean.TRUE.equals(ec.getIsRegistered())) {
-            ec.setIsRegistered(false);
-            ec.setPhone(null);
-            ec.setEmail(null);
-            ec.setRegisteredContestantId(null);
-        }
+        ec.setIsRegistered(false);
+        ec.setIsSelfRegistered(false);
+        ec.setPhone(null);
+        ec.setEmail(null);
+        ec.setRegisteredContestantId(null);
     }
     eligibleContestantRepository.saveAll(eligibleList);
     eligibleContestantRepository.flush();
 
-    // 2. Delete all exams in this phase (cascades to questions & answers)
+    // 3. Xóa toàn bộ bài thi (Exams) thuộc đợt thi này (cascades exam_questions, exam_answers)
     examRepository.deleteAllByPhaseId(id);
     examRepository.flush();
 
-    // 3. Delete the phase (cascades to contestants, email_otp, email_verification_sessions)
+    // 4. Xóa toàn bộ thí sinh đã đăng ký thuộc đợt thi này
+    contestantRepository.deleteByPhaseId(id);
+    contestantRepository.flush();
+
+    // 5. Xóa đợt thi (cascades email_otp, verification sessions)
     contestPhaseRepository.delete(phase);
     contestPhaseRepository.flush();
   }
@@ -120,7 +177,16 @@ public class ContestPhaseServiceImpl implements ContestPhaseService {
       });
       phase.setStatus(PhaseStatus.ACTIVE);
       phase.setEndTime(null);
-      return contestPhaseRepository.save(phase);
+      ContestPhase savedPhase = contestPhaseRepository.save(phase);
+
+      if ("LIVE_ARENA".equalsIgnoreCase(phase.getPhaseType())) {
+        liveSessionRepository.findFirstByPhaseIdOrderByCreatedAtDesc(id).ifPresent(s -> {
+          s.setStatus("LOBBY");
+          liveSessionRepository.save(s);
+        });
+      }
+
+      return savedPhase;
   }
 
   @Override

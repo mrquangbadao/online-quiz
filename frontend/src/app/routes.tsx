@@ -15,6 +15,10 @@ import AdminExamDetail from "./pages/admin/AdminExamDetail";
 import AdminChangePassword from "./pages/admin/AdminChangePassword";
 import AdminAccounts from "./pages/admin/AdminAccounts";
 import AdminEligibleContestants from "./pages/admin/AdminEligibleContestants";
+import LivePlayerMobile from "./pages/live/LivePlayerMobile";
+import LiveScreenHost from "./pages/live/LiveScreenHost";
+import AdminLiveControl from "./pages/admin/AdminLiveControl";
+import AdminLiveConfig from "./pages/admin/AdminLiveConfig";
 import { useAuthStore } from "../store/authStore";
 import ErrorBoundary from "./components/ErrorBoundary";
 import MarqueeBanner from "./components/MarqueeBanner";
@@ -92,6 +96,19 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    path: "/live/play",
+    Component: LivePlayerMobile,
+  },
+  {
+    element: <AdminGuard />,
+    children: [
+      {
+        path: "/live/screen",
+        Component: LiveScreenHost,
+      },
+    ],
+  },
+  {
     path: "/admin/dang-nhap",
     Component: AdminLogin,
   },
@@ -106,6 +123,9 @@ export const router = createBrowserRouter([
       { index: true, Component: () => <Navigate to="bang-diem" replace /> },
       // Vietnamese primary slugs
       { path: "bang-diem", Component: AdminDashboard },
+      { path: "live-control", Component: AdminLiveControl },
+      { path: "chung-ket", Component: AdminLiveControl },
+      { path: "chung-ket-config", Component: AdminLiveConfig },
       { path: "thi-sinh", Component: AdminEligibleContestants },
       { path: "cau-hoi", Component: AdminQuestions },
       { path: "don-vi", Component: AdminUnits },

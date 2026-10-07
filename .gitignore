@@ -56,3 +56,6 @@ logs/
 *.tmp
 *.bak
 docs/contest-info.txt
+scratch/
+/package.json
+/package-lock.json

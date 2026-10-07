@@ -56,6 +56,7 @@ export const adminApi = {
     mcQuestionCount?: number;
     timeLimitMinutes?: number;
     hasScenarios?: boolean;
+    phaseType?: string;
   }) =>
     axiosClient.post<{ data: ContestPhase }>('/admin/phases/start', config),
   stopPhase: (id: number) =>

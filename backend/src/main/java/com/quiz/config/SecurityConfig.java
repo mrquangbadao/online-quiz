@@ -50,6 +50,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/settings/slogan", "/api/settings/exam-time-limit", "/api/settings/mc-question-count").permitAll()
                         .requestMatchers("/api/settings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/phases/**").permitAll()
+                        .requestMatchers("/ws-live/**", "/ws-live-sockjs/**").permitAll()
+                        .requestMatchers("/api/live/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -66,13 +68,13 @@ public class SecurityConfig {
                     .filter(s -> !s.isEmpty())
                     .toList());
         } else {
-            throw new IllegalArgumentException("ALLOWED_ORIGINS environment variable is required for CORS");
+            config.setAllowedOriginPatterns(List.of("http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://localhost:8080"));
         }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 

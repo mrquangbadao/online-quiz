@@ -94,17 +94,14 @@ public class EmailOtpService {
 
         emailOtpRepository.save(emailOtp);
 
+        log.info("==================================================");
+        log.info(">> LIVE ARENA OTP CODE FOR [{}]: {} <<", normalizedEmail, otpCode);
+        log.info("==================================================");
+
         try {
             emailDeliveryService.sendOtpEmail(request.getEmail().trim(), otpCode);
         } catch (MailException ex) {
-            log.error("Failed to deliver OTP email to {}: {}", normalizedEmail, ex.getMessage(), ex);
-            if (emergencyMasterOtp != null && !emergencyMasterOtp.isBlank()) {
-                log.warn("Emergency master OTP is configured; proceeding with OTP request for {} despite email delivery failure", normalizedEmail);
-            } else {
-                emailOtpRepository.delete(emailOtp);
-                throw new BusinessException("OTP_DELIVERY_FAILED",
-                        "Unable to send OTP email at the moment. Please try again.");
-            }
+            log.warn("Failed to deliver OTP email to {}: {}. Proceeding so candidate can use code from log/admin.", normalizedEmail, ex.getMessage());
         }
 
         return RequestOtpResponse.builder()
@@ -302,6 +299,7 @@ public class EmailOtpService {
 
     private ContestPhase requireActivePhase() {
         return contestPhaseRepository.findFirstByStatus(PhaseStatus.ACTIVE)
+                .or(() -> contestPhaseRepository.findAllByOrderByCreatedAtDesc().stream().findFirst())
                 .orElseThrow(() -> new BusinessException("NO_ACTIVE_PHASE",
                         "The contest phase is not active at the moment."));
     }

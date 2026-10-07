@@ -50,6 +50,7 @@ export default function AdminDashboard() {
   const [endPhaseLoading, setEndPhaseLoading] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
   const [newPhaseName, setNewPhaseName] = useState('');
+  const [newPhaseType, setNewPhaseType] = useState<'STANDARD' | 'LIVE_ARENA'>('STANDARD');
   const [newPhaseWhitelist, setNewPhaseWhitelist] = useState(true);
   const [newPhaseMcCount, setNewPhaseMcCount] = useState(30);
   const [newPhaseTimeLimit, setNewPhaseTimeLimit] = useState(20);
@@ -176,25 +177,31 @@ export default function AdminDashboard() {
   const handleStartPhase = async () => {
     if (!newPhaseName.trim()) return;
     setPhaseLoading(true);
+    const isLiveArena = newPhaseType === 'LIVE_ARENA';
     try {
       await adminApi.startPhase({
         name: newPhaseName.trim(),
-        requireWhitelist: newPhaseWhitelist,
-        mcQuestionCount: newPhaseMcCount,
-        timeLimitMinutes: newPhaseTimeLimit,
+        requireWhitelist: isLiveArena ? true : newPhaseWhitelist,
+        mcQuestionCount: isLiveArena ? 10 : newPhaseMcCount,
+        timeLimitMinutes: isLiveArena ? 40 : newPhaseTimeLimit,
         hasScenarios: false,
+        phaseType: newPhaseType,
       });
       setShowStartModal(false);
       setNewPhaseName('');
       setNewPhaseWhitelist(true);
       setNewPhaseMcCount(30);
       setNewPhaseTimeLimit(20);
+      setNewPhaseType('STANDARD');
       const { currentPhase: newCurrent } = await loadPhases();
       if (newCurrent) {
         setSelectedPhaseId(newCurrent.id);
         fetchLiveData(newCurrent.id, true);
       }
       toast.success(`Đã mở đợt thi "${newPhaseName.trim()}" thành công!`);
+      if (isLiveArena) {
+        navigate('/admin/chung-ket-config');
+      }
     } catch (err) {
       toast.error(extractApiError(err, 'Mở đợt thi thất bại'));
     } finally {
@@ -418,6 +425,47 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+
+        {/* ── Banner Vòng Chung kết (Live Arena) nếu đang diễn ra ── */}
+        {currentPhase?.phaseType === 'LIVE_ARENA' && currentPhase.status === 'ACTIVE' && (
+          <div className="bg-gradient-to-r from-blue-900 via-indigo-950 to-blue-900 border-2 border-amber-400/40 rounded-2xl p-4 sm:p-5 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-amber-400 text-blue-950 flex items-center justify-center font-black text-2xl shadow-lg shadow-amber-400/20 shrink-0">
+                🏆
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[10px] tracking-wider animate-pulse">
+                    ĐANG DIỄN RA
+                  </span>
+                  <h3 className="font-black text-sm sm:text-base text-amber-300 uppercase tracking-wide">
+                    {currentPhase.name}
+                  </h3>
+                </div>
+                <p className="text-xs text-blue-100 mt-1">
+                  Sàn đấu Sân khấu Live 3 Vòng: <b>Thông thái</b> (10 câu) • <b>Nhạy bén</b> (Nghiệp vụ) • <b>Bản lĩnh</b> (Tranh biện).
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+              <button
+                onClick={() => navigate('/admin/live-control')}
+                className="flex-1 md:flex-initial px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-blue-950 font-black text-xs shadow-lg shadow-amber-400/20 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4 text-blue-950" />
+                <span>BÀN ĐIỀU HÀNH SÂN KHẤU</span>
+              </button>
+              <a
+                href="/live/screen"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+              >
+                <span>MÀN HÌNH LED</span>
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* ── Phase Selector Tabs ── */}
         {phases.length > 0 && (
@@ -927,61 +975,113 @@ export default function AdminDashboard() {
                 <p className="text-xs text-slate-500">
                   Cấu hình đợt thi cho cuộc thi Bí thư Đoàn cơ sở giỏi. Đợt thi sẽ được kích hoạt ngay khi tạo.
                 </p>
-                <input
-                  autoFocus
-                  className="w-full rounded-xl border-2 border-slate-200 px-4 py-2.5 text-xs focus:border-teal-500 focus:ring-0 outline-none transition-all"
-                  placeholder="Tên đợt thi (VD: Vòng thi cấp tỉnh)..."
-                  value={newPhaseName}
-                  onChange={(e) => setNewPhaseName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleStartPhase()}
-                />
-
-                {/* Phase config options */}
-                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Cấu hình đợt thi</p>
-
-                  {/* Require Whitelist */}
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newPhaseWhitelist}
-                      onChange={(e) => setNewPhaseWhitelist(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                    />
-                    <div>
-                      <span className="text-xs font-bold text-slate-700">Chọn thí sinh từ danh sách (Whitelist)</span>
-                      <p className="text-[10px] text-slate-500">Thí sinh phải chọn tên từ danh sách 70 thí sinh đủ điều kiện thay vì tự nhập.</p>
-                    </div>
-                  </label>
-
-                  {/* MC Question Count */}
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs font-bold text-slate-700 shrink-0">Số câu trắc nghiệm:</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      className="w-20 rounded-lg border-2 border-slate-200 px-3 py-1.5 text-xs text-center focus:border-teal-500 focus:ring-0 outline-none"
-                      value={newPhaseMcCount}
-                      onChange={(e) => setNewPhaseMcCount(Number(e.target.value) || 30)}
-                    />
-                    <span className="text-[10px] text-slate-400">câu</span>
-                  </div>
-
-                  {/* Time Limit */}
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs font-bold text-slate-700 shrink-0">Thời gian làm bài:</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={120}
-                      className="w-20 rounded-lg border-2 border-slate-200 px-3 py-1.5 text-xs text-center focus:border-teal-500 focus:ring-0 outline-none"
-                      value={newPhaseTimeLimit}
-                      onChange={(e) => setNewPhaseTimeLimit(Number(e.target.value) || 20)}
-                    />
-                    <span className="text-[10px] text-slate-400">phút</span>
+                {/* Thể thức đợt thi selector */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Thể thức đợt thi</label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewPhaseType('STANDARD');
+                        if (newPhaseName === 'VÒNG CHUNG KẾT CẤP TỈNH NĂM 2026') setNewPhaseName('');
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                        newPhaseType === 'STANDARD'
+                          ? 'bg-white text-teal-800 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Đợt thi Tiêu chuẩn
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewPhaseType('LIVE_ARENA');
+                        setNewPhaseName('VÒNG CHUNG KẾT CẤP TỈNH NĂM 2026');
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                        newPhaseType === 'LIVE_ARENA'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>🏆 Sân khấu Chung kết</span>
+                    </button>
                   </div>
                 </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 block">Tên đợt thi</label>
+                  <input
+                    autoFocus
+                    className="w-full rounded-xl border-2 border-slate-200 px-4 py-2.5 text-xs focus:border-teal-500 focus:ring-0 outline-none transition-all font-semibold"
+                    placeholder="Tên đợt thi (VD: Vòng thi cấp tỉnh)..."
+                    value={newPhaseName}
+                    onChange={(e) => setNewPhaseName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleStartPhase()}
+                  />
+                </div>
+
+                {newPhaseType === 'LIVE_ARENA' ? (
+                  <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl space-y-2 text-xs">
+                    <div className="flex items-center gap-2 font-bold text-blue-900">
+                      <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>Thể thức Sân khấu Sống động (Live Arena)</span>
+                    </div>
+                    <ul className="text-[11px] text-blue-800 space-y-1 list-disc list-inside">
+                      <li>Dành riêng cho 10 thí sinh xuất sắc bước vào Vòng Chung kết.</li>
+                      <li>3 chặng thi sân khấu: <b>Thông thái</b> (10 câu hỏi), <b>Nhạy bén</b> (Nghiệp vụ), <b>Bản lĩnh</b> (Tranh biện).</li>
+                      <li>Tự động kích hoạt Bàn điều hành Sân khấu, Màn hình LED và Sàn đấu di động.</li>
+                    </ul>
+                  </div>
+                ) : (
+                  /* Phase config options */
+                  <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Cấu hình đợt thi</p>
+
+                    {/* Require Whitelist */}
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newPhaseWhitelist}
+                        onChange={(e) => setNewPhaseWhitelist(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-slate-700">Chọn thí sinh từ danh sách (Whitelist)</span>
+                        <p className="text-[10px] text-slate-500">Thí sinh phải chọn tên từ danh sách 70 thí sinh đủ điều kiện thay vì tự nhập.</p>
+                      </div>
+                    </label>
+
+                    {/* MC Question Count */}
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs font-bold text-slate-700 shrink-0">Số câu trắc nghiệm:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        className="w-20 rounded-lg border-2 border-slate-200 px-3 py-1.5 text-xs text-center focus:border-teal-500 focus:ring-0 outline-none"
+                        value={newPhaseMcCount}
+                        onChange={(e) => setNewPhaseMcCount(Number(e.target.value) || 30)}
+                      />
+                      <span className="text-[10px] text-slate-400">câu</span>
+                    </div>
+
+                    {/* Time Limit */}
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs font-bold text-slate-700 shrink-0">Thời gian làm bài:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={120}
+                        className="w-20 rounded-lg border-2 border-slate-200 px-3 py-1.5 text-xs text-center focus:border-teal-500 focus:ring-0 outline-none"
+                        value={newPhaseTimeLimit}
+                        onChange={(e) => setNewPhaseTimeLimit(Number(e.target.value) || 20)}
+                      />
+                      <span className="text-[10px] text-slate-400">phút</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-3">
                   <button
@@ -1028,7 +1128,10 @@ export default function AdminDashboard() {
                   Hành động này sẽ <strong>xóa vĩnh viễn</strong> đợt thi này khỏi hệ thống.
                 </li>
                 <li>
-                  Toàn bộ <strong>danh sách thí sinh đăng ký, bài thi và điểm số</strong> thuộc đợt thi này sẽ bị xóa.
+                  Toàn bộ <strong>cấu hình 10 thí sinh, câu hỏi, phiên thi sàn đấu, bài thi và điểm số</strong> liên quan sẽ được xóa sạch 100% để làm sạch hoàn toàn dữ liệu test.
+                </li>
+                <li>
+                  Trạng thái của các thí sinh trong danh sách nguồn sơ loại sẽ được <strong>đặt lại ban đầu</strong> để sẵn sàng cho các đợt thi mới.
                 </li>
                 <li>
                   Hành động này <strong>không thể hoàn tác</strong>.

@@ -42,6 +42,8 @@ jwt:
 quiz:
   exam:
     mc-question-count: 10
+  otp:
+    emergency-master-otp: "123456"
 
 logging:
   level:
