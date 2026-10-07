@@ -490,10 +490,9 @@ export default function AdminLiveControl() {
       if (event.eventType === 'ROUND2_BATCH_STARTED') {
         const pIds = event.payload?.playerIds || [];
         setR2BatchPlayerIds(pIds);
-        const endAt = event.payload?.endAt || (Date.now() + (event.payload?.durationSeconds || 600) * 1000);
-        r2TargetEndTimeRef.current = endAt;
-        const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
-        setR2Timer(rem);
+        const duration = Number(event.payload?.durationSeconds || 600);
+        r2TargetEndTimeRef.current = Date.now() + duration * 1000;
+        setR2Timer(duration);
         setR2TimerRunning(true);
         setR2TimeUp(false);
       }
@@ -550,10 +549,9 @@ export default function AdminLiveControl() {
       if (event.eventType === 'ROUND3_DUEL_STARTED') {
         const duel = event.payload;
         if (duel.pairNumber) setActiveDuelPairNumber(duel.pairNumber);
-        const endAt = duel.endAt || (Date.now() + (duel.durationSeconds || 120) * 1000);
-        r3TargetEndTimeRef.current = endAt;
-        const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
-        setR3Timer(rem);
+        const duration = Number(duel.durationSeconds || 120);
+        r3TargetEndTimeRef.current = Date.now() + duration * 1000;
+        setR3Timer(duration);
         setR3TimerRunning(true);
         setR3TimeUp(false);
         fetchSession();

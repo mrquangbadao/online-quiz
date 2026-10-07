@@ -147,9 +147,11 @@ export default function LiveScreenHost() {
       if (data && data.status === 'ROUND3' && data.round3DuelState) {
         const duel = data.round3DuelState as any;
         if (duel.isTimerRunning && duel.endAt) {
-          const remainingR3 = Math.max(0, Math.ceil((duel.endAt - Date.now()) / 1000));
+          const duration = Number(duel.durationSeconds || 120);
+          const rawRemaining = Math.max(0, Math.ceil((duel.endAt - Date.now()) / 1000));
+          const remainingR3 = Math.min(duration, rawRemaining);
           if (remainingR3 > 0) {
-            r3DuelTargetEndTimeRef.current = duel.endAt;
+            r3DuelTargetEndTimeRef.current = Date.now() + remainingR3 * 1000;
             setRound3DuelTimer(remainingR3);
             setRound3DuelTimerRunning(true);
             setRound3DuelTimeUp(false);
@@ -591,10 +593,9 @@ export default function LiveScreenHost() {
         case 'ROUND3_DUEL_STARTED': {
           const duel = event.payload;
           setSession((prev) => (prev ? { ...prev, round3DuelState: duel } : prev));
-          const endAt = duel.endAt || (Date.now() + (duel.durationSeconds || 120) * 1000);
-          r3DuelTargetEndTimeRef.current = endAt;
-          const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
-          setRound3DuelTimer(rem);
+          const duration = Number(duel.durationSeconds || 120);
+          r3DuelTargetEndTimeRef.current = Date.now() + duration * 1000;
+          setRound3DuelTimer(duration);
           setRound3DuelTimerRunning(true);
           setRound3DuelTimeUp(false);
           setRound3OvertimeRunning(false);
