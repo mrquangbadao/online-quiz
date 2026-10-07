@@ -1349,30 +1349,15 @@ export default function LiveScreenHost() {
 
                 {/* BIỂU ĐỒ PHÂN BỐ LỰA CHỌN CỦA 10 THÍ SINH (Thanh ngang trực quan ngay trên từng đáp án) */}
                 <div className="bg-white border-2 border-slate-200 rounded-3xl p-4 lg:p-5 shadow-xl">
-                  {/* Header của biểu đồ */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5 mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-                        <BarChart3 className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg lg:text-xl font-black text-slate-900 tracking-tight leading-tight">
-                          BIỂU ĐỒ PHÂN BỐ LỰA CHỌN CỦA {session?.players?.length ? `${session.players.length} THÍ SINH` : 'THÍ SINH'}
-                        </h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Tỷ lệ và số lượng thí sinh chọn các phương án trong câu hỏi số {session?.currentQuestionIndex}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 self-start sm:self-center">
-                      <div className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
-                        <Users className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Đã nộp bài: <strong className="text-blue-700 font-black text-xs sm:text-sm">{choiceStats.total} / {session?.players?.length || 10}</strong></span>
-                      </div>
-                      <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Đúng: <strong className="text-emerald-700 font-black text-xs sm:text-sm">{choiceStats.countCorrect} / {choiceStats.total}</strong> ({choiceStats.percentCorrect}%)</span>
-                      </div>
+                  {/* Header: Hiển thị lại nội dung câu hỏi thay cho tiêu đề biểu đồ (Bỏ 2 pill đã nộp / đúng) */}
+                  <div className="border-b border-slate-200 pb-2.5 mb-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="px-2.5 py-1 rounded-xl bg-blue-100 text-blue-900 font-black text-xs shrink-0 tracking-wide border border-blue-200 shadow-2xs mt-0.5">
+                        CÂU HỎI SỐ {session?.currentQuestionIndex}
+                      </span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 leading-snug">
+                        {session?.currentQuestion?.title || `Câu hỏi số ${session?.currentQuestionIndex}`}
+                      </h3>
                     </div>
                   </div>
 
@@ -1466,14 +1451,14 @@ export default function LiveScreenHost() {
                     })}
                   </div>
 
-                  {/* THÔNG TIN BỔ SUNG NẰM NGAY TRONG BIỂU ĐỒ */}
+                  {/* THÔNG TIN BỔ SUNG: Nền trung tính nhã nhặn, dịu mắt */}
                   {currentRevealed?.explanation && (
-                    <div className="mt-2.5 p-2.5 px-3.5 rounded-xl bg-emerald-50/90 border border-emerald-300/80 text-emerald-950 flex items-start gap-2 shadow-2xs">
-                      <span className="font-black text-emerald-800 shrink-0 uppercase tracking-wide text-xs flex items-center gap-1 mt-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <div className="mt-2.5 p-2.5 px-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 flex items-start gap-2 shadow-2xs">
+                      <span className="font-black text-blue-900 shrink-0 uppercase tracking-wide text-xs flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
                         Thông tin bổ sung:
                       </span>
-                      <p className="font-medium text-emerald-900 leading-relaxed text-xs sm:text-[13px]">
+                      <p className="font-medium text-slate-700 leading-relaxed text-xs sm:text-[13px]">
                         {currentRevealed.explanation}
                       </p>
                     </div>
