@@ -1407,14 +1407,14 @@ export default function LivePlayerMobile() {
 
                   {/* THÔNG BÁO HIỂN THỊ LÊN PHÍA TRÊN (KHÔNG ĐỂ DƯỚI ĐỂ TRÁNH BỊ CUỘN TRANG) */}
                   {hasSubmitted ? (
-                    <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500 text-white border-2 border-white text-center shadow-lg animate-scaleUp">
-                      <div className="inline-flex items-center gap-2 text-xs sm:text-base font-black uppercase tracking-wide">
+                    <div className="p-2.5 sm:p-3 rounded-2xl bg-emerald-600 text-white border-2 border-white text-center shadow-lg animate-scaleUp">
+                      <div className="inline-flex items-center gap-2 text-sm sm:text-base font-black uppercase tracking-wide">
                         <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-white shrink-0" />
-                        <span>ĐÃ GỬI PHƯƠNG ÁN TRẢ LỜI THÀNH CÔNG!</span>
+                        <span>ĐÃ NỘP</span>
                       </div>
                       {submitTimeMs !== null && (
-                        <p className="text-xs sm:text-sm text-emerald-100 font-mono mt-1">
-                          Thời gian phản xạ: <strong className="text-yellow-300 font-black">{(submitTimeMs / 1000).toFixed(2)}s</strong>
+                        <p className="text-xs sm:text-sm text-emerald-100 mt-0.5">
+                          Thời gian: <strong className="text-yellow-300 font-black font-mono">{(submitTimeMs / 1000).toFixed(2)}s</strong>
                         </p>
                       )}
                     </div>
@@ -1550,7 +1550,7 @@ export default function LivePlayerMobile() {
                     {/* Stats summary: Time & Current Total Score */}
                     <div className="grid grid-cols-2 gap-2.5 mt-3 max-w-xs mx-auto">
                       <div className="bg-white/15 border border-white/25 rounded-xl p-2.5 text-center shadow-xs">
-                        <div className="text-[10px] text-sky-200 font-semibold uppercase">Thời gian làm bài</div>
+                        <div className="text-[10px] text-sky-200 font-semibold uppercase">Thời gian</div>
                         <div className="text-sm font-black text-white font-mono mt-0.5">
                           {myTimeMs ? `${(myTimeMs / 1000).toFixed(2)}s` : '—'}
                         </div>
