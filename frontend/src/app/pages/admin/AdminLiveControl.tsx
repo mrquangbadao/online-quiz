@@ -1477,7 +1477,6 @@ export default function AdminLiveControl() {
                         <th className="pb-2.5 font-bold text-center">Ngôi sao hy vọng</th>
                         <th className="pb-2.5 font-bold text-center">Trạng thái Câu {currentQuestionOrder}</th>
                         <th className="pb-2.5 font-bold text-right">Điểm Vòng 1</th>
-                        <th className="pb-2.5 font-bold text-right">Tổng thời gian</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1544,9 +1543,6 @@ export default function AdminLiveControl() {
                             </td>
                             <td className="py-3 text-right font-black text-amber-700 text-sm">
                               {p.round1Score}đ
-                            </td>
-                            <td className="py-3 text-right text-slate-500 font-mono text-xs">
-                              {(p.round1TotalTimeMs / 1000).toFixed(1)}s
                             </td>
                           </tr>
                         );
