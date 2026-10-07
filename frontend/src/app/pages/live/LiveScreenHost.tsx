@@ -666,7 +666,9 @@ export default function LiveScreenHost() {
                     {p.avatarUrl ? (
                       <img src={p.avatarUrl} alt={p.fullName} className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-2xl font-black text-blue-600">{p.fullName.charAt(0)}</span>
+                      <span className="text-2xl font-black text-blue-600">
+                        {(p.fullName.trim().split(/\s+/).slice(-1)[0] || p.fullName).charAt(0).toUpperCase()}
+                      </span>
                     )}
                   </div>
 
@@ -697,11 +699,11 @@ export default function LiveScreenHost() {
             {(!round1State || round1State === 'IDLE') && (
               <div className="space-y-6 animate-fadeIn py-2">
                 <div className="text-center max-w-4xl mx-auto">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-yellow-200 text-xs font-black uppercase tracking-widest shadow-md mb-2">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
-                    VÒNG 1: BÍ THƯ ĐOÀN CƠ SỞ - THÔNG THÁI
+                  <div className="inline-flex items-center gap-3 px-7 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-yellow-200 text-base sm:text-lg lg:text-xl font-black uppercase tracking-wider sm:tracking-widest shadow-2xl ring-4 ring-yellow-400/40 mb-6 lg:mb-8 animate-pulse">
+                    <Sparkles className="w-5 h-5 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
+                    VÒNG 1: BÍ THƯ ĐOÀN CƠ SỞ – THÔNG THÁI
                   </div>
-                  <h2 className="text-3xl lg:text-4xl font-black text-white tracking-tight uppercase drop-shadow-md">
+                  <h2 className="text-3xl lg:text-5xl font-black text-white tracking-tight uppercase drop-shadow-md">
                     THỂ LỆ & QUY TẮC THI ĐẤU
                   </h2>
                   <p className="text-sm font-medium text-sky-100 mt-1 max-w-2xl mx-auto">
@@ -806,7 +808,7 @@ export default function LiveScreenHost() {
                         <Star className="w-6 h-6 text-white fill-amber-200" />
                       </div>
                       <div className="text-xs font-black text-amber-600 uppercase tracking-wider mb-1">
-                        QUYỀN TRỢ GIÚP ĐẶC BIỆT
+                        QUYỀN ĐẶC BIỆT
                       </div>
                       <h3 className="text-xl font-black text-slate-900 uppercase">
                         Ngôi sao hy vọng
@@ -818,7 +820,7 @@ export default function LiveScreenHost() {
                         </div>
                         <div className="flex items-start gap-2 bg-amber-50/70 p-2.5 rounded-xl border border-amber-200">
                           <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                          <span>Thời gian suy nghĩ đặt NSHV: <strong className="text-slate-900 font-bold">05 giây</strong> trước khi bắt đầu câu hỏi.</span>
+                          <span>Thời gian suy nghĩ đặt Ngôi sao hy vọng: <strong className="text-slate-900 font-bold">05 giây</strong> trước khi bắt đầu câu hỏi.</span>
                         </div>
                         <div className="flex items-start gap-2 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-emerald-900">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -962,7 +964,7 @@ export default function LiveScreenHost() {
                             </span>
                             {hasSelected && (
                               <span className="text-[10px] font-black uppercase text-amber-950 block tracking-wider">
-                                ĐÃ ĐẶT NSHV
+                                ĐÃ ĐẶT NGÔI SAO HY VỌNG
                               </span>
                             )}
                           </div>
@@ -1009,8 +1011,91 @@ export default function LiveScreenHost() {
               </div>
             )}
 
-            {/* Phase 3 & 4: MC Reading & 40s Answering Phase */}
-            {(round1State === 'QUESTION_READING' || round1State === 'QUESTION_40S') && (
+            {/* Phase 3: Kết quả đặt Ngôi sao hy vọng (Sau 5s NSHV - CHƯA HIỆN CÂU HỎI & ĐÁP ÁN) */}
+            {round1State === 'QUESTION_READING' && (
+              <div className="py-6 animate-scaleUp max-w-5xl mx-auto">
+                <div className="bg-white border-2 border-amber-300 rounded-3xl p-8 lg:p-10 shadow-2xl text-center">
+                  <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-black text-xs sm:text-sm uppercase tracking-wider mb-4 shadow-sm">
+                    <Star className="w-4 h-4 fill-amber-500 text-amber-600 animate-spin-slow" />
+                    CÂU HỎI SỐ {session?.currentQuestionIndex} / 10 • KẾT QUẢ ĐẶT NGÔI SAO HY VỌNG
+                  </div>
+
+                  <h2 className="text-2xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight">
+                    DANH SÁCH THÍ SINH ĐẶT NGÔI SAO HY VỌNG
+                  </h2>
+
+                  {hopeStarPlayersThisQuestion.length > 0 ? (
+                    <div className="mt-8 space-y-6">
+                      <p className="text-sm sm:text-base font-semibold text-amber-950 bg-gradient-to-r from-amber-100 via-yellow-100 to-amber-100 py-3 px-6 rounded-2xl border border-amber-300 inline-block shadow-xs">
+                        ⭐ Chúc thí sinh tự tin bứt phá điểm số với <strong className="font-black text-amber-950">Ngôi sao hy vọng</strong>! (Đúng: Nhân đôi điểm • Sai: Bị trừ 2 điểm)
+                      </p>
+
+                      {/* Highlight to những người chọn ngôi sao hy vọng */}
+                      <div className="flex flex-wrap items-center justify-center gap-6 pt-2">
+                        {hopeStarPlayersThisQuestion.map((p) => {
+                          const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
+                          const initialChar = lastWord.charAt(0).toUpperCase();
+
+                          return (
+                            <div
+                              key={p.id}
+                              className="bg-gradient-to-b from-amber-400 via-yellow-300 to-amber-400 text-slate-950 p-6 rounded-3xl border-4 border-yellow-200 shadow-2xl flex flex-col items-center gap-3 min-w-[260px] max-w-xs scale-105 animate-bounce-short ring-4 ring-yellow-400/50"
+                            >
+                              <div className="relative">
+                                {p.avatarUrl ? (
+                                  <img
+                                    src={p.avatarUrl}
+                                    alt={p.fullName}
+                                    className="w-24 h-24 rounded-2xl object-cover border-3 border-slate-950 shadow-md"
+                                  />
+                                ) : (
+                                  <div className="w-24 h-24 rounded-2xl bg-slate-950 text-yellow-300 font-black text-3xl flex items-center justify-center border-3 border-yellow-400 shadow-md">
+                                    {initialChar}
+                                  </div>
+                                )}
+                                <div className="absolute -top-3 -right-3 w-10 h-10 rounded-full bg-slate-950 border-2 border-yellow-300 flex items-center justify-center shadow-lg">
+                                  <Star className="w-6 h-6 fill-yellow-400 text-yellow-400 animate-spin-slow" />
+                                </div>
+                              </div>
+
+                              <div className="text-center">
+                                <h3 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight leading-tight">
+                                  {p.fullName}
+                                </h3>
+                                <p className="text-xs sm:text-sm font-bold text-slate-800 mt-1 line-clamp-1">{p.unit}</p>
+                                <div className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-slate-950 text-yellow-300 text-xs font-black uppercase tracking-wider shadow-sm">
+                                  <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                                  ĐÃ ĐẶT NGÔI SAO HY VỌNG
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-8 py-10 px-6 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-300 max-w-lg mx-auto">
+                      <Star className="w-14 h-14 text-slate-400 mx-auto mb-3 opacity-40" />
+                      <p className="text-base sm:text-lg font-bold text-slate-800">
+                        Không có thí sinh nào đặt Ngôi sao hy vọng ở câu hỏi này
+                      </p>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1.5">
+                        Các thí sinh sẽ thi đấu tính điểm theo thang điểm thời gian (+5, +3, +2 điểm)
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Thông báo MC & Ban tổ chức */}
+                  <div className="mt-8 pt-5 border-t border-slate-200 text-xs sm:text-sm text-slate-500 flex items-center justify-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span>Chờ Ban tổ chức phát lệnh bắt đầu câu hỏi...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Phase 4: 40s Answering Phase (Hiện câu hỏi và các đáp án KHÔNG có A B C D) */}
+            {round1State === 'QUESTION_40S' && (
               <div className="space-y-4 animate-fadeIn">
                 {/* Stage Header with Centered Countdown Clock */}
                 <div className="relative flex items-center justify-between min-h-[96px] px-2">
@@ -1021,14 +1106,10 @@ export default function LiveScreenHost() {
                     </span>
                     <div className="hidden sm:block text-left">
                       <div className="text-xs font-black uppercase tracking-wider text-white drop-shadow-xs">
-                        {round1State === 'QUESTION_READING'
-                          ? 'MC ĐANG ĐỌC NỘI DUNG CÂU HỎI'
-                          : 'ĐANG ĐẾM NGƯỢC THỜI GIAN LÀM BÀI'}
+                        ĐANG ĐẾM NGƯỢC THỜI GIAN LÀM BÀI
                       </div>
                       <div className="text-[11px] text-sky-200 font-medium">
-                        {round1State === 'QUESTION_READING'
-                          ? 'Thí sinh chú ý lắng nghe trên sân khấu'
-                          : 'Thí sinh chọn 01 phương án trên thiết bị di động'}
+                        Thí sinh chọn 01 phương án trên thiết bị di động
                       </div>
                     </div>
                   </div>
@@ -1037,35 +1118,29 @@ export default function LiveScreenHost() {
                   <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 z-20">
                     <div
                       className={`relative transition-all duration-300 flex flex-col items-center justify-center rounded-full select-none ${
-                        round1State === 'QUESTION_READING'
-                          ? 'w-24 h-24 bg-white border-4 border-slate-300 text-slate-600 shadow-md'
-                          : countdown <= 10
+                        countdown <= 10
                           ? 'w-32 h-32 md:w-36 md:h-36 bg-red-600 border-4 border-yellow-300 text-yellow-300 shadow-2xl shadow-red-600/70 ring-8 ring-red-400/40 scale-110 animate-pulse'
                           : 'w-26 h-26 md:w-30 md:h-30 bg-white border-4 border-emerald-500 text-emerald-600 shadow-xl ring-4 ring-emerald-400/20'
                       }`}
                     >
                       {/* Animated Ping Ring in the final 10 seconds */}
-                      {round1State === 'QUESTION_40S' && countdown <= 10 && (
+                      {countdown <= 10 && (
                         <span className="absolute -inset-2 rounded-full border-2 border-red-500 animate-ping opacity-60 pointer-events-none" />
                       )}
 
                       <div className="flex items-baseline justify-center">
                         <span
                           className={`font-black font-mono tracking-tight leading-none ${
-                            round1State === 'QUESTION_READING'
-                              ? 'text-4xl text-slate-700'
-                              : countdown <= 10
+                            countdown <= 10
                               ? 'text-5xl md:text-6xl text-yellow-300 drop-shadow-[0_4px_6px_rgba(0,0,0,0.4)]'
                               : 'text-4xl md:text-5xl text-emerald-600'
                           }`}
                         >
-                          {round1State === 'QUESTION_READING' ? 40 : countdown}
+                          {countdown}
                         </span>
                         <span
                           className={`text-xs font-bold uppercase ml-0.5 ${
-                            countdown <= 10 && round1State === 'QUESTION_40S'
-                              ? 'text-white'
-                              : 'text-slate-500'
+                            countdown <= 10 ? 'text-white' : 'text-slate-500'
                           }`}
                         >
                           s
@@ -1074,18 +1149,10 @@ export default function LiveScreenHost() {
 
                       <div
                         className={`text-[9px] font-black uppercase tracking-wider mt-0.5 ${
-                          round1State === 'QUESTION_READING'
-                            ? 'text-slate-500'
-                            : countdown <= 10
-                            ? 'text-white font-extrabold animate-bounce'
-                            : 'text-emerald-700'
+                          countdown <= 10 ? 'text-white font-extrabold animate-bounce' : 'text-emerald-700'
                         }`}
                       >
-                        {round1State === 'QUESTION_READING'
-                          ? 'CHỜ LỆNH'
-                          : countdown <= 10
-                          ? 'KHẨN TRƯƠNG!'
-                          : 'GIÂY'}
+                        {countdown <= 10 ? 'KHẨN TRƯƠNG!' : 'GIÂY'}
                       </div>
                     </div>
                   </div>
@@ -1123,74 +1190,8 @@ export default function LiveScreenHost() {
                   </div>
                 )}
 
-                {/* HIGHLIGHT THÍ SINH ĐẶT NGÔI SAO HY VỌNG Ở CÂU NÀY (Sau 5s NSHV cho MC đọc) */}
-                {round1State === 'QUESTION_READING' && (
-                  <div className="animate-scaleUp">
-                    {hopeStarPlayersThisQuestion.length > 0 ? (
-                      <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 rounded-3xl p-5 shadow-2xl border-4 border-yellow-200 flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-16 h-16 rounded-2xl bg-slate-950 text-yellow-400 flex items-center justify-center shrink-0 shadow-lg">
-                            <Star className="w-9 h-9 fill-yellow-400 animate-spin" style={{ animationDuration: '6s' }} />
-                          </div>
-                          <div>
-                            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-slate-950 text-yellow-300 text-xs font-black uppercase tracking-wider mb-1">
-                              ⭐ NGÔI SAO HY VỌNG ĐÃ ĐƯỢC KÍCH HOẠT!
-                            </div>
-                            <h3 className="text-xl md:text-2xl font-black uppercase text-slate-950 tracking-wide">
-                              THÍ SINH ĐẶT CƯỢC NGÔI SAO HY VỌNG CÂU {session?.currentQuestionIndex}
-                            </h3>
-                            <p className="text-xs md:text-sm font-bold text-slate-900 mt-0.5">
-                              Trả lời <span className="text-emerald-950 underline font-black">ĐÚNG: Nhân đôi điểm (+10, +6, +4 điểm tùy thời gian làm bài)</span> • Trả lời <span className="text-rose-950 underline font-black">SAI: Bị trừ 2 điểm (-2đ)</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          {hopeStarPlayersThisQuestion.map((p) => {
-                            const lastWord = p.fullName.trim().split(' ').slice(-1)[0] || '';
-                            const initialChar = lastWord.charAt(0).toUpperCase();
-                            return (
-                              <div
-                                key={p.id}
-                                className="bg-slate-950 text-white pl-2 pr-4 py-2 rounded-2xl border-2 border-yellow-300 shadow-2xl flex items-center gap-3 animate-bounce"
-                              >
-                                {p.avatarUrl ? (
-                                  <img
-                                    src={p.avatarUrl}
-                                    alt={p.fullName}
-                                    className="w-11 h-11 rounded-xl object-cover border border-yellow-400 shadow-xs"
-                                  />
-                                ) : (
-                                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-yellow-300 font-black text-lg flex items-center justify-center border border-yellow-400/60 shadow-xs">
-                                    {initialChar}
-                                  </div>
-                                )}
-                                <div className="text-left">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-base font-black text-yellow-300 tracking-tight">{p.fullName}</span>
-                                  </div>
-                                  <div className="text-xs text-slate-300 font-semibold">{p.unit}</div>
-                                </div>
-                                <Star className="w-6 h-6 text-yellow-400 fill-yellow-400 ml-1 drop-shadow" />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-white/80 border border-slate-200 rounded-2xl px-5 py-2.5 flex items-center justify-between text-xs text-slate-600 shadow-xs">
-                        <span className="flex items-center gap-2 font-bold text-slate-700">
-                          <Star className="w-4 h-4 text-amber-500 fill-amber-400" /> CÂU HỎI SỐ {session?.currentQuestionIndex} / 10
-                        </span>
-                        <span className="font-semibold text-slate-500">
-                          Không có thí sinh nào đặt Ngôi sao hy vọng ở câu hỏi này
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Chip thông báo trong lúc 40s nếu có thí sinh đặt NSHV */}
-                {round1State === 'QUESTION_40S' && hopeStarPlayersThisQuestion.length > 0 && (
+                {/* Chip thông báo trong lúc 40s nếu có thí sinh đặt Ngôi sao hy vọng */}
+                {hopeStarPlayersThisQuestion.length > 0 && (
                   <div className="bg-amber-500 text-slate-950 px-5 py-2.5 rounded-2xl border-2 border-yellow-200 shadow-lg flex items-center justify-between animate-pulse">
                     <div className="flex items-center gap-2 text-xs md:text-sm font-black uppercase">
                       <Star className="w-5 h-5 fill-slate-950 text-slate-950" />
@@ -1198,7 +1199,7 @@ export default function LiveScreenHost() {
                     </div>
                     <div className="flex items-center gap-2.5 flex-wrap">
                       {hopeStarPlayersThisQuestion.map((p) => {
-                        const lastWord = p.fullName.trim().split(' ').slice(-1)[0] || '';
+                        const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
                         const initialChar = lastWord.charAt(0).toUpperCase();
                         return (
                           <div key={p.id} className="bg-slate-950 text-white pl-2 pr-3.5 py-1.5 rounded-xl border border-yellow-300 flex items-center gap-2 shadow-xs">
@@ -1227,23 +1228,20 @@ export default function LiveScreenHost() {
                   </p>
                 </div>
 
-                {/* 4 Clean Neutral Option Cards (A, B, C, D) */}
+                {/* 4 Clean Neutral Option Cards (CHỈ HIỆN NỘI DUNG ĐÁP ÁN, KHÔNG HIỆN A B C D) */}
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { key: 'A', text: session?.currentQuestion?.optionA },
-                    { key: 'B', text: session?.currentQuestion?.optionB },
-                    { key: 'C', text: session?.currentQuestion?.optionC },
-                    { key: 'D', text: session?.currentQuestion?.optionD },
-                  ].map((opt) => (
+                    session?.currentQuestion?.optionA,
+                    session?.currentQuestion?.optionB,
+                    session?.currentQuestion?.optionC,
+                    session?.currentQuestion?.optionD,
+                  ].filter(Boolean).map((text, idx) => (
                     <div
-                      key={opt.key}
-                      className="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-5 flex items-start gap-4 shadow-lg transition-all"
+                      key={idx}
+                      className="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-5 flex items-center shadow-lg transition-all"
                     >
-                      <div className="w-11 h-11 rounded-xl bg-blue-700 text-yellow-300 font-black text-lg flex items-center justify-center shrink-0 shadow-md">
-                        {opt.key}
-                      </div>
-                      <div className="text-lg font-bold text-slate-800 pt-1.5 leading-snug">
-                        {opt.text}
+                      <div className="text-lg lg:text-xl font-bold text-slate-800 leading-snug">
+                        {text}
                       </div>
                     </div>
                   ))}
@@ -1335,8 +1333,8 @@ export default function LiveScreenHost() {
                                 Đã nộp
                               </span>
                             ) : isHopeStar ? (
-                              <span className="text-[9px] font-black uppercase text-amber-900 bg-amber-200/90 rounded px-1.5 py-0.2 inline-block">
-                                ⭐ NSHV
+                              <span className="text-[9px] font-black uppercase text-amber-900 bg-amber-200/90 rounded px-1.5 py-0.5 inline-block">
+                                ⭐ Ngôi sao hy vọng
                               </span>
                             ) : (
                               <div className="w-2.5 h-2.5 rounded-full bg-slate-300 mx-auto" />
@@ -1396,28 +1394,18 @@ export default function LiveScreenHost() {
                           />
 
                           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                            {/* Left: Key Badge + Full Text of Option */}
+                            {/* Left: Full Text of Option (Không hiện A B C D) */}
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <span
-                                className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-lg shrink-0 shadow-sm ${
-                                  isCorrect
-                                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-300'
-                                    : `${opt.badgeBg} text-white opacity-70`
-                                }`}
-                              >
-                                {opt.key}
-                              </span>
-
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={`text-sm lg:text-base leading-snug ${
-                                    isCorrect ? 'text-emerald-950 font-black' : 'text-slate-700 font-semibold'
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                  <span className={`text-base lg:text-lg leading-snug ${
+                                    isCorrect ? 'text-emerald-950 font-black' : 'text-slate-700 font-bold'
                                   }`}>
-                                    {opt.text || `Phương án ${opt.key}`}
+                                    {opt.text || ''}
                                   </span>
                                   {isCorrect && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-900 bg-emerald-200 px-2.5 py-0.5 rounded-full border border-emerald-400 shrink-0 shadow-2xs">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> ĐÁP ÁN ĐÚNG
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-950 bg-emerald-300 px-3 py-1 rounded-full border border-emerald-500 shrink-0 shadow-sm">
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-800" /> ĐÁP ÁN ĐÚNG
                                     </span>
                                   )}
                                 </div>
@@ -1517,24 +1505,15 @@ export default function LiveScreenHost() {
                                 </span>
                                 {hasHopeStar && (
                                   <span className="flex items-center gap-0.5 text-[10px] font-black bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full shrink-0 shadow-xs animate-pulse">
-                                    <Star className="w-2.5 h-2.5 fill-slate-950" /> NSHV
+                                    <Star className="w-2.5 h-2.5 fill-slate-950" /> Ngôi sao hy vọng
                                   </span>
                                 )}
                               </div>
                               <div className="text-xs text-slate-600 flex items-center gap-1.5 mt-1 truncate">
                                 <span>Chọn:</span>
-                                {optInfo.key ? (
-                                  <span className="inline-flex items-center gap-1.5 truncate">
-                                    <span
-                                      className={`w-5 h-5 rounded text-xs font-black inline-flex items-center justify-center shrink-0 font-mono ${
-                                        isCorrect ? 'bg-emerald-200 text-emerald-950 font-bold' : 'bg-rose-200 text-rose-950 font-bold'
-                                      }`}
-                                    >
-                                      {optInfo.key}
-                                    </span>
-                                    <span className="truncate max-w-[150px] text-slate-800 font-bold">
-                                      {optInfo.text}
-                                    </span>
+                                {optInfo.text ? (
+                                  <span className="truncate max-w-[200px] text-slate-800 font-bold">
+                                    {optInfo.text}
                                   </span>
                                 ) : (
                                   <span className="text-slate-400 italic">Chưa chọn</span>

@@ -445,7 +445,7 @@ export default function AdminLiveControl() {
               // 2. Hết 5s: Tự động chuyển sang đọc câu hỏi & video
               try {
                 await adminLiveApi.readQuestion(session.id, targetOrder);
-                toast.success(`Hết 5s NSHV! Đã hiển thị câu hỏi và video lên màn LED sân khấu cho MC đọc.`);
+                toast.success(`Hết 5s Ngôi sao hy vọng! Đã hiển thị kết quả Ngôi sao hy vọng lên màn LED.`);
                 await fetchSession();
               } catch (e: any) {
                 console.error(e);
@@ -1200,8 +1200,8 @@ export default function AdminLiveControl() {
                       ? 'bg-amber-100 text-amber-800 border border-amber-300'
                       : 'bg-slate-100 text-slate-700'
                   }`}>
-                    {isHopeStar && `5S NSHV (${hopeStarCountdown}s)`}
-                    {isReading && 'MC ĐANG ĐỌC & NSHV'}
+                    {isHopeStar && `5S CHỌN NGÔI SAO HY VỌNG (${hopeStarCountdown}s)`}
+                    {isReading && 'KẾT QUẢ NGÔI SAO HY VỌNG'}
                     {is40sRunning && `ĐANG TÍNH GIỜ 40S (${questionCountdown}s)`}
                     {isAnswerRevealed && 'ĐÃ HIỆN ĐÁP ÁN & BIỂU ĐỒ'}
                     {isLeaderboard && 'ĐÃ HIỆN KẾT QUẢ 10 THÍ SINH & BXH'}
@@ -1223,7 +1223,7 @@ export default function AdminLiveControl() {
                       </h2>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
-                      {isReading && 'MC đang đọc câu hỏi. Bấm Bắt đầu tính giờ (40 giây) khi MC đọc xong.'}
+                      {isReading && 'Đã hết 5s Ngôi sao hy vọng. Bấm "Bắt đầu câu hỏi" để hiện nội dung câu hỏi lên màn hình LED, mở 4 đáp án A-B-C-D cho thí sinh và đếm ngược 40 giây.'}
                       {is40sRunning && 'Thí sinh đang trả lời trên thiết bị di động. Hết 40s hệ thống tự động hiện Đáp án & Biểu đồ.'}
                       {isAnswerRevealed && 'Màn hình LED đang hiện Đáp án & Biểu đồ phân bố. Bấm "Hiện kết quả 10 thí sinh & BXH" để công bố chi tiết!'}
                       {isLeaderboard && 'Màn hình LED đang hiện Bảng xếp hạng trượt thứ hạng. Bấm "Sang câu tiếp theo" để tiếp tục.'}
@@ -1250,23 +1250,23 @@ export default function AdminLiveControl() {
 
                 {/* CÁC NÚT THAO TÁC THEO TỪNG PHA CỦA TRẬN ĐẤU */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* PHA 1 & 2: KHI MC ĐANG ĐỌC -> NÚT BẮT ĐẦU TÍNH GIỜ 40S */}
+                  {/* PHA 1 & 2: KHI ĐÃ CÔNG BỐ KẾT QUẢ NSHV -> NÚT BẮT ĐẦU CÂU HỎI */}
                   {isReading && (
                     <button
                       disabled={actionLoading}
                       onClick={handleStartQuestionCountdown}
-                      className="p-5 rounded-2xl border-2 text-left flex items-center justify-between transition-all group bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white shadow-md active:scale-[0.99] ring-4 ring-emerald-100"
+                      className="p-5 rounded-2xl border-2 text-left flex items-center justify-between transition-all group bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white shadow-xl active:scale-[0.99] ring-4 ring-emerald-200"
                     >
                       <div>
                         <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-emerald-100">
-                          <span>BƯỚC TIẾP THEO: TÍNH GIỜ</span>
+                          <span>BƯỚC TIẾP THEO: PHÁT LỆNH THI</span>
                           <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
                         </div>
-                        <div className="font-black text-lg mt-1 text-white">
-                          BẮT ĐẦU TÍNH GIỜ (40 GIÂY)
+                        <div className="font-black text-xl mt-1 text-white flex items-center gap-2">
+                          <Play className="w-5 h-5 fill-white" /> BẮT ĐẦU CÂU HỎI (40 GIÂY)
                         </div>
                         <div className="text-xs text-emerald-50 mt-1">
-                          Phát lệnh tính giờ và mở danh sách phương án tới máy 10 thí sinh
+                          Hiện câu hỏi lên màn LED, mở 4 đáp án A-B-C-D trên máy thí sinh và đếm ngược 40s
                         </div>
                       </div>
                       <Timer className="w-9 h-9 shrink-0 group-hover:rotate-12 transition-transform text-white" />
@@ -1392,7 +1392,7 @@ export default function AdminLiveControl() {
                             : `Bắt đầu Câu số ${currentQuestionOrder}`}
                         </div>
                         <div className="text-xs opacity-90 mt-1">
-                          Kích hoạt 5s Ngôi sao hy vọng ➔ Tự động mở câu hỏi & highlight NSHV cho MC đọc
+                          Kích hoạt 5s Ngôi sao hy vọng ➔ Hiện kết quả Ngôi sao hy vọng ➔ Bấm Bắt đầu câu hỏi (40s)
                         </div>
                       </div>
                       <ChevronRight className="w-8 h-8 shrink-0 group-hover:translate-x-1 transition-transform" />
@@ -1403,7 +1403,7 @@ export default function AdminLiveControl() {
                 {/* Các nút hỗ trợ & an toàn */}
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
                   <div className="text-slate-500 text-xs">
-                    * Quy trình chuẩn: Kích hoạt câu ➔ Hết 5s NSHV tự động mở câu hỏi ➔ Admin bấm 40s ➔ Hết giờ hiện Đáp án & Biểu đồ ➔ Bấm Hiện kết quả & BXH ➔ Sang câu tiếp theo.
+                    * Quy trình chuẩn: Bắt đầu câu ➔ 5s Ngôi sao hy vọng ➔ Hiện kết quả Ngôi sao hy vọng ➔ Bấm Bắt đầu câu hỏi (40s) ➔ Hết giờ hiện Đáp án & Biểu đồ ➔ Bấm Hiện kết quả & BXH ➔ Sang câu tiếp theo.
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -1505,7 +1505,7 @@ export default function AdminLiveControl() {
                             <td className="py-3 text-center">
                               {hasHopeStarThisQ ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 animate-pulse">
-                                  <Star className="w-3 h-3 fill-amber-500" /> ĐÃ ĐẶT NSHV
+                                  <Star className="w-3 h-3 fill-amber-500" /> ĐÃ ĐẶT NGÔI SAO HY VỌNG
                                 </span>
                               ) : p.hopeStarUsed ? (
                                 <span className="text-slate-400 text-[11px]">Đã dùng ở Câu {p.hopeStarQuestionIndex}</span>
@@ -1544,7 +1544,7 @@ export default function AdminLiveControl() {
                                   </span>
                                 )
                               ) : isHopeStar ? (
-                                <span className="text-slate-400 text-xs">Đang chọn NSHV...</span>
+                                <span className="text-slate-400 text-xs">Đang chọn Ngôi sao hy vọng...</span>
                               ) : (
                                 <span className="text-slate-400 text-xs">Chờ mở bài thi</span>
                               )}
