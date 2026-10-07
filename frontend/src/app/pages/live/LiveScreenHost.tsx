@@ -1345,82 +1345,39 @@ export default function LiveScreenHost() {
 
             {/* Phase 5: Answer Revealed + Choice Distribution Chart (Ghi rõ nội dung đáp án + Thanh biểu đồ kịch tính) */}
             {round1State === 'ANSWER_REVEALED' && (
-              <div className="space-y-5 animate-fadeIn">
-                {/* Top: Grand Answer Banner (Full Width, TV Show Aesthetics) */}
-                <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-3xl p-6 lg:p-7 shadow-2xl border-2 border-emerald-400/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-                  <div className="min-w-0 pr-6 flex-1">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/50 border border-emerald-400/40 text-xs font-black uppercase tracking-wider text-emerald-100 mb-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                      ĐÁP ÁN ĐÚNG
-                    </div>
-                    <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-white flex items-center gap-4 tracking-wide">
-                      <span className="w-14 h-14 rounded-2xl bg-white text-emerald-700 flex items-center justify-center shadow-xl text-3xl font-black shrink-0 ring-4 ring-emerald-300/30">
-                        {currentRevealed?.correctOption}
-                      </span>
-                      <span className="drop-shadow-sm font-extrabold line-clamp-2">
-                        {currentRevealed?.correctOption === 'A' && session?.currentQuestion?.optionA}
-                        {currentRevealed?.correctOption === 'B' && session?.currentQuestion?.optionB}
-                        {currentRevealed?.correctOption === 'C' && session?.currentQuestion?.optionC}
-                        {currentRevealed?.correctOption === 'D' && session?.currentQuestion?.optionD}
-                      </span>
-                    </div>
-                    {currentRevealed?.explanation && (
-                      <div className="mt-3.5 bg-emerald-950/35 border border-emerald-400/30 rounded-2xl p-4 backdrop-blur-xs">
-                        <div className="text-xs font-black uppercase tracking-wider text-emerald-200 mb-1">
-                          THÔNG TIN BỔ SUNG:
-                        </div>
-                        <p className="text-sm lg:text-base text-emerald-50 font-medium leading-relaxed">
-                          {currentRevealed.explanation}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Summary badge */}
-                  <div className="bg-white/15 backdrop-blur-md border border-white/25 rounded-2xl px-6 py-4 text-center min-w-[190px] shadow-inner text-white shrink-0 self-center">
-                    <div className="text-4xl lg:text-5xl font-black tracking-tight text-amber-300 drop-shadow-sm">
-                      {choiceStats.countCorrect} / {choiceStats.total}
-                    </div>
-                    <div className="text-xs font-bold uppercase tracking-wider text-emerald-100 mt-1">
-                      Thí sinh trả lời đúng
-                    </div>
-                    <div className="text-[11px] font-semibold text-emerald-200 mt-0.5">
-                      (Tỷ lệ: {choiceStats.percentCorrect}%)
-                    </div>
-                  </div>
-                </div>
+              <div className="animate-fadeIn">
 
                 {/* BIỂU ĐỒ PHÂN BỐ LỰA CHỌN CỦA 10 THÍ SINH (Thanh ngang trực quan ngay trên từng đáp án) */}
-                <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 lg:p-7 shadow-2xl">
+                <div className="bg-white border-2 border-slate-200 rounded-3xl p-4 lg:p-5 shadow-xl">
                   {/* Header của biểu đồ */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4 mb-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5 mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-                        <BarChart3 className="w-6 h-6" />
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+                        <BarChart3 className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">
+                        <h3 className="text-lg lg:text-xl font-black text-slate-900 tracking-tight leading-tight">
                           BIỂU ĐỒ PHÂN BỐ LỰA CHỌN CỦA {session?.players?.length ? `${session.players.length} THÍ SINH` : 'THÍ SINH'}
                         </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-slate-500 mt-0.5">
                           Tỷ lệ và số lượng thí sinh chọn các phương án trong câu hỏi số {session?.currentQuestionIndex}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 self-start sm:self-center">
-                      <div className="px-4 py-2 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-2 shadow-xs">
-                        <Users className="w-4 h-4 text-blue-600" />
-                        <span>Đã nộp bài: <strong className="text-blue-700 font-black text-sm">{choiceStats.total} / {session?.players?.length || 10}</strong></span>
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      <div className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                        <Users className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Đã nộp bài: <strong className="text-blue-700 font-black text-xs sm:text-sm">{choiceStats.total} / {session?.players?.length || 10}</strong></span>
                       </div>
-                      <div className="px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Đúng: <strong className="text-emerald-700 font-black text-sm">{choiceStats.countCorrect} / {choiceStats.total}</strong> ({choiceStats.percentCorrect}%)</span>
+                      <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Đúng: <strong className="text-emerald-700 font-black text-xs sm:text-sm">{choiceStats.countCorrect} / {choiceStats.total}</strong> ({choiceStats.percentCorrect}%)</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* 4 PHƯƠNG ÁN A, B, C, D KÈM BIỂU ĐỒ THANH PHÂN BỐ NGANG RÕ RÀNG */}
-                  <div className="space-y-4">
+                  {/* 4 PHƯƠNG ÁN A, B, C, D: ĐÁP ÁN ĐÚNG HIGHLIGHT, ĐÁP ÁN SAI MỜ */}
+                  <div className="space-y-2">
                     {[
                       { key: 'A', text: session?.currentQuestion?.optionA, count: choiceStats.countA, percent: choiceStats.percentA, color: 'from-blue-500 to-indigo-600', badgeBg: 'bg-blue-600' },
                       { key: 'B', text: session?.currentQuestion?.optionB, count: choiceStats.countB, percent: choiceStats.percentB, color: 'from-amber-500 to-orange-600', badgeBg: 'bg-amber-600' },
@@ -1432,42 +1389,42 @@ export default function LiveScreenHost() {
                       return (
                         <div
                           key={opt.key}
-                          className={`p-4 lg:p-5 rounded-2xl border-2 transition-all relative overflow-hidden ${
+                          className={`p-2.5 px-3.5 rounded-xl border-2 transition-all relative overflow-hidden ${
                             isCorrect
-                              ? 'bg-emerald-50/95 border-emerald-500 shadow-lg shadow-emerald-500/10 ring-4 ring-emerald-400/20'
-                              : 'bg-slate-50/80 border-slate-200 shadow-xs'
+                              ? 'bg-emerald-50/95 border-emerald-500 shadow-md ring-2 ring-emerald-400/20 opacity-100'
+                              : 'bg-slate-50/70 border-slate-200 opacity-40 hover:opacity-75 transition-opacity'
                           }`}
                         >
                           {/* Background percentage fill bar */}
                           <div
-                            className={`absolute top-0 bottom-0 left-0 transition-all duration-1000 ease-out pointer-events-none opacity-25 ${
-                              isCorrect ? 'bg-emerald-400' : 'bg-slate-300'
+                            className={`absolute top-0 bottom-0 left-0 transition-all duration-1000 ease-out pointer-events-none ${
+                              isCorrect ? 'bg-emerald-400/25' : 'bg-slate-300/20'
                             }`}
                             style={{ width: `${Math.max(opt.percent, 0)}%` }}
                           />
 
-                          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
                             {/* Left: Key Badge + Full Text of Option */}
-                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                               <span
-                                className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-2xl shrink-0 shadow-md ${
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-lg shrink-0 shadow-sm ${
                                   isCorrect
                                     ? 'bg-emerald-600 text-white ring-2 ring-emerald-300'
-                                    : `${opt.badgeBg} text-white`
+                                    : `${opt.badgeBg} text-white opacity-70`
                                 }`}
                               >
                                 {opt.key}
                               </span>
 
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2.5 flex-wrap">
-                                  <span className={`text-base lg:text-lg font-bold leading-snug ${
-                                    isCorrect ? 'text-emerald-950 font-black' : 'text-slate-900'
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-sm lg:text-base leading-snug ${
+                                    isCorrect ? 'text-emerald-950 font-black' : 'text-slate-700 font-semibold'
                                   }`}>
                                     {opt.text || `Phương án ${opt.key}`}
                                   </span>
                                   {isCorrect && (
-                                    <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-900 bg-emerald-200 px-3 py-1 rounded-full border border-emerald-400 shrink-0 shadow-xs">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-900 bg-emerald-200 px-2.5 py-0.5 rounded-full border border-emerald-400 shrink-0 shadow-2xs">
                                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> ĐÁP ÁN ĐÚNG
                                     </span>
                                   )}
@@ -1476,13 +1433,13 @@ export default function LiveScreenHost() {
                             </div>
 
                             {/* Right: Bar + Count & Percentage Badge */}
-                            <div className="flex items-center gap-4 shrink-0 md:min-w-[300px] justify-between md:justify-end">
+                            <div className="flex items-center gap-3 shrink-0 md:min-w-[260px] justify-between md:justify-end">
                               {/* Horizontal Progress Bar */}
-                              <div className="w-40 lg:w-56 h-5 bg-slate-200/90 rounded-full overflow-hidden shrink-0 hidden sm:block p-0.5 border border-slate-300/60 shadow-inner">
+                              <div className="w-36 lg:w-48 h-4 bg-slate-200/90 rounded-full overflow-hidden shrink-0 hidden sm:block p-0.5 border border-slate-300/60 shadow-inner">
                                 <div
                                   className={`h-full rounded-full transition-all duration-1000 ease-out ${
                                     isCorrect
-                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm'
+                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-xs'
                                       : `bg-gradient-to-r ${opt.color}`
                                   }`}
                                   style={{ width: `${Math.max(opt.percent, 0)}%` }}
@@ -1490,14 +1447,14 @@ export default function LiveScreenHost() {
                               </div>
 
                               {/* Numbers */}
-                              <div className="text-right min-w-[120px]">
-                                <div className={`text-xl lg:text-2xl font-black font-mono leading-none ${
-                                  isCorrect ? 'text-emerald-700' : 'text-slate-800'
+                              <div className="text-right min-w-[100px]">
+                                <div className={`text-base lg:text-lg font-black font-mono leading-none ${
+                                  isCorrect ? 'text-emerald-700' : 'text-slate-700'
                                 }`}>
-                                  {opt.count} <span className="text-xs font-semibold text-slate-500">thí sinh</span>
+                                  {opt.count} <span className="text-[11px] font-semibold text-slate-500">thí sinh</span>
                                 </div>
-                                <div className={`text-xs font-extrabold mt-1 ${
-                                  isCorrect ? 'text-emerald-600' : 'text-slate-500'
+                                <div className={`text-[11px] font-bold mt-0.5 ${
+                                  isCorrect ? 'text-emerald-600' : 'text-slate-400'
                                 }`}>
                                   {opt.percent}% lựa chọn
                                 </div>
@@ -1509,19 +1466,32 @@ export default function LiveScreenHost() {
                     })}
                   </div>
 
+                  {/* THÔNG TIN BỔ SUNG NẰM NGAY TRONG BIỂU ĐỒ */}
+                  {currentRevealed?.explanation && (
+                    <div className="mt-2.5 p-2.5 px-3.5 rounded-xl bg-emerald-50/90 border border-emerald-300/80 text-emerald-950 flex items-start gap-2 shadow-2xs">
+                      <span className="font-black text-emerald-800 shrink-0 uppercase tracking-wide text-xs flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Thông tin bổ sung:
+                      </span>
+                      <p className="font-medium text-emerald-900 leading-relaxed text-xs sm:text-[13px]">
+                        {currentRevealed.explanation}
+                      </p>
+                    </div>
+                  )}
+
                   {/* CHI TIẾT KẾT QUẢ CÂU VỪA THI CỦA 10 THÍ SINH (Hiển thị ngay trong màn hình công bố đáp án & biểu đồ) */}
-                  <div className="mt-6 pt-5 border-t border-slate-200">
-                    <div className="text-xs lg:text-sm font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-blue-600" /> KẾT QUẢ CỦA {session?.players?.length ? `${session.players.length} THÍ SINH` : 'THÍ SINH'} CÂU SỐ {session?.currentQuestionIndex}:
+                  <div className="mt-3.5 pt-2.5 border-t border-slate-200">
+                    <div className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-blue-600" /> KẾT QUẢ CỦA {session?.players?.length ? `${session.players.length} THÍ SINH` : 'THÍ SINH'} CÂU SỐ {session?.currentQuestionIndex}:
                       </span>
                       <span className="text-xs font-bold text-slate-500">
                         Đúng: <strong className="text-emerald-700 font-black">{choiceStats.countCorrect}</strong> • Sai: <strong className="text-rose-600 font-black">{choiceStats.countIncorrect}</strong>
                       </span>
                     </div>
 
-                    {/* 10 Thẻ thí sinh (Grid 2 cột x 5 hàng = 10 thẻ cân đối, thông tin đầy đủ) */}
-                    <div className="grid grid-cols-2 gap-2.5">
+                    {/* 10 Thẻ thí sinh (Grid 2 cột x 5 hàng = 10 thẻ gọn gàng, vừa khít 1 màn hình) */}
+                    <div className="grid grid-cols-2 gap-2">
                       {session?.players?.map((p) => {
                         const ans = currentRevealed?.answers?.find((a: any) => a.playerId === p.id);
                         const isCorrect = Boolean(ans?.isCorrect);
@@ -1531,7 +1501,7 @@ export default function LiveScreenHost() {
                         return (
                           <div
                             key={p.id}
-                            className={`p-3 rounded-2xl border-2 flex items-center justify-between transition-all shadow-xs ${
+                            className={`py-1.5 px-2.5 rounded-xl border flex items-center justify-between transition-all shadow-2xs ${
                               ans
                                 ? isCorrect
                                   ? 'bg-emerald-50/90 border-emerald-400 text-slate-900 shadow-emerald-500/5'
@@ -1609,7 +1579,7 @@ export default function LiveScreenHost() {
                   </div>
 
                   {/* Stage notice */}
-                  <div className="mt-6 pt-3.5 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                  <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
                     <span className="italic flex items-center gap-1.5 font-medium">
                       <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                       Chuẩn bị chuyển sang màn hình Bảng xếp hạng Vòng 1.
