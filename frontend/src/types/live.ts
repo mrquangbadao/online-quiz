@@ -32,6 +32,7 @@ export interface LivePlayerDto {
   unit: string;
   position?: string;
   email?: string;
+  maskedEmail?: string;
   phone?: string;
   avatarUrl?: string;
   isCheckedIn: boolean;

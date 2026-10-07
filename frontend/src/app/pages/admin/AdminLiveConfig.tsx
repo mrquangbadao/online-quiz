@@ -248,6 +248,13 @@ export default function AdminLiveConfig() {
       return;
     }
 
+    // Kiểm tra tất cả thí sinh đều phải có email hợp lệ
+    const invalidPlayer = setupPlayers.find((p) => !p.email || !p.email.trim());
+    if (invalidPlayer) {
+      toast.error(`Thí sinh "${invalidPlayer.fullName || 'SBD ' + invalidPlayer.orderNumber}" chưa có email! Vui lòng cập nhật email trước khi lưu.`);
+      return;
+    }
+
     executeSave();
   };
 
@@ -285,6 +292,15 @@ export default function AdminLiveConfig() {
     }
     if (!playerFormData.unit.trim()) {
       toast.error('Vui lòng nhập Đơn vị trực thuộc!');
+      return;
+    }
+    if (!playerFormData.email.trim()) {
+      toast.error('Vui lòng nhập Email của thí sinh! Email là bắt buộc để gửi mã OTP đăng nhập.');
+      return;
+    }
+    const emailRegex = /^[A-Za-z0-9+_.-]+@(.+)$/;
+    if (!emailRegex.test(playerFormData.email.trim())) {
+      toast.error('Địa chỉ Email không đúng định dạng!');
       return;
     }
 
@@ -1264,9 +1280,10 @@ export default function AdminLiveConfig() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-500 font-bold block mb-1">Email nhận mã OTP:</label>
+                  <label className="text-slate-500 font-bold block mb-1">Email nhận mã OTP (*):</label>
                   <input
                     type="email"
+                    required
                     placeholder="email@gmail.com..."
                     value={playerFormData.email}
                     onChange={(e) => setPlayerFormData({ ...playerFormData, email: e.target.value })}

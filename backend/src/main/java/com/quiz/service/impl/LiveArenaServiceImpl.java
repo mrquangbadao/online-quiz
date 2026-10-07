@@ -4,6 +4,7 @@ import com.quiz.dto.live.*;
 import com.quiz.entity.*;
 import com.quiz.repository.*;
 import com.quiz.service.LiveArenaService;
+import com.quiz.util.EmailMaskUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -262,14 +263,25 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         List<LivePlayer> toSave = new ArrayList<>();
         int order = 1;
         for (LivePlayerDto d : dtos) {
+            String fullName = d.getFullName() != null ? d.getFullName().trim() : "";
+            String email = d.getEmail() != null ? d.getEmail().trim() : "";
+            int playerOrder = d.getOrderNumber() != 0 ? d.getOrderNumber() : order;
+
+            if (email.isBlank()) {
+                throw new IllegalArgumentException("Thí sinh SBD " + playerOrder + " (" + (fullName.isBlank() ? "Chưa có tên" : fullName) + ") chưa có địa chỉ Email nhận mã OTP! Email là bắt buộc để đăng nhập vào phòng thi.");
+            }
+            if (!email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+                throw new IllegalArgumentException("Địa chỉ Email của thí sinh SBD " + playerOrder + " không đúng định dạng!");
+            }
+
             LivePlayer p = LivePlayer.builder()
                     .sessionId(sessionId)
                     .contestantId(d.getContestantId())
-                    .orderNumber(d.getOrderNumber() != 0 ? d.getOrderNumber() : order)
-                    .fullName(d.getFullName() != null ? d.getFullName().trim() : "")
+                    .orderNumber(playerOrder)
+                    .fullName(fullName)
                     .unit(d.getUnit() != null ? d.getUnit().trim() : "")
                     .position(d.getPosition() != null ? d.getPosition().trim() : "Bí thư Đoàn cơ sở")
-                    .email(d.getEmail() != null ? d.getEmail().trim() : "")
+                    .email(email.toLowerCase())
                     .phone(d.getPhone() != null ? d.getPhone().trim() : "")
                     .avatarUrl(d.getAvatarUrl() != null ? d.getAvatarUrl().trim() : "")
                     .isCheckedIn(false)
@@ -1659,6 +1671,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
                 .unit(p.getUnit())
                 .position(p.getPosition())
                 .email(p.getEmail())
+                .maskedEmail(EmailMaskUtil.mask(p.getEmail()))
                 .phone(p.getPhone())
                 .avatarUrl(p.getAvatarUrl())
                 .isCheckedIn(p.getIsCheckedIn())

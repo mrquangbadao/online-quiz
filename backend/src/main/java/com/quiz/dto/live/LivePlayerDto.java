@@ -21,6 +21,7 @@ public class LivePlayerDto {
     private String unit;
     private String position;
     private String email;
+    private String maskedEmail;
     private String phone;
     private String avatarUrl;
     private Boolean isCheckedIn;

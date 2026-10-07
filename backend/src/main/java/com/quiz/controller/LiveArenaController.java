@@ -47,7 +47,8 @@ public class LiveArenaController {
         String email = body.get("email") != null ? body.get("email").toString() : "";
         Long playerId = body.get("playerId") != null ? Long.valueOf(body.get("playerId").toString()) : null;
         liveArenaService.requestPlayerOtp(sessionId, playerId, email);
-        return ResponseEntity.ok(ApiResponse.ok("Mã xác thực OTP đã được gửi đến email " + email));
+        String masked = com.quiz.util.EmailMaskUtil.mask(email);
+        return ResponseEntity.ok(ApiResponse.ok("Mã xác thực OTP đã được gửi đến email " + (masked.isBlank() ? "của thí sinh" : masked)));
     }
 
     @PostMapping("/auth/verify-otp")

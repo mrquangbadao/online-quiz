@@ -15,6 +15,7 @@ import com.quiz.repository.ContestPhaseRepository;
 import com.quiz.repository.EmailOtpRepository;
 import com.quiz.repository.EmailVerificationSessionRepository;
 import com.quiz.security.RequestRateLimiter;
+import com.quiz.util.EmailMaskUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -95,13 +96,13 @@ public class EmailOtpService {
         emailOtpRepository.save(emailOtp);
 
         log.info("==================================================");
-        log.info(">> LIVE ARENA OTP CODE FOR [{}]: {} <<", normalizedEmail, otpCode);
+        log.info(">> LIVE ARENA OTP CODE FOR [{}]: {} <<", EmailMaskUtil.mask(normalizedEmail), otpCode);
         log.info("==================================================");
 
         try {
             emailDeliveryService.sendOtpEmail(request.getEmail().trim(), otpCode);
         } catch (MailException ex) {
-            log.warn("Failed to deliver OTP email to {}: {}. Proceeding so candidate can use code from log/admin.", normalizedEmail, ex.getMessage());
+            log.warn("Failed to deliver OTP email to {}: {}. Proceeding so candidate can use code from log/admin.", EmailMaskUtil.mask(normalizedEmail), ex.getMessage());
         }
 
         return RequestOtpResponse.builder()
@@ -122,7 +123,7 @@ public class EmailOtpService {
                 && emergencyMasterOtp.trim().equalsIgnoreCase(request.getOtp().trim());
 
         if (isMasterOtp) {
-            log.warn("Emergency master OTP used for email verification: {}", normalizedEmail);
+            log.warn("Emergency master OTP used for email verification: {}", EmailMaskUtil.mask(normalizedEmail));
             EmailOtp emailOtp = emailOtpRepository
                     .findFirstByNormalizedEmailAndPhaseIdAndUsedAtIsNullOrderByCreatedAtDesc(
                             normalizedEmail, activePhase.getId())
@@ -253,7 +254,7 @@ public class EmailOtpService {
 
         emailOtpRepository.save(emailOtp);
 
-        log.info("Admin generated emergency support OTP for email: {}", normalizedEmail);
+        log.info("Admin generated emergency support OTP for email: {}", EmailMaskUtil.mask(normalizedEmail));
 
         return AdminGenerateOtpResponse.builder()
                 .email(email.trim())
