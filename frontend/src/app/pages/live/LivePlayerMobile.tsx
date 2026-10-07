@@ -21,6 +21,7 @@ import {
   Mail,
   Lock,
   Swords,
+  Search,
 } from 'lucide-react';
 import { liveApi } from '../../../api/liveApi';
 import { useLiveSocket } from '../../../hooks/useLiveSocket';
@@ -78,6 +79,8 @@ export default function LivePlayerMobile() {
     const saved = sessionStorage.getItem('live_player_id');
     return saved ? Number(saved) : null;
   });
+  const [candidateSearch, setCandidateSearch] = useState<string>('');
+  const [showCandidateDropdown, setShowCandidateDropdown] = useState<boolean>(false);
   const [rescueRequested, setRescueRequested] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [currentQuestion, setCurrentQuestion] = useState<LiveQuestionDto | null>(null);
@@ -944,6 +947,15 @@ export default function LivePlayerMobile() {
   if (!selectedPlayerId || !player) {
     const availableCandidates = session?.players?.filter((p) => !p.isCheckedIn) || [];
     const candidate = session?.players?.find((p) => p.id === candidateId);
+    const filteredCandidates = availableCandidates.filter((p) => {
+      if (!candidateSearch.trim()) return true;
+      const q = candidateSearch.trim().toLowerCase();
+      return (
+        p.fullName.toLowerCase().includes(q) ||
+        p.unit.toLowerCase().includes(q) ||
+        String(p.orderNumber).includes(q)
+      );
+    });
 
     return (
       <div
@@ -1000,39 +1012,131 @@ export default function LivePlayerMobile() {
               </span>
             </div>
 
-            <div className="relative">
-              <select
-                value={candidateId || ''}
-                onChange={(e) => {
-                  const id = Number(e.target.value) || null;
-                  setCandidateId(id);
-                  candidateIdRef.current = id;
-                  const found = session?.players?.find((p) => p.id === id);
-                  if (found?.email) setEmailInput(found.email);
-                  setOtpSent(false);
-                  setRescueRequested(false);
-                  setOtpError(null);
-                }}
-                className="w-full bg-slate-50 border-2 border-blue-200 focus:border-[#134bc4] focus:ring-2 focus:ring-blue-500/20 rounded-xl px-3.5 py-3 text-xs sm:text-sm text-slate-900 font-semibold outline-none transition-all appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-white text-slate-700">
-                  {availableCandidates.length > 0
-                    ? '-- Nhấn vào đây để chọn số báo danh thí sinh --'
-                    : '-- Tất cả thí sinh đã điểm danh vào phòng thi --'}
-                </option>
-                {availableCandidates.map((p) => {
-                  const masked = p.maskedEmail || maskEmail(p.email);
-                  return (
-                    <option key={p.id} value={p.id} className="bg-white text-slate-900 py-1">
-                      SBD {String(p.orderNumber).padStart(2, '0')}: {p.fullName} {masked ? `(${masked})` : ''} - {p.unit}
-                    </option>
-                  );
-                })}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-blue-600">
-                <ChevronRight className="w-4 h-4 rotate-90" />
+            {candidate ? (
+              /* Đã chọn thí sinh: Hiển thị card thông tin + nút Đổi giống Vòng Loại */
+              <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/70 p-3.5 flex items-center justify-between gap-3 shadow-xs animate-fadeIn">
+                <div className="flex items-center gap-3 min-w-0">
+                  {candidate.avatarUrl ? (
+                    <img
+                      src={candidate.avatarUrl}
+                      alt={candidate.fullName}
+                      className="w-12 h-12 rounded-xl object-cover border border-blue-300 shrink-0 shadow-xs"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-base flex items-center justify-center shrink-0 border border-blue-500/40 shadow-xs">
+                      {candidate.fullName.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                        #{String(candidate.orderNumber).padStart(2, '0')}
+                      </span>
+                      <span className="font-bold text-slate-900 text-sm sm:text-base truncate">
+                        {candidate.fullName}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 truncate mt-0.5 font-medium">{candidate.unit}</p>
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {candidate.position || 'Bí thư Đoàn cơ sở'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCandidateId(null);
+                    candidateIdRef.current = null;
+                    setOtpSent(false);
+                    setRescueRequested(false);
+                    setOtpError(null);
+                    setCandidateSearch('');
+                    setShowCandidateDropdown(true);
+                  }}
+                  className="rounded-xl bg-blue-200/80 hover:bg-blue-300 text-blue-950 font-bold px-3 py-1.5 text-xs transition-colors shrink-0 shadow-xs active:scale-95"
+                  title="Chọn lại thí sinh khác"
+                >
+                  Đổi
+                </button>
               </div>
-            </div>
+            ) : (
+              /* Chưa chọn: Ô tìm kiếm họ tên, SBD hoặc đơn vị kèm menu dropdown nổi bật */
+              <div className="relative">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={candidateSearch}
+                    onChange={(e) => {
+                      setCandidateSearch(e.target.value);
+                      setShowCandidateDropdown(true);
+                    }}
+                    onFocus={() => setShowCandidateDropdown(true)}
+                    onBlur={() => window.setTimeout(() => setShowCandidateDropdown(false), 200)}
+                    placeholder="Gõ tìm kiếm họ tên hoặc đơn vị trong danh sách..."
+                    className="w-full bg-slate-50 border-2 border-blue-200 focus:border-[#134bc4] focus:ring-2 focus:ring-blue-500/20 rounded-xl pl-10 pr-4 py-3 text-xs sm:text-sm text-slate-900 font-semibold outline-none transition-all placeholder:text-slate-400"
+                  />
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-blue-600">
+                    <Search className="w-4 h-4" />
+                  </div>
+                </div>
+
+                {showCandidateDropdown && (
+                  <div className="absolute z-30 mt-1.5 max-h-64 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="sticky top-0 bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 flex justify-between items-center">
+                      <span>Danh sách thí sinh đủ điều kiện ({filteredCandidates.length} kết quả)</span>
+                    </div>
+                    {filteredCandidates.length > 0 ? (
+                      filteredCandidates.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setCandidateId(c.id);
+                            candidateIdRef.current = c.id;
+                            if (c.email) setEmailInput(c.email);
+                            setOtpSent(false);
+                            setRescueRequested(false);
+                            setOtpError(null);
+                            setShowCandidateDropdown(false);
+                            setCandidateSearch('');
+                          }}
+                          className="w-full px-4 py-3 text-left text-sm transition-colors border-b border-slate-100 flex items-center justify-between gap-3 hover:bg-blue-50 hover:text-blue-950 text-slate-800"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {c.avatarUrl ? (
+                              <img
+                                src={c.avatarUrl}
+                                alt={c.fullName}
+                                className="w-10 h-10 rounded-xl object-cover border border-blue-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-sm flex items-center justify-center shrink-0 border border-blue-400/40">
+                                {c.fullName.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono font-bold text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded">
+                                  #{String(c.orderNumber).padStart(2, '0')}
+                                </span>
+                                <span className="font-bold text-slate-900 truncate">{c.fullName}</span>
+                              </div>
+                              <p className="text-xs text-slate-500 truncate mt-0.5">{c.unit}</p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-6 text-center text-xs text-slate-500">
+                        <p className="italic">Không tìm thấy thí sinh nào phù hợp trong danh sách.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {availableCandidates.length === 0 && (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5">
@@ -1047,31 +1151,6 @@ export default function LivePlayerMobile() {
           {/* Card: Verification when candidate selected */}
           {candidate && (
             <div className="bg-white text-slate-900 rounded-2xl p-4 sm:p-5 shadow-2xl border border-blue-100 space-y-4 animate-fadeIn">
-              {/* Contestant Identity Preview */}
-              <div className="flex items-center gap-3.5 p-3 rounded-xl bg-blue-50/80 border border-blue-200">
-                {candidate.avatarUrl ? (
-                  <img
-                    src={candidate.avatarUrl}
-                    alt={candidate.fullName}
-                    className="w-13 h-13 rounded-xl object-cover border border-blue-300 shrink-0"
-                  />
-                ) : (
-                  <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-xl flex items-center justify-center shrink-0 border border-blue-500/40 shadow-sm">
-                    {candidate.fullName.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-blue-950 text-sm sm:text-base truncate">
-                      {candidate.fullName}
-                    </h3>
-                  </div>
-                  <p className="text-xs text-blue-800 truncate mt-0.5 font-semibold">{candidate.unit}</p>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {candidate.position || 'Bí thư Đoàn cơ sở'}
-                  </p>
-                </div>
-              </div>
 
               {otpError && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2 animate-fadeIn">
