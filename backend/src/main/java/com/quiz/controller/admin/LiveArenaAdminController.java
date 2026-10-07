@@ -189,6 +189,15 @@ public class LiveArenaAdminController {
     // VÒNG 2: NHẠY BÉN (MÃ ĐỀ & ĐIỂM)
     // ==========================================
 
+    @PostMapping("/round2/{id}/select-candidate")
+    public ResponseEntity<ApiResponse<Void>> selectRound2Candidate(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Long playerId = Long.valueOf(body.get("playerId").toString());
+        liveArenaService.selectRound2Candidate(id, playerId);
+        return ResponseEntity.ok(ApiResponse.ok("Đã chọn thí sinh chuẩn bị chọn đề", null));
+    }
+
     @PostMapping("/round2/{id}/assign-topic")
     public ResponseEntity<ApiResponse<Void>> assignTopic(
             @PathVariable Long id,
@@ -199,6 +208,24 @@ public class LiveArenaAdminController {
         return ResponseEntity.ok(ApiResponse.ok("Gán mã đề thành công", null));
     }
 
+    @PostMapping("/round2/{id}/unassign-topic")
+    public ResponseEntity<ApiResponse<Void>> unassignRound2Topic(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Long playerId = Long.valueOf(body.get("playerId").toString());
+        liveArenaService.unassignRound2Topic(id, playerId);
+        return ResponseEntity.ok(ApiResponse.ok("Đã mở khóa mã đề cho thí sinh thành công", null));
+    }
+
+    @PostMapping("/round2/{id}/reset-player")
+    public ResponseEntity<ApiResponse<Void>> resetPlayerRound2(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Long playerId = Long.valueOf(body.get("playerId").toString());
+        liveArenaService.resetPlayerRound2(id, playerId);
+        return ResponseEntity.ok(ApiResponse.ok("Đã thiết lập lại Vòng 2 cho thí sinh thành công", null));
+    }
+
     @PostMapping("/round2/{id}/show-topic-question")
     public ResponseEntity<ApiResponse<Void>> showRound2TopicQuestion(
             @PathVariable Long id,
@@ -206,6 +233,51 @@ public class LiveArenaAdminController {
         String topicCode = body.get("topicCode") != null ? body.get("topicCode").toString() : "";
         liveArenaService.showRound2TopicQuestion(id, topicCode);
         return ResponseEntity.ok(ApiResponse.ok("Đã hiển thị nội dung đề thi Vòng 2 trên màn hình LED sân khấu", null));
+    }
+
+    @PostMapping("/round2/{id}/start-batch")
+    public ResponseEntity<ApiResponse<Void>> startRound2Batch(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Object> rawList = (List<Object>) body.get("playerIds");
+        List<Long> playerIds = rawList != null ? rawList.stream().map(o -> Long.valueOf(o.toString())).toList() : List.of();
+        Integer duration = body.get("durationSeconds") != null ? Integer.valueOf(body.get("durationSeconds").toString()) : 600;
+        liveArenaService.startRound2Batch(id, playerIds, duration);
+        return ResponseEntity.ok(ApiResponse.ok("Bắt đầu đợt thi Vòng 2 thành công", null));
+    }
+
+    @PostMapping("/round2/{id}/end-batch")
+    public ResponseEntity<ApiResponse<Void>> endRound2Batch(@PathVariable Long id) {
+        liveArenaService.endRound2Batch(id);
+        return ResponseEntity.ok(ApiResponse.ok("Kết thúc thời gian làm bài đợt thi Vòng 2", null));
+    }
+
+    @PostMapping("/round2/{id}/show-leaderboard")
+    public ResponseEntity<ApiResponse<Void>> showRound2Leaderboard(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String viewType = (body != null && body.get("viewType") != null) ? body.get("viewType").toString() : "ROUND2_ONLY";
+        liveArenaService.showRound2Leaderboard(id, viewType);
+        return ResponseEntity.ok(ApiResponse.ok("Công bố bảng điểm Vòng 2 thành công", null));
+    }
+
+    @PostMapping("/round2/{id}/show-selecting")
+    public ResponseEntity<ApiResponse<Void>> showRound2Selecting(@PathVariable Long id) {
+        liveArenaService.showRound2Selecting(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã chuyển màn hình LED về chế độ chọn mã đề", null));
+    }
+
+    @PostMapping("/round2/{id}/reset-batch")
+    public ResponseEntity<ApiResponse<Void>> resetRound2Batch(@PathVariable Long id) {
+        liveArenaService.resetRound2Batch(id);
+        return ResponseEntity.ok(ApiResponse.ok("Làm mới đợt thi Vòng 2 thành công", null));
+    }
+
+    @PostMapping("/round2/{id}/reset-topics")
+    public ResponseEntity<ApiResponse<List<LiveRound2Topic>>> resetRound2Topics(@PathVariable Long id) {
+        List<LiveRound2Topic> topics = liveArenaService.resetDefaultRound2Topics(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã nạp lại 10 bộ đề thi chuẩn từ Ban tổ chức", topics));
     }
 
     @PostMapping("/round2/player/{id}/score")
@@ -233,6 +305,97 @@ public class LiveArenaAdminController {
         return ResponseEntity.ok(ApiResponse.ok("Bốc thăm ghép cặp ngẫu nhiên thành công", pairs));
     }
 
+    @PostMapping("/round3/{id}/assign-pair")
+    public ResponseEntity<ApiResponse<LiveRound3Pair>> assignRound3Pair(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Integer pairNumber = Integer.valueOf(body.get("pairNumber").toString());
+        Long player1Id = Long.valueOf(body.get("player1Id").toString());
+        Long player2Id = Long.valueOf(body.get("player2Id").toString());
+        LiveRound3Pair pair = liveArenaService.assignRound3Pair(id, pairNumber, player1Id, player2Id);
+        return ResponseEntity.ok(ApiResponse.ok("Gán cặp đấu thành công", pair));
+    }
+
+    @PostMapping("/round3/{id}/delete-pair")
+    public ResponseEntity<ApiResponse<Void>> deleteRound3Pair(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Integer pairNumber = Integer.valueOf(body.get("pairNumber").toString());
+        liveArenaService.deleteRound3Pair(id, pairNumber);
+        return ResponseEntity.ok(ApiResponse.ok("Đã xóa cặp đấu", null));
+    }
+
+    @PostMapping("/round3/{id}/reset-pairs")
+    public ResponseEntity<ApiResponse<Void>> resetAllRound3Pairs(@PathVariable Long id) {
+        liveArenaService.resetAllRound3Pairs(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã làm mới toàn bộ cặp đấu Vòng 3", null));
+    }
+
+    @GetMapping("/round3/{id}/display-pairs")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getRound3DisplayPairs(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(liveArenaService.getRound3DisplayPairs(id)));
+    }
+
+    @PostMapping("/round3/{id}/display-duel")
+    public ResponseEntity<ApiResponse<Void>> displayRound3Duel(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Integer pairNumber = Integer.valueOf(body.get("pairNumber").toString());
+        liveArenaService.displayRound3Duel(id, pairNumber);
+        return ResponseEntity.ok(ApiResponse.ok("Đã hiển thị cặp đấu trên màn hình LED (Chờ phổ biến đề)", null));
+    }
+
+    @PostMapping("/round3/{id}/start-duel")
+    public ResponseEntity<ApiResponse<Void>> startRound3Duel(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Integer pairNumber = Integer.valueOf(body.get("pairNumber").toString());
+        String stage = body.get("stage") != null ? body.get("stage").toString() : "STAGE_1_PREP";
+        String stageTitle = body.get("stageTitle") != null ? body.get("stageTitle").toString() : "Giai đoạn 1: Đề xuất phương án";
+        Integer durationSeconds = body.get("durationSeconds") != null ? Integer.valueOf(body.get("durationSeconds").toString()) : 120;
+        Long activePlayerId = body.get("activePlayerId") != null && !body.get("activePlayerId").toString().isBlank()
+                ? Long.valueOf(body.get("activePlayerId").toString())
+                : null;
+        liveArenaService.startRound3Duel(id, pairNumber, stage, stageTitle, durationSeconds, activePlayerId);
+        return ResponseEntity.ok(ApiResponse.ok("Đã bắt đầu phần thi của cặp đấu", null));
+    }
+
+    @PostMapping("/round3/{id}/stop-duel-timer")
+    public ResponseEntity<ApiResponse<Void>> stopRound3DuelTimer(@PathVariable Long id) {
+        liveArenaService.stopRound3DuelTimer(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã dừng đồng hồ phần thi", null));
+    }
+
+    @PostMapping("/round3/{id}/start-overtime")
+    public ResponseEntity<ApiResponse<Void>> startRound3Overtime(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Long playerId = (body != null && body.get("playerId") != null) ? Long.valueOf(body.get("playerId").toString()) : null;
+        liveArenaService.startRound3Overtime(id, playerId);
+        return ResponseEntity.ok(ApiResponse.ok("Đã bắt đầu đếm thời gian quá giờ", null));
+    }
+
+    @PostMapping("/round3/{id}/stop-overtime")
+    public ResponseEntity<ApiResponse<Void>> stopRound3Overtime(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Integer overtimeSeconds = (body != null && body.get("overtimeSeconds") != null) ? Integer.valueOf(body.get("overtimeSeconds").toString()) : 0;
+        liveArenaService.stopRound3Overtime(id, overtimeSeconds);
+        return ResponseEntity.ok(ApiResponse.ok("Đã dừng đếm thời gian quá giờ", null));
+    }
+
+    @PostMapping("/round3/{id}/show-all-pairs")
+    public ResponseEntity<ApiResponse<Void>> showAllRound3Pairs(@PathVariable Long id) {
+        liveArenaService.showAllRound3Pairs(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã chuyển về màn hình tổng quan 5 cặp đấu", null));
+    }
+
+    @PostMapping("/round3/{id}/show-rules")
+    public ResponseEntity<ApiResponse<Void>> showRound3Rules(@PathVariable Long id) {
+        liveArenaService.showRound3Rules(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã chuyển màn hình LED sang phổ biến Thể lệ Vòng 3", null));
+    }
+
     @PostMapping("/round3/player/{id}/score")
     public ResponseEntity<ApiResponse<Void>> updateRound3Score(
             @PathVariable Long id,
@@ -257,14 +420,23 @@ public class LiveArenaAdminController {
         return ResponseEntity.ok(ApiResponse.ok("Vinh danh và kết thúc phiên thi thành công", dto));
     }
 
+    @PostMapping("/session/{id}/finish-view")
+    public ResponseEntity<ApiResponse<Void>> switchFinishViewMode(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String viewMode = body != null ? body.getOrDefault("viewMode", "PODIUM") : "PODIUM";
+        liveArenaService.switchFinishViewMode(id, viewMode);
+        return ResponseEntity.ok(ApiResponse.ok("Đã chuyển chế độ hiển thị tổng kết", null));
+    }
+
     // ==========================================
     // LÀM SẠCH & RESET DỮ LIỆU THI THỬ
     // ==========================================
 
     @PostMapping({"/session/{id}/reset", "/session/reset"})
     public ResponseEntity<ApiResponse<LiveSessionDto>> resetSession(@PathVariable(required = false) Long id) {
-        liveArenaService.resetSessionData(id);
-        return ResponseEntity.ok(ApiResponse.ok("Đã làm sạch toàn bộ dữ liệu thi thử, đưa phòng thi về trạng thái ban đầu thành công!", liveArenaService.getActiveSession()));
+        LiveSessionDto dto = liveArenaService.resetSessionData(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã làm sạch toàn bộ dữ liệu thi thử, đưa phòng thi về trạng thái ban đầu thành công!", dto));
     }
 
     @DeleteMapping("/session/{id}")

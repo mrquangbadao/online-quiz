@@ -5,6 +5,7 @@ import {
   LiveQuestionDto,
   LiveRound2Topic,
   LiveRound3Pair,
+  LiveRound3DisplayPair,
   LiveSessionDto,
 } from '../../types/live';
 
@@ -157,6 +158,12 @@ export const adminLiveApi = {
   },
 
   // Vòng 2
+  selectRound2Candidate: async (sessionId: number, playerId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(`/admin/live/round2/${sessionId}/select-candidate`, {
+      playerId,
+    });
+  },
+
   assignRound2Topic: async (
     sessionId: number,
     playerId: number,
@@ -168,11 +175,69 @@ export const adminLiveApi = {
     });
   },
 
+  unassignRound2Topic: async (sessionId: number, playerId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(`/admin/live/round2/${sessionId}/unassign-topic`, {
+      playerId,
+    });
+  },
+
+  resetPlayerRound2: async (sessionId: number, playerId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(`/admin/live/round2/${sessionId}/reset-player`, {
+      playerId,
+    });
+  },
+
   showRound2TopicQuestion: async (sessionId: number, topicCode: string): Promise<void> => {
     await axiosClient.post<ApiResponse<void>>(
       `/admin/live/round2/${sessionId}/show-topic-question`,
       { topicCode }
     );
+  },
+
+  startRound2Batch: async (
+    sessionId: number,
+    playerIds: number[],
+    durationSeconds = 600
+  ): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round2/${sessionId}/start-batch`,
+      { playerIds, durationSeconds }
+    );
+  },
+
+  endRound2Batch: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round2/${sessionId}/end-batch`
+    );
+  },
+
+  showRound2Leaderboard: async (
+    sessionId: number,
+    viewType: 'ROUND2_ONLY' | 'CUMULATIVE' = 'ROUND2_ONLY'
+  ): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round2/${sessionId}/show-leaderboard`,
+      { viewType }
+    );
+  },
+
+  showRound2Selecting: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round2/${sessionId}/show-selecting`
+    );
+  },
+
+  resetRound2Batch: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round2/${sessionId}/reset-batch`
+    );
+  },
+
+  resetRound2Topics: async (sessionId: number): Promise<LiveRound2Topic[]> => {
+    const res = await axiosClient.post<ApiResponse<LiveRound2Topic[]>>(
+      `/admin/live/round2/${sessionId}/reset-topics`
+    );
+    return res.data.data;
   },
 
   updateRound2Score: async (
@@ -201,6 +266,92 @@ export const adminLiveApi = {
     return res.data.data;
   },
 
+  assignRound3Pair: async (
+    sessionId: number,
+    pairNumber: number,
+    player1Id: number,
+    player2Id: number
+  ): Promise<LiveRound3Pair> => {
+    const res = await axiosClient.post<ApiResponse<LiveRound3Pair>>(
+      `/admin/live/round3/${sessionId}/assign-pair`,
+      { pairNumber, player1Id, player2Id }
+    );
+    return res.data.data;
+  },
+
+  deleteRound3Pair: async (sessionId: number, pairNumber: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/delete-pair`,
+      { pairNumber }
+    );
+  },
+
+  resetAllRound3Pairs: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/reset-pairs`
+    );
+  },
+
+  getRound3DisplayPairs: async (sessionId: number): Promise<LiveRound3DisplayPair[]> => {
+    const res = await axiosClient.get<ApiResponse<LiveRound3DisplayPair[]>>(
+      `/admin/live/round3/${sessionId}/display-pairs`
+    );
+    return res.data.data;
+  },
+
+  displayRound3Duel: async (sessionId: number, pairNumber: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/display-duel`,
+      { pairNumber }
+    );
+  },
+
+  startRound3Duel: async (
+    sessionId: number,
+    pairNumber: number,
+    stage: string,
+    stageTitle: string,
+    durationSeconds: number,
+    activePlayerId?: number
+  ): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/start-duel`,
+      { pairNumber, stage, stageTitle, durationSeconds, activePlayerId }
+    );
+  },
+
+  stopRound3DuelTimer: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/stop-duel-timer`
+    );
+  },
+
+  startRound3Overtime: async (sessionId: number, playerId?: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/start-overtime`,
+      { playerId }
+    );
+  },
+
+  stopRound3Overtime: async (sessionId: number, overtimeSeconds?: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/stop-overtime`,
+      { overtimeSeconds }
+    );
+  },
+
+  showAllRound3Pairs: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/show-all-pairs`
+    );
+  },
+
+  showRound3Rules: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/show-rules`
+    );
+  },
+
   updateRound3Score: async (playerId: number, score: number): Promise<void> => {
     await axiosClient.post<ApiResponse<void>>(`/admin/live/round3/player/${playerId}/score`, {
       score,
@@ -220,6 +371,13 @@ export const adminLiveApi = {
       `/admin/live/session/${sessionId}/finish`
     );
     return res.data.data;
+  },
+
+  switchFinishViewMode: async (sessionId: number, viewMode: 'BOARD' | 'PODIUM'): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/session/${sessionId}/finish-view`,
+      { viewMode }
+    );
   },
 
   resetSession: async (sessionId?: number): Promise<LiveSessionDto> => {

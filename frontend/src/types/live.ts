@@ -76,6 +76,22 @@ export interface LiveSessionDto {
   currentQuestion?: LiveQuestionDto | null;
   questionStartedAt?: number;
   revealedData?: any;
+  round2BatchEndAt?: number;
+  round2BatchRunning?: boolean;
+  round2BatchPlayerIds?: number[];
+  round3DuelState?: {
+    pairNumber?: number;
+    stage?: string;
+    stageTitle?: string;
+    durationSeconds?: number;
+    startedAt?: number;
+    endAt?: number;
+    isTimerRunning?: boolean;
+    isTimeUp?: boolean;
+    player1?: LivePlayerDto;
+    player2?: LivePlayerDto;
+  };
+  round3ViewMode?: 'RULES' | 'PAIRS';
 }
 
 export interface LiveAnswerSubmissionDto {
@@ -104,6 +120,15 @@ export interface LiveRound3Pair {
   player1Id: number;
   player2Id: number;
   drawnAt?: string;
+}
+
+export interface LiveRound3DisplayPair {
+  id?: number | null;
+  pairNumber: number;
+  player1Id?: number | null;
+  player2Id?: number | null;
+  player1?: LivePlayerDto | null;
+  player2?: LivePlayerDto | null;
 }
 
 export interface LiveEventMessage {

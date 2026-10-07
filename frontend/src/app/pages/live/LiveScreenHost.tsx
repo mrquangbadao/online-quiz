@@ -25,6 +25,13 @@ import {
   ChevronRight,
   BookOpen,
   Clock,
+  RotateCcw,
+  Swords,
+  AlertTriangle,
+  Flame,
+  ShieldAlert,
+  Lightbulb,
+  MessageSquare,
 } from 'lucide-react';
 import { liveApi } from '../../../api/liveApi';
 import { adminLiveApi } from '../../../api/admin/adminLiveApi';
@@ -38,8 +45,10 @@ import {
   LiveQuestionDto,
   LiveRound2Topic,
   LiveRound3Pair,
+  LiveRound3DisplayPair,
   LiveSessionDto,
 } from '../../../types/live';
+import { formatScore } from '../../../utils/scoreFormatter';
 
 const getOptionDisplay = (selected: string | undefined, question: any) => {
   if (!selected || !selected.trim()) return { key: '', text: 'Chưa chọn' };
@@ -67,18 +76,40 @@ export default function LiveScreenHost() {
   const [answeredPlayers, setAnsweredPlayers] = useState<Set<number>>(new Set());
   const [videoData, setVideoData] = useState<{ url: string; type: string } | null>(null);
   const targetEndTimeRef = useRef<number | null>(null);
+  const r2TargetEndTimeRef = useRef<number | null>(null);
 
-  // Round 2 & 3 State
+  // Round 2 State
   const [round2Topics, setRound2Topics] = useState<LiveRound2Topic[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<LiveRound2Topic | null>(null);
   const [isTopicQuestionRevealed, setIsTopicQuestionRevealed] = useState<boolean>(false);
   const [activePlayerRound2, setActivePlayerRound2] = useState<LivePlayerDto | null>(null);
+  const [r2CandidateSelecting, setR2CandidateSelecting] = useState<LivePlayerDto | null>(null);
+  const [r2CandidateTopicCode, setR2CandidateTopicCode] = useState<string | null>(null);
+  const [r2CurrentBatchPlayers, setR2CurrentBatchPlayers] = useState<LivePlayerDto[]>([]);
+  const [r2ViewMode, setR2ViewMode] = useState<'SELECTING' | 'EXAM_RUNNING' | 'TIME_UP' | 'LEADERBOARD'>('SELECTING');
+  const [r2LeaderboardTab, setR2LeaderboardTab] = useState<'ROUND2_ONLY' | 'CUMULATIVE'>('ROUND2_ONLY');
   const [round2Timer, setRound2Timer] = useState<number>(600); // 10 minutes (600s)
   const [round2TimerRunning, setRound2TimerRunning] = useState<boolean>(false);
+  const [isPreview3Rounds, setIsPreview3Rounds] = useState<boolean>(false);
 
-  // Round 3 Pairing State
+  // Round 3 Pairing & Duel State
   const [isShufflingPairs, setIsShufflingPairs] = useState<boolean>(false);
   const [round3Pairs, setRound3Pairs] = useState<any[]>([]);
+  const [round3DisplayPairs, setRound3DisplayPairs] = useState<LiveRound3DisplayPair[]>([
+    { pairNumber: 1, player1: null, player2: null },
+    { pairNumber: 2, player1: null, player2: null },
+    { pairNumber: 3, player1: null, player2: null },
+    { pairNumber: 4, player1: null, player2: null },
+    { pairNumber: 5, player1: null, player2: null },
+  ]);
+  const [round3DuelTimer, setRound3DuelTimer] = useState<number>(120);
+  const [round3DuelTimerRunning, setRound3DuelTimerRunning] = useState<boolean>(false);
+  const [round3DuelTimeUp, setRound3DuelTimeUp] = useState<boolean>(false);
+  const [round3OvertimeRunning, setRound3OvertimeRunning] = useState<boolean>(false);
+  const [round3OvertimeSeconds, setRound3OvertimeSeconds] = useState<number>(0);
+  const r3DuelTargetEndTimeRef = useRef<number | null>(null);
+  const r3OvertimeTargetStartRef = useRef<number | null>(null);
+  const [round3ViewMode, setRound3ViewMode] = useState<'RULES' | 'PAIRS'>('PAIRS');
 
   // Winners State
   const [winners, setWinners] = useState<any[]>([]);
@@ -87,7 +118,7 @@ export default function LiveScreenHost() {
   const [searchParams, setSearchParams] = useSearchParams();
   const isPreviewFinished = searchParams.get('preview') === 'final' || searchParams.get('view') === 'finished';
 
-  const isFinalView = session?.status === 'FINISHED' || isPreviewFinished;
+  const isFinalView = session?.status === 'FINISHED' || isPreviewFinished || isPreview3Rounds;
 
   const round1State = session?.round1State || 'IDLE';
 
@@ -102,6 +133,61 @@ export default function LiveScreenHost() {
       if (data.id) {
         const topics = await liveApi.getRound2Topics(data.id);
         setRound2Topics(topics);
+        try {
+          const pairs = await liveApi.getRound3DisplayPairs(data.id);
+          if (pairs && pairs.length > 0) {
+            setRound3DisplayPairs(pairs);
+          }
+        } catch (e) {
+          console.error('Lỗi tải danh sách cặp đấu V3:', e);
+        }
+      }
+
+      // Khôi phục đồng hồ Vòng 3 nếu reload trang trong lúc đang tranh tài
+      if (data && data.status === 'ROUND3' && data.round3DuelState) {
+        const duel = data.round3DuelState as any;
+        if (duel.isTimerRunning && duel.endAt) {
+          const remainingR3 = Math.max(0, Math.ceil((duel.endAt - Date.now()) / 1000));
+          if (remainingR3 > 0) {
+            r3DuelTargetEndTimeRef.current = duel.endAt;
+            setRound3DuelTimer(remainingR3);
+            setRound3DuelTimerRunning(true);
+            setRound3DuelTimeUp(false);
+          } else {
+            r3DuelTargetEndTimeRef.current = null;
+            setRound3DuelTimer(0);
+            setRound3DuelTimerRunning(false);
+            setRound3DuelTimeUp(true);
+          }
+        } else if (duel.isTimeUp) {
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimer(0);
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimeUp(true);
+        } else {
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimer(0);
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimeUp(false);
+        }
+
+        if (duel.isOvertimeRunning && duel.overtimeStartedAt) {
+          r3OvertimeTargetStartRef.current = duel.overtimeStartedAt;
+          const elapsed = Math.max(0, Math.floor((Date.now() - duel.overtimeStartedAt) / 1000));
+          setRound3OvertimeSeconds(elapsed);
+          setRound3OvertimeRunning(true);
+        } else if (duel.overtimeSeconds) {
+          setRound3OvertimeSeconds(Number(duel.overtimeSeconds));
+          setRound3OvertimeRunning(false);
+        }
+      }
+
+      if (data && data.status === 'ROUND3') {
+        if (data.round3ViewMode === 'RULES') {
+          setRound3ViewMode('RULES');
+        } else {
+          setRound3ViewMode('PAIRS');
+        }
       }
 
       // Khôi phục đồng hồ nếu reload trang trong lúc đang đếm ngược
@@ -124,6 +210,39 @@ export default function LiveScreenHost() {
           }
         }
       }
+
+      // Khôi phục đồng hồ Vòng 2 10 phút nếu reload trang trong lúc đang đếm ngược
+      if (data && data.status === 'ROUND2' && data.round2BatchRunning && data.round2BatchEndAt) {
+        const remainingR2 = Math.max(0, Math.ceil((data.round2BatchEndAt - Date.now()) / 1000));
+        if (remainingR2 > 0) {
+          r2TargetEndTimeRef.current = data.round2BatchEndAt;
+          setRound2Timer(remainingR2);
+          setRound2TimerRunning(true);
+          setR2ViewMode('EXAM_RUNNING');
+          if (data.round2BatchPlayerIds && data.players) {
+            setR2CurrentBatchPlayers(
+              data.players.filter((p) => data.round2BatchPlayerIds?.includes(p.id) && (!p.round2Score || Number(p.round2Score) === 0))
+            );
+          }
+        } else {
+          r2TargetEndTimeRef.current = null;
+          setRound2Timer(0);
+          setRound2TimerRunning(false);
+          setR2ViewMode('TIME_UP');
+        }
+      }
+
+      if (data?.players) {
+        setR2CurrentBatchPlayers((prev) =>
+          prev
+            .map((bp) => data.players?.find((p) => p.id === bp.id) || bp)
+            .filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0))
+        );
+      }
+
+      if (data && data.status === 'FINISHED' && !isPreview3Rounds && !searchParams.get('preview')) {
+        setFinishedViewMode('PODIUM');
+      }
     } catch (err) {
       console.error('Lỗi tải dữ liệu màn hình chính:', err);
     } finally {
@@ -143,6 +262,17 @@ export default function LiveScreenHost() {
       switch (event.eventType) {
         case 'SESSION_STATUS_CHANGED':
           setSession(event.payload);
+          break;
+
+        case 'SESSION_RESET':
+          setSession(event.payload);
+          setRevealedData(null);
+          setAnsweredPlayers(new Set());
+          setHopeStarPlayers(new Set());
+          setR2CurrentBatchPlayers([]);
+          setSelectedTopic(null);
+          setTimerRunning(false);
+          setCountdown(0);
           break;
 
         case 'PLAYERS_CONFIGURED':
@@ -292,17 +422,129 @@ export default function LiveScreenHost() {
           fetchSession();
           break;
 
+        case 'ROUND2_CANDIDATE_SELECTED':
+          if (event.payload?.player) {
+            setActivePlayerRound2(event.payload.player);
+            setR2CandidateSelecting(event.payload.player);
+            setR2CandidateTopicCode(null);
+            setR2ViewMode('SELECTING');
+            if (soundEnabled) liveSound.playButtonClick();
+          }
+          break;
+
         case 'ROUND2_TOPIC_ASSIGNED':
           if (event.payload.topic) {
             setSelectedTopic(event.payload.topic);
           }
-          setIsTopicQuestionRevealed(false);
+          if (event.payload.topicCode) {
+            setR2CandidateTopicCode(event.payload.topicCode);
+          }
+          if (event.payload.player) {
+            const p = event.payload.player;
+            setActivePlayerRound2(p);
+            setR2CandidateSelecting(p);
+            if (!p.round2Score || Number(p.round2Score) === 0) {
+              setR2CurrentBatchPlayers((prev) => {
+                const exists = prev.some((item) => item.id === p.id);
+                return exists
+                  ? prev.map((item) =>
+                      item.id === p.id ? { ...item, round2DrawCode: event.payload.topicCode } : item
+                    )
+                  : [...prev, { ...p, round2DrawCode: event.payload.topicCode }];
+              });
+            }
+          }
+          if (soundEnabled) liveSound.playCorrect();
+          fetchSession();
+          break;
+
+        case 'ROUND2_SCORE_UPDATED': {
+          const scoredId = event.payload?.playerId;
+          if (scoredId) {
+            setR2CurrentBatchPlayers((prev) => prev.filter((p) => p.id !== scoredId));
+            if (r2CandidateSelecting?.id === scoredId) {
+              setR2CandidateSelecting(null);
+              setR2CandidateTopicCode(null);
+            }
+            if (activePlayerRound2?.id === scoredId) {
+              setActivePlayerRound2(null);
+            }
+          }
+          fetchSession();
+          break;
+        }
+
+        case 'ROUND2_TOPIC_UNASSIGNED': {
+          const pId = event.payload?.playerId;
+          setR2CurrentBatchPlayers((prev) => prev.filter((p) => p.id !== pId));
+          if (r2CandidateSelecting?.id === pId) {
+            setR2CandidateTopicCode(null);
+          }
+          fetchSession();
+          break;
+        }
+
+        case 'ROUND2_PLAYER_RESET': {
+          fetchSession();
+          break;
+        }
+
+        case 'ROUND2_BATCH_STARTED': {
+          setR2ViewMode('EXAM_RUNNING');
+          const endAt = event.payload.endAt || (Date.now() + (event.payload.durationSeconds || 600) * 1000);
+          r2TargetEndTimeRef.current = endAt;
+          const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+          setRound2Timer(rem);
+          setRound2TimerRunning(true);
+          if (event.payload.players && event.payload.players.length > 0) {
+            const valid = event.payload.players.filter((p: LivePlayerDto) => !p.round2Score || Number(p.round2Score) === 0);
+            setR2CurrentBatchPlayers(valid);
+          }
+          if (soundEnabled) liveSound.playFanfare();
+          break;
+        }
+
+        case 'ROUND2_BATCH_ENDED':
+          r2TargetEndTimeRef.current = null;
+          setR2ViewMode('TIME_UP');
+          setRound2TimerRunning(false);
+          setRound2Timer(0);
+          if (soundEnabled) liveSound.playBuzzer();
+          break;
+
+        case 'ROUND2_LEADERBOARD_REVEALED':
+          if (event.payload?.viewType === 'PREVIEW_3_ROUNDS') {
+            setIsPreview3Rounds(true);
+            setFinishedViewMode('BOARD');
+          } else {
+            setIsPreview3Rounds(false);
+            setR2ViewMode('LEADERBOARD');
+          }
+          fetchSession();
+          if (soundEnabled) liveSound.playFanfare();
+          break;
+
+        case 'ROUND2_SELECTING_REVEALED':
+          setIsPreview3Rounds(false);
+          setR2ViewMode('SELECTING');
+          setR2CandidateSelecting(null);
+          setActivePlayerRound2(null);
+          setR2CandidateTopicCode(null);
+          setR2CurrentBatchPlayers((prev) => prev.filter((p) => !p.round2Score || Number(p.round2Score) === 0));
+          fetchSession();
+          break;
+
+        case 'ROUND2_BATCH_RESET':
+          r2TargetEndTimeRef.current = null;
+          setIsPreview3Rounds(false);
+          setR2ViewMode('SELECTING');
+          setR2CandidateSelecting(null);
+          setActivePlayerRound2(null);
+          setR2CandidateTopicCode(null);
+          setR2CurrentBatchPlayers([]);
           setRound2Timer(600);
           setRound2TimerRunning(false);
-          if (session?.players) {
-            const p = session.players.find((pl) => pl.id === event.payload.playerId);
-            if (p) setActivePlayerRound2(p);
-          }
+          fetchSession();
           break;
 
         case 'ROUND2_TOPIC_REVEALED':
@@ -321,9 +563,101 @@ export default function LiveScreenHost() {
           if (soundEnabled) liveSound.playCorrect();
           break;
 
-        case 'ROUND2_SCORE_UPDATED':
         case 'ROUND3_SCORE_UPDATED':
           fetchSession();
+          break;
+
+        case 'ROUND3_PAIRS_UPDATED':
+          if (event.payload?.pairs) {
+            setRound3DisplayPairs(event.payload.pairs);
+          }
+          fetchSession();
+          break;
+
+        case 'ROUND3_DUEL_DISPLAYED': {
+          const duel = event.payload;
+          setSession((prev) => (prev ? { ...prev, round3DuelState: duel } : prev));
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimer(0);
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimeUp(false);
+          setRound3OvertimeRunning(false);
+          setRound3OvertimeSeconds(0);
+          r3OvertimeTargetStartRef.current = null;
+          if (soundEnabled) liveSound.playCorrect();
+          break;
+        }
+
+        case 'ROUND3_DUEL_STARTED': {
+          const duel = event.payload;
+          setSession((prev) => (prev ? { ...prev, round3DuelState: duel } : prev));
+          const endAt = duel.endAt || (Date.now() + (duel.durationSeconds || 120) * 1000);
+          r3DuelTargetEndTimeRef.current = endAt;
+          const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+          setRound3DuelTimer(rem);
+          setRound3DuelTimerRunning(true);
+          setRound3DuelTimeUp(false);
+          setRound3OvertimeRunning(false);
+          setRound3OvertimeSeconds(0);
+          r3OvertimeTargetStartRef.current = null;
+          if (soundEnabled) liveSound.playFanfare();
+          break;
+        }
+
+        case 'ROUND3_DUEL_TIME_UP':
+          setSession((prev) => (prev ? {
+            ...prev,
+            round3DuelState: {
+              ...(prev.round3DuelState || {}),
+              isTimerRunning: false,
+              isTimeUp: true
+            }
+          } : prev));
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimer(0);
+          setRound3DuelTimeUp(true);
+          if (soundEnabled) liveSound.playBuzzer();
+          break;
+
+        case 'ROUND3_OVERTIME_STARTED':
+          setRound3OvertimeRunning(true);
+          setRound3OvertimeSeconds(0);
+          r3OvertimeTargetStartRef.current = event.payload?.overtimeStartedAt || Date.now();
+          if (soundEnabled) liveSound.playTick();
+          break;
+
+        case 'ROUND3_OVERTIME_STOPPED':
+          setRound3OvertimeRunning(false);
+          setRound3OvertimeSeconds(Number(event.payload?.overtimeSeconds || 0));
+          r3OvertimeTargetStartRef.current = null;
+          if (soundEnabled) liveSound.playCorrect();
+          break;
+
+        case 'ROUND3_SHOW_ALL_PAIRS':
+          setRound3ViewMode('PAIRS');
+          setSession((prev) => (prev ? { ...prev, round3DuelState: undefined, round3ViewMode: 'PAIRS' } : prev));
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimer(0);
+          setRound3DuelTimeUp(false);
+          setRound3OvertimeRunning(false);
+          setRound3OvertimeSeconds(0);
+          r3OvertimeTargetStartRef.current = null;
+          fetchSession();
+          break;
+
+        case 'ROUND3_RULES_DISPLAYED':
+          setRound3ViewMode('RULES');
+          setSession((prev) => (prev ? { ...prev, round3DuelState: undefined, round3ViewMode: 'RULES' } : prev));
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimer(0);
+          setRound3DuelTimeUp(false);
+          setRound3OvertimeRunning(false);
+          setRound3OvertimeSeconds(0);
+          r3OvertimeTargetStartRef.current = null;
+          if (soundEnabled) liveSound.playCorrect();
           break;
 
         case 'ROUND3_PAIR_DRAWN':
@@ -347,14 +681,28 @@ export default function LiveScreenHost() {
 
         case 'WINNERS_ANNOUNCED':
           setWinners(event.payload.winners || []);
+          setFinishedViewMode('PODIUM');
+          setIsPreview3Rounds(false);
           if (soundEnabled) liveSound.playGrandFanfare();
           try {
             confetti({
-              particleCount: 150,
+              particleCount: 160,
               spread: 100,
               origin: { y: 0.6 },
             });
           } catch (e) {}
+          break;
+
+        case 'FINISH_VIEW_MODE_CHANGED':
+          if (event.payload?.viewMode === 'BOARD') {
+            setFinishedViewMode('BOARD');
+          } else {
+            setFinishedViewMode('PODIUM');
+            if (soundEnabled) liveSound.playGrandFanfare();
+            try {
+              confetti({ particleCount: 160, spread: 100, origin: { y: 0.6 } });
+            } catch (e) {}
+          }
           break;
 
         default:
@@ -394,14 +742,53 @@ export default function LiveScreenHost() {
     return () => clearInterval(interval);
   }, [timerRunning, soundEnabled, session?.id, session?.currentQuestionIndex, round1State]);
 
-  // Round 2 10-minute timer ticker
+  // Round 2 10-minute timer ticker synchronized with server epoch
   useEffect(() => {
-    if (!round2TimerRunning || round2Timer <= 0) return;
+    if (!round2TimerRunning || !r2TargetEndTimeRef.current) return;
     const interval = setInterval(() => {
-      setRound2Timer((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+      const remaining = Math.max(0, Math.ceil((r2TargetEndTimeRef.current! - Date.now()) / 1000));
+      setRound2Timer(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        setRound2TimerRunning(false);
+        r2TargetEndTimeRef.current = null;
+        setR2ViewMode('TIME_UP');
+        if (soundEnabled) liveSound.playBuzzer();
+      }
+    }, 250);
     return () => clearInterval(interval);
-  }, [round2TimerRunning, round2Timer]);
+  }, [round2TimerRunning, soundEnabled]);
+
+  // Round 3 Duel countdown ticker synchronized with server epoch
+  useEffect(() => {
+    if (!round3DuelTimerRunning || !r3DuelTargetEndTimeRef.current) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((r3DuelTargetEndTimeRef.current! - Date.now()) / 1000));
+      setRound3DuelTimer(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        setRound3DuelTimerRunning(false);
+        r3DuelTargetEndTimeRef.current = null;
+        setRound3DuelTimeUp(true);
+        if (soundEnabled) liveSound.playBuzzer();
+      } else if (remaining <= 10 && soundEnabled) {
+        liveSound.playUrgentCountdown(remaining);
+      } else if (remaining <= 15 && soundEnabled) {
+        liveSound.playTick();
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [round3DuelTimerRunning, soundEnabled]);
+
+  // Round 3 Overtime ticker
+  useEffect(() => {
+    if (!round3OvertimeRunning || !r3OvertimeTargetStartRef.current) return;
+    const interval = setInterval(() => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - r3OvertimeTargetStartRef.current!) / 1000));
+      setRound3OvertimeSeconds(elapsed);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [round3OvertimeRunning]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -1521,26 +1908,46 @@ export default function LiveScreenHost() {
                               </div>
                             </div>
 
-                            <div className="text-right shrink-0 ml-2">
-                              <div className="flex items-center justify-end gap-1">
+                            <div className="text-right shrink-0 ml-2 flex flex-col items-end gap-1">
+                              {/* Điểm số của câu hỏi */}
+                              <div className="flex items-center justify-end">
                                 {ans ? (
                                   isCorrect ? (
-                                    <span className="text-xs lg:text-sm font-black text-emerald-700 flex items-center gap-0.5 bg-emerald-100/90 px-2 py-0.5 rounded-lg border border-emerald-300">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                      +{ans?.scoreAwarded ?? 0}đ
+                                    <span className="text-xs sm:text-sm font-black text-white flex items-center gap-1 bg-emerald-600 px-2.5 py-0.5 rounded-lg shadow-sm border border-emerald-500">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                                      +{formatScore(ans?.scoreAwarded)}đ
+                                    </span>
+                                  ) : (ans?.scoreAwarded ?? 0) < 0 ? (
+                                    <span className="text-xs sm:text-sm font-black text-white flex items-center gap-1 bg-rose-600 px-2.5 py-0.5 rounded-lg shadow-sm border border-rose-500 animate-pulse">
+                                      <XCircle className="w-3.5 h-3.5 text-white" />
+                                      {formatScore(ans?.scoreAwarded)}đ
                                     </span>
                                   ) : (
-                                    <span className="text-xs lg:text-sm font-black text-rose-600 flex items-center gap-0.5 bg-rose-100/90 px-2 py-0.5 rounded-lg border border-rose-200">
-                                      <XCircle className="w-3.5 h-3.5 text-rose-500" />
-                                      {ans?.scoreAwarded ?? 0}đ
+                                    <span className="text-xs sm:text-sm font-black text-rose-700 flex items-center gap-1 bg-rose-100 px-2.5 py-0.5 rounded-lg border border-rose-300">
+                                      <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                      0đ
                                     </span>
                                   )
                                 ) : (
-                                  <span className="text-xs text-slate-400">0đ</span>
+                                  <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                                    0đ
+                                  </span>
                                 )}
                               </div>
-                              <div className="text-xs text-slate-400 font-mono font-bold mt-1">
-                                {ans?.responseTimeMs ? `${(ans.responseTimeMs / 1000).toFixed(1)}s` : '—'}
+
+                              {/* Thời gian chọn đáp án (Badge xanh dương sky nổi bật, tách biệt hoàn toàn với màu điểm) */}
+                              <div className="flex items-center justify-end">
+                                {ans?.responseTimeMs ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-100 text-sky-900 border border-sky-300 font-mono font-black text-[11px] sm:text-xs shadow-2xs">
+                                    <Timer className="w-3 h-3 text-sky-700 shrink-0" />
+                                    {(ans.responseTimeMs / 1000).toFixed(1)}s
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-400 border border-slate-200 font-mono text-[11px] sm:text-xs">
+                                    <Timer className="w-3 h-3 text-slate-400 shrink-0" />
+                                    —
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1817,19 +2224,19 @@ export default function LiveScreenHost() {
                               {/* Điểm tích lũy to rõ ràng cho màn hình LED lớn hội trường */}
                               {rank === 1 ? (
                                 <span className="text-2xl lg:text-3xl font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 px-4 py-1.5 rounded-2xl border-2 border-amber-500 font-mono min-w-[84px] text-center shadow-md ring-2 ring-yellow-200">
-                                  {p.totalScore ?? p.round1Score}đ
+                                  {formatScore(p.totalScore ?? p.round1Score)}đ
                                 </span>
                               ) : rank === 2 ? (
                                 <span className="text-xl lg:text-2xl font-black text-sky-950 bg-gradient-to-r from-sky-100 to-blue-100 px-4 py-1.5 rounded-xl border-2 border-sky-300 font-mono min-w-[76px] text-center shadow-sm ring-1 ring-sky-200">
-                                  {p.totalScore ?? p.round1Score}đ
+                                  {formatScore(p.totalScore ?? p.round1Score)}đ
                                 </span>
                               ) : rank === 3 ? (
                                 <span className="text-xl lg:text-2xl font-black text-amber-950 bg-gradient-to-r from-amber-100 to-orange-100 px-4 py-1.5 rounded-xl border-2 border-amber-400/80 font-mono min-w-[76px] text-center shadow-sm ring-1 ring-amber-200">
-                                  {p.totalScore ?? p.round1Score}đ
+                                  {formatScore(p.totalScore ?? p.round1Score)}đ
                                 </span>
                               ) : (
                                 <span className="text-xl lg:text-2xl font-black text-amber-700 bg-amber-100/90 px-4 py-1 rounded-xl border border-amber-300/80 font-mono min-w-[70px] text-center shadow-xs">
-                                  {p.totalScore ?? p.round1Score}đ
+                                  {formatScore(p.totalScore ?? p.round1Score)}đ
                                 </span>
                               )}
                             </div>
@@ -1844,174 +2251,932 @@ export default function LiveScreenHost() {
           </div>
         )}
 
-        {/* 3. ROUND 2 VIEW: Nhạy bén (10 phút) */}
+        {/* 3. ROUND 2 VIEW: Nhạy bén (Mã đề, Block thi & Điểm 10 phút) */}
         {!isFinalView && session?.status === 'ROUND2' && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 text-xs font-bold uppercase tracking-wider mb-1 shadow-xs">
-                <Zap className="w-3.5 h-3.5 text-amber-600" /> THAO TÁC TRÊN PHẦN MỀM QUẢN LÝ ĐOÀN VIÊN
+            {/* Header Stage Round 2 (Đồng bộ nổi bật & hoành tráng như Vòng 1 Thông thái) */}
+            <div className="text-center max-w-4xl mx-auto mb-2">
+              <div className="inline-flex items-center gap-3 px-7 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-yellow-200 text-base sm:text-lg lg:text-xl font-black uppercase tracking-wider sm:tracking-widest shadow-2xl ring-4 ring-yellow-400/40 mb-3 animate-pulse">
+                <Sparkles className="w-5 h-5 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
+                VÒNG 2: BÍ THƯ ĐOÀN CƠ SỞ – NHẠY BÉN
               </div>
-              <h2 className="text-3xl font-black text-slate-900 uppercase">VÒNG 2: NHẠY BÉN (10 PHÚT)</h2>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight uppercase drop-shadow-md">
+                THỰC HÀNH NGHIỆP VỤ TRÊN PHẦN MỀM QUẢN LÝ ĐOÀN VIÊN (YUM)
+              </h2>
+              <p className="text-sm sm:text-base lg:text-lg font-bold text-amber-300 mt-2.5 max-w-3xl mx-auto flex items-center justify-center gap-2.5">
+                <Timer className="w-5 h-5 text-amber-400 shrink-0" /> Thời gian làm bài: 10 phút • Mỗi bộ đề gồm 02 câu hỏi tình huống nghiệp vụ
+              </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-6 max-w-6xl mx-auto">
-              {/* Contestant Card */}
-              <div className="bg-white border-2 border-amber-400 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
-                <div>
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-                    THÍ SINH THỰC HIỆN BÀI THI:
-                  </div>
-                  <div className="w-24 h-24 rounded-2xl bg-slate-100 border-2 border-amber-400 flex items-center justify-center text-3xl font-black text-blue-700 mx-auto mb-4 overflow-hidden shadow-md">
-                    {activePlayerRound2?.avatarUrl ? (
-                      <img src={activePlayerRound2.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      activePlayerRound2?.fullName?.charAt(0) || '?'
-                    )}
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-xl font-black text-slate-900">{activePlayerRound2?.fullName || 'Đang chọn thí sinh'}</h3>
-                    <p className="text-xs font-semibold text-slate-600 mt-1">{activePlayerRound2?.unit}</p>
-                  </div>
-                </div>
+            {/* CHẾ ĐỘ 1: CHỌN MÃ ĐỀ (SELECTING) */}
+            {r2ViewMode === 'SELECTING' && (
+              <div className="space-y-6 max-w-6xl mx-auto">
+                {/* Spotlight Thí sinh đang chọn đề */}
+                {(() => {
+                  const rawCandidate = r2CandidateSelecting || activePlayerRound2;
+                  const candidateLive = rawCandidate ? session?.players?.find((p) => p.id === rawCandidate.id) || rawCandidate : null;
+                  const candidate = candidateLive && (!candidateLive.round2Score || Number(candidateLive.round2Score) === 0) ? candidateLive : null;
+                  const topicCode = candidate ? (r2CandidateTopicCode || candidate.round2DrawCode) : null;
+                  const lastWord = candidate?.fullName ? candidate.fullName.trim().split(/\s+/).slice(-1)[0] : '';
+                  const initialChar = lastWord.charAt(0).toUpperCase() || '?';
 
-                <div className="mt-6 pt-4 border-t border-slate-200 text-center">
-                  <div className="text-xs text-slate-500 font-semibold">Mã đề bốc thăm:</div>
-                  <div className="text-2xl font-black text-blue-700 mt-1">
-                    {selectedTopic?.code || activePlayerRound2?.round2DrawCode || 'Chưa bốc thăm'}
-                  </div>
-                </div>
-              </div>
+                  return (
+                    <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border-2 border-amber-400 rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-              {/* Scenarios Content */}
-              <div className="col-span-2 space-y-4">
-                {/* 10:00 Timer Header */}
-                <div className="bg-white border-2 border-amber-400 rounded-2xl p-4 flex items-center justify-between shadow-md">
-                  <div className="flex items-center gap-3">
-                    <Timer className="w-6 h-6 text-amber-500" />
-                    <span className="text-sm font-bold text-slate-800">Thời gian làm bài 10 phút:</span>
-                  </div>
-                  <div className="text-2xl font-black text-amber-600 font-mono">
-                    {String(Math.floor(round2Timer / 60)).padStart(2, '0')}:
-                    {String(round2Timer % 60).padStart(2, '0')}
-                  </div>
-                </div>
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                        {/* Thông tin thí sinh: Định danh bằng Avatar + Tên đầy đủ */}
+                        <div className="flex items-center gap-5">
+                          <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-white/10 border-2 border-amber-400 flex items-center justify-center text-4xl font-black text-amber-300 overflow-hidden shadow-lg shrink-0">
+                            {candidate?.avatarUrl ? (
+                              <img src={candidate.avatarUrl} alt={candidate.fullName} className="w-full h-full object-cover" />
+                            ) : (
+                              <span>{initialChar}</span>
+                            )}
+                          </div>
+                          <div className="space-y-3">
+                            <div className="text-xs sm:text-sm font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                              THÍ SINH BỐC THĂM MÃ ĐỀ:
+                            </div>
+                            <h3 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-wide leading-tight">
+                              {candidate ? (
+                                candidate.fullName
+                              ) : (
+                                <span className="text-slate-400 italic text-xl">MC đang mời thí sinh lên chọn đề...</span>
+                              )}
+                            </h3>
+                          </div>
+                        </div>
 
-                {!isTopicQuestionRevealed ? (
-                  <div className="bg-white border-2 border-amber-300 rounded-3xl p-8 text-center space-y-4 shadow-xl">
-                    <div className="w-16 h-16 rounded-2xl bg-amber-50 border-2 border-amber-400 flex items-center justify-center mx-auto text-amber-600 shadow-md">
-                      <Zap className="w-8 h-8 animate-pulse" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-black text-amber-600 uppercase tracking-widest mb-1">
-                        KẾT QUẢ BỐC THĂM ĐỀ THI
+                        {/* Ô Mã Đề Thí Sinh Đã Chọn / Chờ Chọn */}
+                        <div className="text-center shrink-0">
+                          <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                            MÃ ĐỀ ĐÃ CHỌN:
+                          </div>
+                          {topicCode ? (
+                            <div className="px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-3xl shadow-xl ring-4 ring-amber-300 animate-scaleUp border border-yellow-200 tracking-wider">
+                              {topicCode}
+                            </div>
+                          ) : (
+                            <div className="px-8 py-4 rounded-2xl bg-white/10 border-2 border-dashed border-amber-400/80 text-amber-300 font-black text-xl animate-pulse tracking-wide">
+                              [ CHỜ CHỌN MÃ ĐỀ ❓ ]
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <h4 className="text-2xl font-black text-slate-900 uppercase">
-                        THÍ SINH: <span className="text-blue-700">{activePlayerRound2?.fullName || 'CHƯA CHỌN'}</span> - {selectedTopic?.code || activePlayerRound2?.round2DrawCode || 'CHƯA BỐC ĐỀ'}
+                    </div>
+                  );
+                })()}
+
+                {/* Lưới 10 Mã Đề (Bộ đề 01 đến 10) */}
+                <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-amber-500" />
+                      <h4 className="text-base font-black text-slate-900 uppercase">
+                        BẢNG 10 MÃ ĐỀ THỰC HÀNH CỦA HỘI THI
                       </h4>
-                      <p className="text-xs text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
-                        Thí sinh chuẩn bị đăng nhập phần mềm Quản lý đoàn viên trên máy tính dự thi. Ban Tổ chức sẽ kích hoạt hiển thị 02 tình huống chi tiết khi phát lệnh bắt đầu 10 phút làm bài.
-                      </p>
                     </div>
+                    <span className="text-xs font-bold text-slate-500">
+                      * Mỗi mã đề chỉ được chọn 1 lần duy nhất trong Hội thi
+                    </span>
                   </div>
-                ) : (
-                  <>
-                    {/* Scenario 1 */}
-                    <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-md animate-fadeIn">
-                      <div className="text-xs font-black text-blue-700 uppercase tracking-wider mb-2 flex items-center justify-between">
-                        <span>TÌNH HUỐNG 01</span>
-                        <span className="text-amber-600 font-black">Tối đa {selectedTopic?.maxScore1 || 20} điểm</span>
-                      </div>
-                      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-line font-medium">
-                        {selectedTopic?.scenario1 || 'Nội dung tình huống 1...'}
-                      </p>
-                    </div>
 
-                    {/* Scenario 2 */}
-                    <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-md animate-fadeIn">
-                      <div className="text-xs font-black text-blue-700 uppercase tracking-wider mb-2 flex items-center justify-between">
-                        <span>TÌNH HUỐNG 02</span>
-                        <span className="text-amber-600 font-black">Tối đa {selectedTopic?.maxScore2 || 20} điểm</span>
-                      </div>
-                      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-line font-medium">
-                        {selectedTopic?.scenario2 || 'Nội dung tình huống 2...'}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+                    {(round2Topics && round2Topics.length > 0
+                      ? round2Topics
+                      : Array.from({ length: 10 }, (_, i) => ({
+                          id: i + 1,
+                          sessionId: session?.id || 0,
+                          code: `BỘ ĐỀ ${String(i + 1).padStart(2, '0')}`,
+                          scenario1: '',
+                          scenario2: '',
+                          maxScore1: 20,
+                          maxScore2: 20,
+                        }))
+                    ).map((topic) => {
+                      const code = topic.code;
+                      const chosenPlayer = session?.players?.find((p) => p.round2DrawCode === code);
+                      const isChosen = Boolean(chosenPlayer);
+                      const isCurrentCandidateCode = (r2CandidateTopicCode === code) || (activePlayerRound2?.round2DrawCode === code);
+                      const playerLastWord = chosenPlayer?.fullName ? chosenPlayer.fullName.trim().split(/\s+/).slice(-1)[0] : '';
+                      const playerInitialChar = playerLastWord.charAt(0).toUpperCase() || '?';
 
-        {/* 4. ROUND 3 VIEW: Bản lĩnh (Live Random Pairing Roulette & Debate) */}
-        {!isFinalView && session?.status === 'ROUND3' && (
-          <div className="space-y-6 animate-fadeIn">
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-blue-100 border border-blue-300 text-blue-800 text-xs font-bold uppercase tracking-wider mb-1 shadow-xs">
-                <Users className="w-3.5 h-3.5 text-blue-600" /> BỐC THĂM GHÉP CẶP NGẪU NHIÊN TRỰC TIẾP
-              </div>
-              <h2 className="text-3xl font-black text-slate-900 uppercase">VÒNG 3: BẢN LĨNH (TRANH BIỆN ĐỐI KHÁNG)</h2>
-            </div>
+                      return (
+                        <div
+                          key={code}
+                          className={`p-3.5 rounded-2xl border-2 text-center transition-all flex flex-col justify-between min-h-[128px] relative ${
+                            isCurrentCandidateCode
+                              ? 'bg-gradient-to-b from-amber-100 via-yellow-100 to-amber-200 border-amber-500 ring-4 ring-amber-400 shadow-xl scale-[1.03] animate-pulse'
+                              : isChosen
+                              ? 'bg-gradient-to-b from-blue-50/70 via-white to-indigo-50/50 border-blue-400 shadow-md ring-2 ring-blue-300/40'
+                              : 'bg-gradient-to-b from-white to-slate-50 border-slate-200 hover:border-blue-400 hover:shadow-md shadow-2xs text-slate-900'
+                          }`}
+                        >
+                          {/* Tên mã đề (Luôn nổi bật rõ ràng, không bị gạch ngang) */}
+                          <div className="flex items-center justify-between gap-1 border-b border-black/5 pb-1.5">
+                            <span className={`text-base font-black tracking-wide ${
+                              isCurrentCandidateCode
+                                ? 'text-amber-950 font-black'
+                                : isChosen
+                                ? 'text-blue-900 font-black'
+                                : 'text-slate-800 font-black'
+                            }`}>
+                              {code}
+                            </span>
+                            {isChosen && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-blue-100 text-blue-800 border border-blue-300">
+                                ĐÃ CHỌN
+                              </span>
+                            )}
+                          </div>
 
-            {/* Shuffling animation vs Final Pairs */}
-            {isShufflingPairs ? (
-              <div className="py-16 text-center animate-pulse">
-                <div className="w-24 h-24 rounded-full bg-blue-50 border-4 border-amber-400 flex items-center justify-center mx-auto mb-4 animate-spin shadow-lg">
-                  <Users className="w-12 h-12 text-blue-600" />
+                          {/* Định danh Thí sinh sở hữu mã đề: Chỉ cần Ảnh và Tên đầy đủ không bị khuất */}
+                          {isChosen && chosenPlayer ? (
+                            <div className="mt-2 w-full p-2 rounded-xl bg-white/95 border border-blue-200/90 shadow-2xs flex items-center gap-2 text-left">
+                              <div className="w-8 h-8 rounded-lg overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-700 text-white font-black text-xs flex items-center justify-center shrink-0 border border-blue-300 shadow-xs">
+                                {chosenPlayer.avatarUrl ? (
+                                  <img src={chosenPlayer.avatarUrl} alt={chosenPlayer.fullName} className="w-full h-full object-cover" />
+                                ) : (
+                                  playerInitialChar
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs sm:text-[13px] font-black text-slate-900 leading-snug break-words" title={chosenPlayer.fullName}>
+                                  {chosenPlayer.fullName}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="my-auto py-2">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 shadow-2xs">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                                SẴN SÀNG
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <h3 className="text-2xl font-black text-amber-600">ĐANG XÁO THẺ & GHÉP CẶP NGẪU NHIÊN...</h3>
-                <p className="text-sm text-slate-600 mt-2">Hội trường cùng chứng kiến kết quả bốc thăm trực tiếp trên sân khấu</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-5 gap-4">
-                {round3Pairs.length > 0 ? (
-                  round3Pairs.map((pair) => (
-                    <div
-                      key={pair.pairNumber}
-                      className="bg-white border-2 border-blue-200 rounded-2xl p-4 flex flex-col justify-between shadow-xl"
-                    >
-                      <div className="text-center pb-2 border-b border-slate-100">
-                        <span className="px-3 py-1 rounded-full bg-blue-100 border border-blue-300 text-blue-800 font-black text-xs">
-                          CẶP {pair.pairNumber}
+
+                {/* Danh sách các thí sinh đã chọn đề trong lượt này (chuẩn bị thi) */}
+                {(() => {
+                  const activeReadyBatchPlayers = r2CurrentBatchPlayers
+                    .map((bp) => session?.players?.find((p) => p.id === bp.id) || bp)
+                    .filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0));
+
+                  if (activeReadyBatchPlayers.length === 0) return null;
+
+                  return (
+                    <div className="bg-white border-2 border-emerald-400 rounded-3xl p-5 shadow-lg space-y-3 animate-fadeIn">
+                      <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
+                        <span className="text-xs font-black text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                          <Users className="w-4 h-4 text-emerald-600" /> CÁC THÍ SINH SẴN SÀNG THI TRONG ĐỢT NÀY ({activeReadyBatchPlayers.length} THÍ SINH):
+                        </span>
+                        <span className="text-[11px] font-bold text-emerald-600">
+                          Chờ hiệu lệnh bắt đầu thi từ MC & Ban Tổ chức
                         </span>
                       </div>
 
-                      {/* Player 1 */}
-                      <div className="py-3 text-center">
-                        <div className="w-14 h-14 rounded-2xl bg-blue-50 border-2 border-blue-500 mx-auto flex items-center justify-center overflow-hidden mb-1.5 shadow-md">
-                          {pair.player1?.avatarUrl ? (
-                            <img src={pair.player1.avatarUrl} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xl font-black text-blue-700">
-                              {pair.player1?.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '1'}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs font-bold text-slate-900 line-clamp-1">{pair.player1?.fullName}</div>
-                        <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{pair.player1?.unit}</div>
-                      </div>
+                      <div className="flex flex-wrap items-center gap-3.5">
+                        {activeReadyBatchPlayers.map((p) => {
+                          const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
+                          const initialChar = lastWord.charAt(0).toUpperCase() || '?';
 
-                      <div className="text-center font-black text-red-600 text-xs italic">VS</div>
-
-                      {/* Player 2 */}
-                      <div className="py-3 text-center">
-                        <div className="w-14 h-14 rounded-2xl bg-red-50 border-2 border-red-500 mx-auto flex items-center justify-center overflow-hidden mb-1.5 shadow-md">
-                          {pair.player2?.avatarUrl ? (
-                            <img src={pair.player2.avatarUrl} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xl font-black text-red-700">
-                              {pair.player2?.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '2'}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs font-bold text-slate-900 line-clamp-1">{pair.player2?.fullName}</div>
-                        <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{pair.player2?.unit}</div>
+                          return (
+                            <div
+                              key={p.id}
+                              className="p-3.5 px-4 rounded-2xl bg-emerald-50/70 border border-emerald-300 flex items-center justify-between shadow-xs gap-4 min-w-[280px]"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-400 flex items-center justify-center text-white font-black text-base shrink-0 overflow-hidden shadow-xs">
+                                  {p.avatarUrl ? (
+                                    <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    initialChar
+                                  )}
+                                </div>
+                                <span className="text-sm sm:text-base font-black text-slate-900 whitespace-nowrap">
+                                  {p.fullName}
+                                </span>
+                              </div>
+                              <span className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs shrink-0 border border-amber-300 shadow-2xs">
+                                {p.round2DrawCode}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* CHẾ ĐỘ 2: ĐANG THI 10 PHÚT (EXAM_RUNNING) */}
+            {r2ViewMode === 'EXAM_RUNNING' && (
+              <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
+                {/* Đồng hồ đếm ngược 10 phút cực lớn */}
+                <div className="bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 border-4 border-amber-400 rounded-3xl p-8 text-center text-white shadow-2xl relative overflow-hidden">
+                  <div className="absolute inset-0 bg-blue-500/10 pointer-events-none"></div>
+
+                  <div className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
+                    <Timer className="w-5 h-5 text-amber-400 animate-spin" /> THỜI GIAN THỰC HÀNH LÀM BÀI TRÊN PHẦN MỀM (YUM)
+                  </div>
+
+                  <div className={`text-7xl md:text-8xl font-black font-mono tracking-tight my-4 ${round2Timer <= 60 ? 'text-rose-500 animate-pulse' : 'text-amber-400'}`}>
+                    {String(Math.floor(round2Timer / 60)).padStart(2, '0')}:
+                    {String(round2Timer % 60).padStart(2, '0')}
+                  </div>
+
+                  <p className="text-sm text-sky-200 max-w-md mx-auto">
+                    Các thí sinh đang thực hành 02 tình huống nghiệp vụ trên máy tính dự thi. Màn hình điện thoại hiển thị toàn văn câu hỏi.
+                  </p>
+                </div>
+
+                {/* Danh sách các thí sinh đang thi */}
+                <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-xl space-y-4">
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider text-center">
+                    CÁC THÍ SINH ĐANG THỰC HIỆN BÀI THI TRONG ĐỢT:
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {r2CurrentBatchPlayers.map((p) => {
+                      const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
+                      const initialChar = lastWord.charAt(0).toUpperCase() || '?';
+                      return (
+                        <div
+                          key={p.id}
+                          className="p-4 rounded-2xl bg-gradient-to-b from-slate-50 to-blue-50/40 border-2 border-blue-300 shadow-md flex items-center gap-3.5"
+                        >
+                          <div className="w-14 h-14 rounded-2xl bg-blue-100 border-2 border-blue-500 flex items-center justify-center text-xl font-black text-blue-800 overflow-hidden shrink-0 shadow-sm">
+                            {p.avatarUrl ? (
+                              <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              initialChar
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-base font-black text-slate-900 truncate">{p.fullName}</div>
+                            <div className="text-xs font-black text-blue-700 mt-0.5">{p.round2DrawCode}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CHẾ ĐỘ 3: HẾT GIỜ (TIME_UP) */}
+            {r2ViewMode === 'TIME_UP' && (
+              <div className="max-w-4xl mx-auto text-center space-y-6 animate-scaleUp">
+                <div className="bg-gradient-to-b from-rose-900 via-rose-950 to-slate-900 border-4 border-rose-500 rounded-3xl p-10 text-white shadow-2xl space-y-4">
+                  <div className="w-20 h-20 rounded-full bg-rose-500/20 border-2 border-rose-400 flex items-center justify-center mx-auto text-rose-400 shadow-lg">
+                    <XCircle className="w-12 h-12" />
+                  </div>
+                  <h3 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tight">
+                    HẾT GIỜ LÀM BÀI!
+                  </h3>
+                  <p className="text-base text-rose-200 max-w-lg mx-auto leading-relaxed">
+                    Đã hết 10 phút thời gian làm bài. Kính mời các thí sinh dừng mọi thao tác. Ban Giám khảo tiến hành chấm điểm các phần thi thực hành.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* CHẾ ĐỘ 4: BẢNG XẾP HẠNG ĐIỂM CHÍNH THỨC VÒNG 2 (LEADERBOARD) */}
+            {r2ViewMode === 'LEADERBOARD' && (
+              <div className="space-y-6 max-w-6xl mx-auto animate-fadeIn">
+                <div className="bg-white border-2 border-amber-400 rounded-3xl p-6 shadow-2xl space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <Trophy className="w-6 h-6 text-amber-500 shrink-0" />
+                      <div>
+                        <h4 className="text-base sm:text-lg font-black text-slate-900 uppercase">
+                          BẢNG ĐIỂM CHÍNH THỨC VÒNG 2: NHẠY BÉN
+                        </h4>
+                        <div className="text-xs text-slate-500 font-medium">
+                          Thực hành nghiệp vụ trên phần mềm QLĐV • TH1 (max 20đ) • TH2 (max 20đ) • Tổng V2 (max 40đ)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BẢNG ĐIỂM VÒNG 2 (MÃ ĐỀ, TH1, TH2, TỔNG V2) */}
+                  <div className="overflow-x-auto animate-fadeIn">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-slate-500 font-black text-xs uppercase tracking-wider bg-slate-50/70">
+                          <th className="py-3 px-2 text-center w-16">Hạng</th>
+                          <th className="py-3 px-2 w-16">SBD</th>
+                          <th className="py-3 px-3">Họ và tên thí sinh</th>
+                          <th className="py-3 px-3">Đơn vị</th>
+                          <th className="py-3 px-3 text-center">Mã đề bốc thăm</th>
+                          <th className="py-3 px-3 text-center font-bold text-blue-700">Tình huống 1 (TH1)</th>
+                          <th className="py-3 px-3 text-center font-bold text-blue-700">Tình huống 2 (TH2)</th>
+                          <th className="py-3 px-4 text-right font-black text-amber-700">Tổng điểm Vòng 2</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {[...(session?.players || [])]
+                          .sort((a, b) => {
+                            const scoreA = Number(a.round2Score ?? 0);
+                            const scoreB = Number(b.round2Score ?? 0);
+                            if (scoreB !== scoreA) return scoreB - scoreA;
+                            const timeA = a.round1TotalTimeMs ?? 999999;
+                            const timeB = b.round1TotalTimeMs ?? 999999;
+                            if (timeA !== timeB) return timeA - timeB;
+                            return (a.orderNumber ?? 0) - (b.orderNumber ?? 0);
+                          })
+                          .map((p, idx) => {
+                            const initialChar = p.fullName.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '?';
+                            const s1 = p.round2Scenario1Score ?? 0;
+                            const s2 = p.round2Scenario2Score ?? 0;
+                            const totalV2 = p.round2Score ?? (Number(s1) + Number(s2));
+
+                            return (
+                              <tr
+                                key={p.id}
+                                className={`transition-colors ${
+                                  idx === 0
+                                    ? 'bg-amber-50/80 font-bold'
+                                    : idx === 1
+                                    ? 'bg-slate-50/80'
+                                    : idx === 2
+                                    ? 'bg-amber-50/40'
+                                    : 'hover:bg-slate-50/50'
+                                }`}
+                              >
+                                <td className="py-3 px-2 text-center">
+                                  <span
+                                    className={`w-7 h-7 rounded-xl flex items-center justify-center mx-auto text-xs font-black ${
+                                      idx === 0
+                                        ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-300'
+                                        : idx === 1
+                                        ? 'bg-slate-300 text-slate-800'
+                                        : idx === 2
+                                        ? 'bg-amber-700 text-white'
+                                        : 'text-slate-600 font-bold'
+                                    }`}
+                                  >
+                                    {idx + 1}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-2 font-bold text-amber-600">
+                                  {String(p.orderNumber).padStart(2, '0')}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-blue-100 flex items-center justify-center font-black text-blue-700 text-xs shrink-0">
+                                      {p.avatarUrl ? (
+                                        <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                      ) : (
+                                        initialChar
+                                      )}
+                                    </div>
+                                    <span className="font-black text-slate-900 text-sm sm:text-base">{p.fullName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-xs text-slate-600">{p.unit}</td>
+                                <td className="py-3 px-3 text-center">
+                                  {p.round2DrawCode ? (
+                                    <span className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs shadow-2xs border border-amber-300">
+                                      {p.round2DrawCode}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs italic">Chưa bốc đề</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-center font-bold text-slate-800">
+                                  <span className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 font-bold">
+                                    {formatScore(s1)}đ
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-center font-bold text-slate-800">
+                                  <span className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 font-bold">
+                                    {formatScore(s2)}đ
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <span className="inline-block px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-100 to-green-100 border border-emerald-300 text-emerald-900 font-black text-base shadow-2xs">
+                                    {formatScore(totalV2)}đ
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 4. ROUND 3 VIEW: Bản lĩnh (Tổng quan 5 cặp đấu & Tiêu điểm cặp đấu đang thi) */}
+        {!isFinalView && session?.status === 'ROUND3' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* KIỂM TRA CHẾ ĐỘ: NẾU CÓ CẶP ĐANG ĐẤU THÌ HIỆN TIÊU ĐIỂM (DUEL FOCUS MODE) */}
+            {session.round3DuelState && session.round3DuelState.pairNumber ? (() => {
+              const duel = session.round3DuelState as any;
+              const activeSpeakerId = Number(duel.activePlayerId || 0);
+              const isP1Speaking = activeSpeakerId > 0 && activeSpeakerId === duel.player1?.id;
+              const isP2Speaking = activeSpeakerId > 0 && activeSpeakerId === duel.player2?.id;
+              const isPrepareStage = duel.stage === 'PREPARE';
+
+              return (
+                <div className="space-y-6 animate-scaleUp">
+                  {/* Header Tiêu điểm Cặp đấu */}
+                  <div className="text-center space-y-2">
+                    <div className="inline-flex items-center gap-2 px-5 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white text-xs md:text-sm font-black uppercase tracking-wider shadow-lg animate-pulse">
+                      <Swords className="w-4 h-4" />
+                      <span>TRANH TÀI ĐỐI KHÁNG TRỰC TIẾP • CẶP ĐẤU 0{duel.pairNumber}</span>
+                    </div>
+                    <h2 className="text-2xl md:text-4xl font-black text-white uppercase drop-shadow-md">
+                      {(() => {
+                        const stage = duel.stage;
+                        if (stage === 'STAGE_1_PREP') return 'CHUẨN BỊ PHƯƠNG ÁN';
+                        if (stage === 'STAGE_1_PRESENT') return 'ĐỀ XUẤT PHƯƠNG ÁN';
+                        if (stage === 'STAGE_2_QNA') return 'XỬ LÝ TÌNH HUỐNG';
+                        if (stage === 'STAGE_3_DEBATE') return 'TRANH LUẬN & PHẢN BIỆN';
+                        if (stage === 'PREPARE') return 'BAN GIÁM KHẢO CÔNG BỐ ĐỀ';
+                        const t = String(duel.stageTitle || '').toLowerCase();
+                        if (t.includes('chuẩn bị') || t.includes('prep')) return 'CHUẨN BỊ PHƯƠNG ÁN';
+                        if (t.includes('trình bày') || t.includes('đề xuất') || t.includes('present')) return 'ĐỀ XUẤT PHƯƠNG ÁN';
+                        if (t.includes('tình huống') || t.includes('qna')) return 'XỬ LÝ TÌNH HUỐNG';
+                        if (t.includes('tranh luận') || t.includes('phản biện') || t.includes('debate')) return 'TRANH LUẬN & PHẢN BIỆN';
+                        if (t.includes('công bố đề')) return 'BAN GIÁM KHẢO CÔNG BỐ ĐỀ';
+                        return duel.stageTitle || 'VÒNG 3: BẢN LĨNH';
+                      })()}
+                    </h2>
+                  </div>
+
+                  {/* Sân khấu 2 đấu thủ & Đồng hồ đếm ngược chính giữa */}
+                  <div className="bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-slate-900/90 border-2 border-amber-400/50 rounded-3xl p-6 md:p-10 shadow-[0_0_60px_rgba(245,158,11,0.25)] relative overflow-hidden backdrop-blur-md">
+                    {/* Background glowing light accents */}
+                    <div className="absolute top-1/2 left-1/4 -translate-y-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute top-1/2 right-1/4 -translate-y-1/2 translate-x-1/2 w-72 h-72 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                    <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                      {/* Đấu thủ 1 (Bên trái) */}
+                      <div className={`flex flex-col items-center text-center space-y-3 transition-all duration-300 ${
+                        isP1Speaking
+                          ? 'scale-105 z-10'
+                          : isP2Speaking
+                          ? 'opacity-70 scale-95'
+                          : ''
+                      }`}>
+                        {/* Speaker Highlight Badge */}
+                        {isP1Speaking && (
+                          <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black text-xs md:text-sm uppercase tracking-wider shadow-xl animate-bounce flex items-center gap-1.5 border border-amber-200">
+                            <span>🎤 ĐANG TRÌNH BÀY</span>
+                          </div>
+                        )}
+                        {isP2Speaking && (
+                          <div className="px-3 py-1 rounded-full bg-slate-800 text-slate-400 font-bold text-[11px] uppercase tracking-wider border border-slate-700">
+                            <span>LẮNG NGHE / PHẢN BIỆN</span>
+                          </div>
+                        )}
+
+                        <div className="relative">
+                          <div className={`rounded-full border-4 overflow-hidden bg-slate-800 flex items-center justify-center transition-all ${
+                            isP1Speaking
+                              ? 'w-36 h-36 md:w-52 md:h-52 border-yellow-300 ring-8 ring-amber-400 shadow-[0_0_60px_rgba(245,158,11,1),0_0_90px_rgba(234,179,8,0.8)] animate-pulse'
+                              : 'w-32 h-32 md:w-44 md:h-44 border-amber-300 ring-4 md:ring-8 ring-amber-500 shadow-[0_0_40px_rgba(245,158,11,0.7)]'
+                          }`}>
+                            {duel.player1?.avatarUrl ? (
+                              <img
+                                src={duel.player1.avatarUrl}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-4xl md:text-6xl font-black text-amber-300">
+                                {duel.player1?.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '1'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs shadow-md border border-amber-300">
+                            SBD {String(duel.player1?.orderNumber || 1).padStart(2, '0')}
+                          </span>
+                        </div>
+
+                        <div className="pt-2">
+                          <h3 className={`text-xl md:text-2xl font-black tracking-tight ${
+                            isP1Speaking ? 'text-yellow-300 scale-105' : 'text-amber-300'
+                          }`}>
+                            {duel.player1?.fullName || 'Thí sinh 1'}
+                          </h3>
+                          <p className="text-xs md:text-sm text-slate-300 mt-0.5">
+                            {duel.player1?.unit || 'Đơn vị dự thi'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Trung tâm: Kiếm chéo & Đồng hồ đếm ngược nổi bật + Đồng hồ phụ quá giờ */}
+                      <div className="flex flex-col items-center justify-center space-y-3 my-4 md:my-0">
+                        <div className="flex items-center justify-center">
+                          <Swords className="w-12 h-12 md:w-16 md:h-16 text-amber-400 drop-shadow-[0_0_20px_rgba(245,158,11,0.9)] animate-bounce" />
+                        </div>
+
+                        {/* Bộ đếm thời gian tròn to nổi bật */}
+                        <div
+                          className={`relative transition-all duration-300 flex flex-col items-center justify-center rounded-full select-none shadow-2xl ${
+                            round3DuelTimeUp
+                              ? 'w-36 h-36 md:w-44 md:h-44 bg-rose-600 border-4 border-yellow-300 text-white ring-8 ring-rose-400/50 scale-105 animate-pulse'
+                              : isPrepareStage
+                              ? 'w-36 h-36 md:w-44 md:h-44 bg-slate-900 border-4 border-amber-400 text-amber-300 ring-8 ring-amber-400/20'
+                              : round3DuelTimer <= 15
+                              ? 'w-36 h-36 md:w-44 md:h-44 bg-red-600 border-4 border-yellow-300 text-yellow-300 ring-8 ring-red-400/40 scale-110 animate-pulse'
+                              : 'w-32 h-32 md:w-40 md:h-40 bg-white/95 border-4 border-emerald-500 text-emerald-600 ring-4 ring-emerald-400/20'
+                          }`}
+                        >
+                          {round3DuelTimeUp ? (
+                            <div className="text-center">
+                              <div className="text-2xl md:text-3xl font-black text-yellow-300 tracking-wider">
+                                HẾT GIỜ!
+                              </div>
+                              <div className="text-[10px] font-bold text-white uppercase mt-0.5">
+                                Dừng phần thi
+                              </div>
+                            </div>
+                          ) : isPrepareStage ? (
+                            <div className="text-center p-2">
+                              <div className="text-xl md:text-2xl font-black text-amber-300 tracking-tight leading-tight">
+                                CHUẨN BỊ
+                              </div>
+                              <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase mt-1">
+                                BGK ĐỌC ĐỀ
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="text-3xl md:text-5xl font-mono font-black tracking-tight leading-none">
+                                {String(Math.floor(round3DuelTimer / 60)).padStart(2, '0')}:
+                                {String(round3DuelTimer % 60).padStart(2, '0')}
+                              </div>
+                              <div
+                                className={`text-[10px] font-black uppercase tracking-widest mt-1 ${
+                                  round3DuelTimer <= 15 ? 'text-yellow-300 animate-bounce' : 'text-slate-500'
+                                }`}
+                              >
+                                {round3DuelTimer <= 15 ? 'KHẨN TRƯƠNG!' : 'THỜI GIAN'}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* BỘ ĐẾM THỜI GIAN PHỤ (QUÁ GIỜ) TRÊN MÀN HÌNH LED */}
+                        {(round3OvertimeRunning || round3OvertimeSeconds > 0) && (
+                          <div className="flex flex-col items-center animate-scaleUp pt-1">
+                            <div className="px-4 py-2 rounded-2xl bg-rose-600 border-2 border-yellow-300 text-yellow-300 shadow-[0_0_30px_rgba(225,29,72,0.9)] flex items-center gap-2 font-mono font-black text-xl md:text-2xl animate-pulse">
+                              <AlertTriangle className="w-5 h-5 text-yellow-300" />
+                              <span>+{String(Math.floor(round3OvertimeSeconds / 60)).padStart(2, '0')}:{String(round3OvertimeSeconds % 60).padStart(2, '0')}</span>
+                            </div>
+                            <span className="text-[10px] md:text-xs font-black text-rose-300 uppercase tracking-widest mt-1">
+                              {round3OvertimeRunning ? '⚠️ ĐANG TÍNH QUÁ GIỜ' : 'CHỐT THỜI GIAN QUÁ GIỜ'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Đấu thủ 2 (Bên phải) */}
+                      <div className={`flex flex-col items-center text-center space-y-3 transition-all duration-300 ${
+                        isP2Speaking
+                          ? 'scale-105 z-10'
+                          : isP1Speaking
+                          ? 'opacity-70 scale-95'
+                          : ''
+                      }`}>
+                        {/* Speaker Highlight Badge */}
+                        {isP2Speaking && (
+                          <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 text-white font-black text-xs md:text-sm uppercase tracking-wider shadow-xl animate-bounce flex items-center gap-1.5 border border-rose-300">
+                            <span>🎤 ĐANG TRÌNH BÀY</span>
+                          </div>
+                        )}
+                        {isP1Speaking && (
+                          <div className="px-3 py-1 rounded-full bg-slate-800 text-slate-400 font-bold text-[11px] uppercase tracking-wider border border-slate-700">
+                            <span>LẮNG NGHE / PHẢN BIỆN</span>
+                          </div>
+                        )}
+
+                        <div className="relative">
+                          <div className={`rounded-full border-4 overflow-hidden bg-slate-800 flex items-center justify-center transition-all ${
+                            isP2Speaking
+                              ? 'w-36 h-36 md:w-52 md:h-52 border-yellow-300 ring-8 ring-rose-500 shadow-[0_0_60px_rgba(244,63,94,1),0_0_90px_rgba(225,29,72,0.8)] animate-pulse'
+                              : 'w-32 h-32 md:w-44 md:h-44 border-rose-300 ring-4 md:ring-8 ring-rose-500 shadow-[0_0_40px_rgba(244,63,94,0.7)]'
+                          }`}>
+                            {duel.player2?.avatarUrl ? (
+                              <img
+                                src={duel.player2.avatarUrl}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-4xl md:text-6xl font-black text-rose-300">
+                                {duel.player2?.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '2'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-rose-500 text-white font-black text-xs shadow-md border border-rose-300">
+                            SBD {String(duel.player2?.orderNumber || 2).padStart(2, '0')}
+                          </span>
+                        </div>
+
+                        <div className="pt-2">
+                          <h3 className={`text-xl md:text-2xl font-black tracking-tight ${
+                            isP2Speaking ? 'text-rose-300 scale-105' : 'text-rose-300'
+                          }`}>
+                            {duel.player2?.fullName || 'Thí sinh 2'}
+                          </h3>
+                          <p className="text-xs md:text-sm text-slate-300 mt-0.5">
+                            {duel.player2?.unit || 'Đơn vị dự thi'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : round3ViewMode === 'RULES' ? (
+              /* MÀN PHỔ BIẾN THỂ LỆ VÒNG 3: BẢN LĨNH (ĐỒNG BỘ VÒNG 1 VÀ VÒNG 2) */
+              <div className="space-y-6 animate-fadeIn py-2 max-w-7xl mx-auto w-full">
+                {/* Header Đồng bộ Vòng 1 & 2 */}
+                <div className="text-center max-w-4xl mx-auto mb-2">
+                  <div className="inline-flex items-center gap-3 px-7 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-yellow-200 text-base sm:text-lg lg:text-xl font-black uppercase tracking-wider sm:tracking-widest shadow-2xl ring-4 ring-yellow-400/40 mb-3 animate-pulse">
+                    <Sparkles className="w-5 h-5 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
+                    VÒNG 3: BÍ THƯ ĐOÀN CƠ SỞ – BẢN LĨNH
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black text-white tracking-tight uppercase drop-shadow-md">
+                    THỂ LỆ & QUY TẮC TRANH BIỆN ĐỐI KHÁNG
+                  </h2>
+                  <p className="text-sm sm:text-base lg:text-lg font-bold text-amber-300 mt-2.5 max-w-3xl mx-auto flex items-center justify-center gap-2.5">
+                    <Swords className="w-5 h-5 text-amber-400 shrink-0" /> 10 Thí sinh bốc thăm 05 cặp đấu trực tiếp • 03 Giai đoạn tranh tài • Thang điểm tối đa 100 điểm
+                  </p>
+                </div>
+
+                {/* 3 Thẻ thể lệ 3 giai đoạn đối kháng */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                  {/* Card 1: Giai đoạn 1 (07 Phút) */}
+                  <div className="bg-white rounded-3xl p-6 lg:p-7 border-2 border-amber-300 shadow-2xl relative overflow-hidden flex flex-col justify-between hover:border-amber-500 transition-all">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-bl-full -mr-8 -mt-8 pointer-events-none" />
+                    <div>
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-black shadow-lg shadow-amber-500/30 mb-4">
+                        <BookOpen className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="text-xs font-black text-amber-700 uppercase tracking-wider mb-1">
+                        PHẦN THI 1 • 07 PHÚT
+                      </div>
+                      <h3 className="text-xl lg:text-2xl font-black text-slate-900 uppercase">
+                        Đề xuất phương án
+                      </h3>
+                      <div className="mt-4 space-y-3 text-xs lg:text-sm text-slate-700 leading-relaxed">
+                        <div className="flex items-start gap-2.5 bg-amber-50/70 p-3 rounded-2xl border border-amber-200">
+                          <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <span><strong className="text-slate-900 font-bold">Chuẩn bị phương án (02 phút):</strong> Cả 02 thí sinh cùng tiếp nhận tình huống từ BGK và có 02 phút chuẩn bị phương án.</span>
+                        </div>
+                        <div className="flex items-start gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          <Users className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                          <span><strong className="text-slate-900 font-bold">Trình bày phương án (05 phút/thí sinh):</strong> Từng thí sinh lần lượt bước lên trình bày giải pháp trước Ban Giám khảo.</span>
+                        </div>
+                        <div className="flex items-start gap-2.5 bg-rose-50 p-3 rounded-2xl border border-rose-200 text-rose-900">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <span><strong className="font-bold">Trừ điểm quá giờ:</strong> Cứ vượt quá mỗi 15 giây trừ 05 điểm vào điểm tổng Vòng 3.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Giai đoạn 2 (03 Phút) */}
+                  <div className="bg-white rounded-3xl p-6 lg:p-7 border-2 border-purple-300 shadow-2xl relative overflow-hidden flex flex-col justify-between hover:border-purple-500 transition-all">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-full -mr-8 -mt-8 pointer-events-none" />
+                    <div>
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-lg shadow-purple-600/30 mb-4">
+                        <MessageSquare className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="text-xs font-black text-purple-700 uppercase tracking-wider mb-1">
+                        PHẦN THI 2 • 03 PHÚT
+                      </div>
+                      <h3 className="text-xl lg:text-2xl font-black text-slate-900 uppercase">
+                        Xử lý tình huống BGK
+                      </h3>
+                      <div className="mt-4 space-y-3 text-xs lg:text-sm text-slate-700 leading-relaxed">
+                        <div className="flex items-start gap-2.5 bg-purple-50/70 p-3 rounded-2xl border border-purple-200">
+                          <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                          <span><strong className="text-slate-900 font-bold">Phản biện từ BGK:</strong> Ban Giám khảo đặt câu hỏi kiểm tra chuyên môn và tính khả thi của giải pháp.</span>
+                        </div>
+                        <div className="flex items-start gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          <Timer className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                          <span><strong className="text-slate-900 font-bold">Thời gian:</strong> Mỗi thí sinh có tối đa <strong className="text-slate-900">03 phút (180 giây)</strong> độc lập để trả lời câu hỏi của BGK.</span>
+                        </div>
+                        <div className="flex items-start gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                          <span>Đánh giá tư duy nhạy bén, bản lĩnh xử lý tình huống thực tiễn và phong thái tự tin.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Giai đoạn 3 (01 Phút) */}
+                  <div className="bg-white rounded-3xl p-6 lg:p-7 border-2 border-rose-300 shadow-2xl relative overflow-hidden flex flex-col justify-between hover:border-rose-500 transition-all">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-bl-full -mr-8 -mt-8 pointer-events-none" />
+                    <div>
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-600 to-pink-600 text-white flex items-center justify-center font-black shadow-lg shadow-rose-600/30 mb-4">
+                        <Swords className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="text-xs font-black text-rose-700 uppercase tracking-wider mb-1">
+                        PHẦN THI 3 • 01 PHÚT
+                      </div>
+                      <h3 className="text-xl lg:text-2xl font-black text-slate-900 uppercase">
+                        Tranh biện đối chất
+                      </h3>
+                      <div className="mt-4 space-y-3 text-xs lg:text-sm text-slate-700 leading-relaxed">
+                        <div className="flex items-start gap-2.5 bg-rose-50/70 p-3 rounded-2xl border border-rose-200">
+                          <Zap className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <span><strong className="text-slate-900 font-bold">Đối kháng trực tiếp:</strong> 02 thí sinh trong cặp chất vấn, phản biện lẫn nhau về phương án giải quyết.</span>
+                        </div>
+                        <div className="flex items-start gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          <Clock className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <span><strong className="text-slate-900 font-bold">Thời gian:</strong> Mỗi thí sinh có tối đa <strong className="text-slate-900">01 phút (60 giây)</strong> để phản biện hoặc bảo vệ quan điểm.</span>
+                        </div>
+                        <div className="flex items-start gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                          <span>Đánh giá lập luận sắc bén, kỹ năng thuyết phục, văn hóa phản biện văn minh và bản lĩnh.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner tóm tắt thang điểm chân trang */}
+                <div className="max-w-6xl mx-auto bg-gradient-to-r from-amber-500/20 via-slate-900/90 to-amber-500/20 border-2 border-amber-400/60 rounded-2xl p-4 text-center backdrop-blur-md shadow-xl flex flex-col sm:flex-row items-center justify-around gap-4 text-white">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-yellow-300" />
+                    <span className="text-xs sm:text-sm font-bold">Thang điểm BGK: <strong className="text-yellow-300 text-base">Tối đa 100 điểm</strong></span>
+                  </div>
+                  <div className="h-4 w-px bg-white/20 hidden sm:block" />
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-rose-400" />
+                    <span className="text-xs sm:text-sm font-bold">Trừ thời gian quá giờ: <strong className="text-rose-300 text-base">Cứ 15s trừ 5 điểm</strong></span>
+                  </div>
+                  <div className="h-4 w-px bg-white/20 hidden sm:block" />
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    <span className="text-xs sm:text-sm font-bold">Tổng điểm Vòng 3 = <strong className="text-emerald-300 text-base">Điểm BGK - Điểm trừ</strong></span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* CHẾ ĐỘ TỔNG QUAN 5 CẶP ĐẤU (OVERVIEW MODE - VIỀN RỰC LỬA, CAO LỚN, CÂN ĐỐI) */
+              <div className="space-y-6 max-w-[1720px] mx-auto w-full">
+                {/* Header Đồng bộ Vòng 1 & Vòng 2 */}
+                <div className="text-center max-w-4xl mx-auto mb-2">
+                  <div className="inline-flex items-center gap-3 px-7 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-yellow-200 text-base sm:text-lg lg:text-xl font-black uppercase tracking-wider sm:tracking-widest shadow-2xl ring-4 ring-yellow-400/40 mb-3 animate-pulse">
+                    <Sparkles className="w-5 h-5 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
+                    VÒNG 3: BÍ THƯ ĐOÀN CƠ SỞ – BẢN LĨNH
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight uppercase drop-shadow-md">
+                    TRANH TÀI ĐỐI KHÁNG VÀ TRANH BIỆN TRỰC TIẾP TRÊN SÂN KHẤU
+                  </h2>
+                  <p className="text-sm sm:text-base lg:text-lg font-bold text-amber-300 mt-2.5 max-w-3xl mx-auto flex items-center justify-center gap-2.5">
+                    <Swords className="w-5 h-5 text-amber-400 shrink-0" /> 05 Cặp đấu đối kháng bốc thăm trực tiếp • Thí sinh sẵn sàng bước vào đấu trường
+                  </p>
+                </div>
+
+                {/* Shuffling animation vs Final Pairs */}
+                {isShufflingPairs ? (
+                  <div className="py-20 text-center animate-pulse">
+                    <div className="w-28 h-28 rounded-full bg-amber-500/20 border-4 border-yellow-300 flex items-center justify-center mx-auto mb-4 animate-spin shadow-2xl">
+                      <Swords className="w-14 h-14 text-yellow-300" />
+                    </div>
+                    <h3 className="text-3xl font-black text-yellow-300">ĐANG XÁO THẺ & GHÉP CẶP NGẪU NHIÊN...</h3>
+                    <p className="text-base text-sky-100 mt-2">
+                      Hội trường cùng chứng kiến kết quả bốc thăm trực tiếp trên sân khấu
+                    </p>
+                  </div>
                 ) : (
-                  <div className="col-span-5 text-center py-12 text-slate-500">
-                    Chờ Ban Tổ chức nhấn nút kích hoạt bốc thăm ghép cặp ngẫu nhiên...
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 lg:gap-6 items-stretch">
+                    {/* Render đủ 5 cặp (Mỗi cặp cao lớn, viền rực lửa, cân đối trên màn hình lớn) */}
+                    {[1, 2, 3, 4, 5].map((pairNum) => {
+                      const pair = round3DisplayPairs.find((p) => p.pairNumber === pairNum);
+                      const p1 = pair?.player1;
+                      const p2 = pair?.player2;
+                      const isAssigned = Boolean(p1 && p2);
+
+                      return (
+                        <div
+                          key={pairNum}
+                          className={`relative rounded-3xl p-5 lg:p-6 flex flex-col justify-between transition-all duration-500 min-h-[520px] lg:min-h-[580px] overflow-hidden ${
+                            isAssigned
+                              ? 'bg-gradient-to-b from-slate-900/95 via-indigo-950/90 to-slate-950/95 border-2 border-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.5),0_0_70px_rgba(234,179,8,0.25)] ring-4 ring-amber-400/30 scale-100 hover:scale-[1.02]'
+                              : 'bg-gradient-to-b from-slate-900/80 via-slate-950/80 to-slate-900/80 border-2 border-dashed border-amber-500/40 shadow-xl ring-2 ring-amber-500/10'
+                          }`}
+                        >
+                          {/* Dải viền lửa phát sáng trên đầu card */}
+                          {isAssigned && (
+                            <>
+                              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-amber-500 via-rose-500 to-yellow-400 shadow-[0_0_15px_rgba(245,158,11,0.9)]" />
+                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-44 h-44 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+                              <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-44 h-44 bg-rose-500/20 rounded-full blur-2xl pointer-events-none" />
+                            </>
+                          )}
+
+                          {/* Header Cặp Đấu */}
+                          <div className="text-center pb-3 border-b border-white/10 flex items-center justify-center relative z-10">
+                            <span
+                              className={`px-4 py-1.5 rounded-full font-black text-xs lg:text-sm tracking-wider uppercase shadow-lg flex items-center gap-1.5 ${
+                                isAssigned
+                                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white border border-yellow-300 ring-2 ring-amber-400/50 shadow-amber-500/40 animate-pulse'
+                                  : 'bg-slate-800 text-amber-300 border border-amber-500/30'
+                              }`}
+                            >
+                              <Flame className="w-4 h-4 text-yellow-300 fill-current" />
+                              <span>CẶP ĐẤU 0{pairNum}</span>
+                            </span>
+                          </div>
+
+                          {/* Thí sinh 1 (Bên trên - Màu vàng hổ phách) */}
+                          <div className="py-2 text-center flex flex-col items-center relative z-10 flex-1 justify-center">
+                            {p1 ? (
+                              <>
+                                <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-3xl border-2 border-amber-400 ring-4 ring-amber-500/60 shadow-[0_0_25px_rgba(245,158,11,0.7)] overflow-hidden bg-slate-800 flex items-center justify-center mb-2.5 transition-all">
+                                  {p1.avatarUrl ? (
+                                    <img src={p1.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-2xl lg:text-3xl font-black text-amber-300">
+                                      {p1.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '1'}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] lg:text-xs font-black text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-300 px-3 py-0.5 rounded-full border border-yellow-200 shadow-md mb-1.5">
+                                  SBD {String(p1.orderNumber).padStart(2, '0')}
+                                </span>
+                                <div className="text-sm lg:text-base font-black text-white line-clamp-1 drop-shadow-sm px-1">
+                                  {p1.fullName}
+                                </div>
+                                <div className="text-[11px] lg:text-xs text-amber-200/80 line-clamp-1 mt-0.5 font-medium px-1">
+                                  {p1.unit}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-3xl border-2 border-dashed border-amber-400/40 bg-slate-800/60 flex items-center justify-center text-amber-300/60 font-black text-3xl mb-2.5 shadow-inner">
+                                  ?
+                                </div>
+                                <div className="text-xs font-bold text-slate-400 italic">Chờ bốc thăm</div>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Biểu tượng Kiếm song đấu ở giữa (Vòng lửa rực cháy) */}
+                          <div className="py-2.5 flex items-center justify-center gap-2 relative z-10">
+                            <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent flex-1" />
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 border-2 border-yellow-300 flex items-center justify-center shadow-[0_0_25px_rgba(245,158,11,0.85)] ring-2 ring-amber-400/50">
+                              <Swords className="w-6 h-6 text-yellow-200 drop-shadow-[0_0_10px_rgba(255,255,255,0.9)] animate-bounce" />
+                            </div>
+                            <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent flex-1" />
+                          </div>
+
+                          {/* Thí sinh 2 (Bên dưới - Màu đỏ hồng rực rỡ) */}
+                          <div className="py-2 text-center flex flex-col items-center relative z-10 flex-1 justify-center">
+                            {p2 ? (
+                              <>
+                                <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-3xl border-2 border-rose-400 ring-4 ring-rose-500/60 shadow-[0_0_25px_rgba(244,63,94,0.7)] overflow-hidden bg-slate-800 flex items-center justify-center mb-2.5 transition-all">
+                                  {p2.avatarUrl ? (
+                                    <img src={p2.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-2xl lg:text-3xl font-black text-rose-300">
+                                      {p2.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '2'}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] lg:text-xs font-black text-white bg-gradient-to-r from-rose-500 to-pink-600 px-3 py-0.5 rounded-full border border-rose-300 shadow-md mb-1.5">
+                                  SBD {String(p2.orderNumber).padStart(2, '0')}
+                                </span>
+                                <div className="text-sm lg:text-base font-black text-white line-clamp-1 drop-shadow-sm px-1">
+                                  {p2.fullName}
+                                </div>
+                                <div className="text-[11px] lg:text-xs text-rose-200/80 line-clamp-1 mt-0.5 font-medium px-1">
+                                  {p2.unit}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-3xl border-2 border-dashed border-rose-400/40 bg-slate-800/60 flex items-center justify-center text-rose-300/60 font-black text-3xl mb-2.5 shadow-inner">
+                                  ?
+                                </div>
+                                <div className="text-xs font-bold text-slate-400 italic">Chờ bốc thăm</div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2036,7 +3201,7 @@ export default function LiveScreenHost() {
                   </h2>
                   <p className="text-xs text-slate-500 font-medium">
                     {finishedViewMode === 'PODIUM'
-                      ? 'Vinh danh: 01 Quán quân • 03 Giải Nhì • 06 Giải Ba'
+                      ? 'Vinh danh: Quán quân • Giải Nhì • Giải Ba'
                       : 'Tổng điểm tích lũy: Vòng 1 (Thông thái) + Vòng 2 (Nhạy bén) + Vòng 3 (Bản lĩnh)'}
                   </p>
                 </div>
@@ -2072,6 +3237,20 @@ export default function LiveScreenHost() {
                   <Crown className="w-4 h-4" />
                   <span>BỤC VINH DANH</span>
                 </button>
+
+                {(isPreviewFinished || isPreview3Rounds) && (
+                  <button
+                    onClick={() => {
+                      setIsPreview3Rounds(false);
+                      if (isPreviewFinished) setSearchParams({});
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 transition-all flex items-center gap-1"
+                    title="Đóng chế độ xem trước"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>ĐÓNG XEM TRƯỚC</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2206,26 +3385,6 @@ export default function LiveScreenHost() {
                                     👑 QUÁN QUÂN
                                   </span>
                                 )}
-                                {rank === 2 && (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs">
-                                    Á QUÂN
-                                  </span>
-                                )}
-                                {rank === 3 && (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-orange-100 text-amber-900 border border-orange-300 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs">
-                                    HẠNG BA
-                                  </span>
-                                )}
-                                {rank === 4 && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold uppercase tracking-wider shrink-0">
-                                    GIẢI NHÌ
-                                  </span>
-                                )}
-                                {rank >= 5 && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-medium uppercase tracking-wider shrink-0">
-                                    GIẢI BA
-                                  </span>
-                                )}
                               </div>
                               <div className="text-xs text-slate-600 font-medium truncate mt-0.5">
                                 {p.unit}
@@ -2233,29 +3392,26 @@ export default function LiveScreenHost() {
                             </div>
                           </div>
 
-                          {/* Cột giữa: 3 Hộp điểm 3 Vòng thi riêng biệt rõ ràng */}
-                          <div className="flex items-center gap-2 lg:gap-3 shrink-0 px-3 py-1 bg-slate-50/90 rounded-2xl border border-slate-200/90 shadow-inner">
-                            {/* Vòng 1: Thông thái */}
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200">
-                              <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">V1</span>
-                              <span className="font-mono font-black text-xs lg:text-sm text-blue-900">
-                                {p.round1Score ?? 0}đ
+                          {/* Cột giữa: 3 Cột điểm 3 Vòng thi thẳng hàng tăm tắp, chỉ hiện số, to rõ ràng */}
+                          <div className="grid grid-cols-3 gap-2 shrink-0 p-1 bg-slate-100/90 rounded-2xl border border-slate-200 shadow-inner w-[200px] sm:w-[230px]">
+                            {/* Vòng 1: Thông thái (Xanh dương) */}
+                            <div className="flex items-center justify-center py-1 px-1 rounded-xl bg-blue-50 border border-blue-200 shadow-2xs">
+                              <span className="font-mono font-black text-base lg:text-lg text-blue-700 tracking-tight leading-none">
+                                {formatScore(p.round1Score)}
                               </span>
                             </div>
 
-                            {/* Vòng 2: Nhạy bén */}
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200">
-                              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">V2</span>
-                              <span className="font-mono font-black text-xs lg:text-sm text-emerald-900">
-                                {p.round2Score ?? 0}đ
+                            {/* Vòng 2: Nhạy bén (Xanh lá) */}
+                            <div className="flex items-center justify-center py-1 px-1 rounded-xl bg-emerald-50 border border-emerald-200 shadow-2xs">
+                              <span className="font-mono font-black text-base lg:text-lg text-emerald-700 tracking-tight leading-none">
+                                {formatScore(p.round2Score)}
                               </span>
                             </div>
 
-                            {/* Vòng 3: Bản lĩnh */}
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-50 border border-purple-200">
-                              <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider">V3</span>
-                              <span className="font-mono font-black text-xs lg:text-sm text-purple-900">
-                                {p.round3Score ?? 0}đ
+                            {/* Vòng 3: Bản lĩnh (Tím) */}
+                            <div className="flex items-center justify-center py-1 px-1 rounded-xl bg-purple-50 border border-purple-200 shadow-2xs">
+                              <span className="font-mono font-black text-base lg:text-lg text-purple-700 tracking-tight leading-none">
+                                {formatScore(p.round3Score)}
                               </span>
                             </div>
                           </div>
@@ -2264,19 +3420,19 @@ export default function LiveScreenHost() {
                           <div className="flex items-center gap-2 shrink-0 justify-end min-w-[125px]">
                             {rank === 1 ? (
                               <span className="text-2xl lg:text-3xl font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 px-4 py-1.5 rounded-2xl border-2 border-amber-500 font-mono min-w-[84px] text-center shadow-md ring-2 ring-yellow-200">
-                                {p.totalScore}đ
+                                {formatScore(p.totalScore)}đ
                               </span>
                             ) : rank === 2 ? (
                               <span className="text-xl lg:text-2xl font-black text-sky-950 bg-gradient-to-r from-sky-100 to-blue-100 px-4 py-1.5 rounded-xl border-2 border-sky-300 font-mono min-w-[76px] text-center shadow-sm ring-1 ring-sky-200">
-                                {p.totalScore}đ
+                                {formatScore(p.totalScore)}đ
                               </span>
                             ) : rank === 3 ? (
                               <span className="text-xl lg:text-2xl font-black text-amber-950 bg-gradient-to-r from-amber-100 to-orange-100 px-4 py-1.5 rounded-xl border-2 border-amber-400/80 font-mono min-w-[76px] text-center shadow-sm ring-1 ring-amber-200">
-                                {p.totalScore}đ
+                                {formatScore(p.totalScore)}đ
                               </span>
                             ) : (
                               <span className="text-xl lg:text-2xl font-black text-amber-700 bg-amber-100/90 px-4 py-1 rounded-xl border border-amber-300/80 font-mono min-w-[70px] text-center shadow-xs">
-                                {p.totalScore}đ
+                                {formatScore(p.totalScore)}đ
                               </span>
                             )}
                           </div>
@@ -2301,8 +3457,8 @@ export default function LiveScreenHost() {
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-white via-sky-50 to-slate-100 border-2 border-sky-300 ring-4 ring-sky-200 text-3xl flex items-center justify-center mx-auto mb-2 shadow-sm">
                         🥈
                       </div>
-                      <div className="text-sm font-black text-sky-950 uppercase tracking-wider mb-3">
-                        03 GIẢI NHÌ • Á QUÂN
+                      <div className="text-base font-black text-sky-950 uppercase tracking-wider mb-4">
+                        GIẢI NHÌ
                       </div>
 
                       <div className="space-y-3 text-xs text-left">
@@ -2337,9 +3493,9 @@ export default function LiveScreenHost() {
                                   </div>
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <div className="font-black text-sky-950 text-base font-mono">{w.player.totalScore}đ</div>
+                                  <div className="font-black text-sky-950 text-base font-mono">{formatScore(w.player.totalScore)}đ</div>
                                   <div className="text-[9px] text-slate-500 font-mono mt-0.5">
-                                    V1:{w.player.round1Score} • V2:{w.player.round2Score} • V3:{w.player.round3Score}
+                                    V1: {formatScore(w.player.round1Score)} • V2: {formatScore(w.player.round2Score)} • V3: {formatScore(w.player.round3Score)}
                                   </div>
                                 </div>
                               </div>
@@ -2347,27 +3503,28 @@ export default function LiveScreenHost() {
                           })}
                       </div>
                     </div>
-
-                    <div className="mt-4 pt-3 border-t border-sky-200 text-center">
-                      <span className="text-[11px] font-black text-sky-800 uppercase tracking-wider">
-                        BẬC THỀM HẠNG 2 • BẠC
-                      </span>
-                    </div>
                   </div>
 
-                  {/* GIẢI NHẤT QUÁN QUÂN: Cột 2 (Chính giữa, cao nhất, nổi bật nhất) */}
-                  <div className="bg-gradient-to-b from-white via-amber-50/50 to-yellow-50/70 border-4 border-amber-400 rounded-3xl p-6 text-center shadow-2xl shadow-amber-500/25 ring-8 ring-amber-400/20 flex flex-col justify-between min-h-[550px] relative overflow-hidden scale-100 lg:scale-105 z-10 order-1 lg:order-2">
+                  {/* QUÁN QUÂN: Cột 2 (Chính giữa, cao nhất, nổi bật nhất) */}
+                  <div className="bg-gradient-to-b from-white via-amber-50/50 to-yellow-50/70 border-4 border-amber-400 rounded-3xl p-6 text-center shadow-2xl shadow-amber-500/25 ring-8 ring-amber-400/20 flex flex-col justify-between min-h-[560px] relative overflow-hidden scale-100 lg:scale-105 z-10 order-1 lg:order-2">
                     <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400" />
                     <div className="absolute top-0 right-0 w-44 h-44 bg-yellow-300/20 rounded-full blur-3xl pointer-events-none" />
 
                     <div>
+                      {/* Đỉnh bục vinh danh */}
+                      <div className="pt-2 pb-2 px-3 mb-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 border border-amber-500 shadow-md">
+                        <span className="text-[11px] sm:text-xs font-black text-slate-950 uppercase tracking-wide leading-relaxed block">
+                          ⭐ ĐẠI DIỆN TUỔI TRẺ TỈNH NGHỆ AN THAM DỰ HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI TOÀN QUỐC NĂM 2026 ⭐
+                        </span>
+                      </div>
+
                       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500 text-slate-950 font-black text-4xl flex items-center justify-center mx-auto mb-2 shadow-lg shadow-amber-500/30 ring-4 ring-yellow-200 animate-bounce">
                         👑
                       </div>
                       
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider mb-4 shadow-xs">
+                      <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-400 text-slate-950 text-sm font-black uppercase tracking-wider mb-4 shadow-sm">
                         <Trophy className="w-4 h-4 fill-slate-950" />
-                        QUÁN QUÂN • GIẢI NHẤT
+                        QUÁN QUÂN
                       </div>
 
                       {(() => {
@@ -2380,7 +3537,7 @@ export default function LiveScreenHost() {
                         const initialChar = lastWord.charAt(0).toUpperCase();
 
                         return (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {/* Avatar to hoành tráng */}
                             <div className="w-32 h-32 rounded-3xl bg-amber-50 border-4 border-amber-400 mx-auto overflow-hidden shadow-2xl shadow-amber-500/30 ring-4 ring-yellow-300/40">
                               {first.avatarUrl ? (
@@ -2392,28 +3549,22 @@ export default function LiveScreenHost() {
                               )}
                             </div>
 
-                            <h3 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight pt-2">
+                            <h3 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight pt-1">
                               {first.fullName}
                             </h3>
                             <p className="text-xs sm:text-sm font-bold text-slate-600">{first.unit}</p>
 
                             <div className="pt-2">
-                              <div className="text-4xl sm:text-5xl font-black text-amber-600 drop-shadow-xs font-mono">
-                                {first.totalScore} <span className="text-2xl font-extrabold">ĐIỂM</span>
+                              <div className="text-6xl sm:text-7xl font-black text-amber-600 drop-shadow-sm font-mono tracking-tight">
+                                {formatScore(first.totalScore)} <span className="text-2xl sm:text-3xl font-black text-amber-700">ĐIỂM</span>
                               </div>
                               <div className="mt-2 text-xs text-amber-900 bg-amber-100/90 py-1.5 px-4 rounded-xl border border-amber-300 inline-block font-mono font-bold shadow-2xs">
-                                V1: {first.round1Score}đ • V2: {first.round2Score}đ • V3: {first.round3Score}đ
+                                V1: {formatScore(first.round1Score)} • V2: {formatScore(first.round2Score)} • V3: {formatScore(first.round3Score)}
                               </div>
                             </div>
                           </div>
                         );
                       })()}
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-amber-200/80 text-center">
-                      <span className="text-xs font-black text-amber-700 uppercase tracking-widest">
-                        ⭐ ĐỈNH BỤC VINH QUANG 2026 ⭐
-                      </span>
                     </div>
                   </div>
 
@@ -2425,8 +3576,8 @@ export default function LiveScreenHost() {
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-100 via-orange-50 to-amber-200 border-2 border-amber-400 ring-4 ring-amber-200 text-3xl flex items-center justify-center mx-auto mb-2 shadow-sm">
                         🥉
                       </div>
-                      <div className="text-sm font-black text-amber-950 uppercase tracking-wider mb-3">
-                        06 GIẢI BA • ĐỒNG
+                      <div className="text-base font-black text-amber-950 uppercase tracking-wider mb-4">
+                        GIẢI BA
                       </div>
 
                       {/* Lưới 2 cột cho 6 giải Ba cân đối, không chồng chữ */}
@@ -2459,19 +3610,13 @@ export default function LiveScreenHost() {
                                   </div>
                                   <div className="text-[10px] text-slate-500 truncate">{w.player.unit}</div>
                                   <div className="font-black text-amber-800 text-[11px] font-mono mt-0.5">
-                                    {w.player.totalScore}đ
+                                    {formatScore(w.player.totalScore)}đ
                                   </div>
                                 </div>
                               </div>
                             );
                           })}
                       </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-amber-200/60 text-center">
-                      <span className="text-[11px] font-black text-amber-800 uppercase tracking-wider">
-                        BẬC THỀM HẠNG 3 • ĐỒNG
-                      </span>
                     </div>
                   </div>
                 </div>

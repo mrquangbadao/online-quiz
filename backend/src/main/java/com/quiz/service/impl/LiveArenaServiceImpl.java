@@ -40,6 +40,16 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     // Track previous ranks to calculate rank delta
     private final Map<Long, Integer> previousRanks = new ConcurrentHashMap<>();
 
+    // Track Round 2 10-minute batch state per session
+    private final Map<Long, Long> round2BatchEndTimes = new ConcurrentHashMap<>();
+    private final Map<Long, Boolean> round2BatchRunningMap = new ConcurrentHashMap<>();
+    private final Map<Long, List<Long>> round2ActiveBatches = new ConcurrentHashMap<>();
+    private final Map<Long, java.util.concurrent.ScheduledFuture<?>> round2BatchFutures = new ConcurrentHashMap<>();
+
+    // Track Round 3 active duels in-memory state per session
+    private final Map<Long, Map<String, Object>> round3ActiveDuels = new ConcurrentHashMap<>();
+    private final Map<Long, String> round3ViewModes = new ConcurrentHashMap<>();
+
     // Background scheduler for authoritative timeout auto-reveal (40s question & 5s hope star)
     private final java.util.concurrent.ScheduledExecutorService scheduler = java.util.concurrent.Executors.newScheduledThreadPool(4);
 
@@ -1114,22 +1124,114 @@ public class LiveArenaServiceImpl implements LiveArenaService {
 
     @Override
     @Transactional
+    public void selectRound2Candidate(Long sessionId, Long playerId) {
+        LivePlayer player = livePlayerRepository.findById(playerId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
+        Map<String, Object> payload = Map.of(
+                "sessionId", sessionId,
+                "playerId", playerId,
+                "player", convertPlayerToDto(player)
+        );
+        broadcast(sessionId, "ROUND2_CANDIDATE_SELECTED", payload);
+    }
+
+    @Override
+    @Transactional
     public void assignRound2Topic(Long sessionId, Long playerId, String topicCode) {
         LivePlayer player = livePlayerRepository.findById(playerId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
+        if (!sessionId.equals(player.getSessionId())) {
+            throw new IllegalArgumentException("Thí sinh không thuộc phiên thi này!");
+        }
+        if (player.getRound2Score() != null && player.getRound2Score().compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalStateException("Thí sinh đã có điểm thi Vòng 2, không thể gán lại mã đề! Hãy bấm \"Cho thi lại\" nếu cần chọn lại.");
+        }
+
+        // Kiểm tra xem mã đề này đã có thí sinh khác trong phiên thi bốc thăm chưa
+        List<LivePlayer> sessionPlayers = livePlayerRepository.findBySessionIdOrderByOrderNumberAsc(sessionId);
+        boolean isAlreadyTaken = sessionPlayers.stream()
+                .anyMatch(p -> !p.getId().equals(playerId) && topicCode.equalsIgnoreCase(p.getRound2DrawCode()));
+        if (isAlreadyTaken) {
+            throw new IllegalStateException("Mã đề \"" + topicCode + "\" đã được thí sinh khác bốc thăm! Mỗi mã đề chỉ được chọn 1 lần.");
+        }
+
         player.setRound2DrawCode(topicCode);
         livePlayerRepository.save(player);
 
         LiveRound2Topic topic = liveRound2TopicRepository.findBySessionIdAndCode(sessionId, topicCode).orElse(null);
 
-        Map<String, Object> payload = Map.of(
-                "playerId", playerId,
-                "playerFullName", player.getFullName(),
-                "orderNumber", player.getOrderNumber(),
-                "topicCode", topicCode,
-                "topic", topic != null ? topic : Map.of()
-        );
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("sessionId", sessionId);
+        payload.put("playerId", playerId);
+        payload.put("player", convertPlayerToDto(player));
+        payload.put("playerFullName", player.getFullName());
+        payload.put("orderNumber", player.getOrderNumber());
+        payload.put("topicCode", topicCode);
+        payload.put("topic", topic != null ? topic : Map.of());
         broadcast(sessionId, "ROUND2_TOPIC_ASSIGNED", payload);
+    }
+
+    @Override
+    @Transactional
+    public void unassignRound2Topic(Long sessionId, Long playerId) {
+        LivePlayer player = livePlayerRepository.findById(playerId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
+        if (!sessionId.equals(player.getSessionId())) {
+            throw new IllegalArgumentException("Thí sinh không thuộc phiên thi này!");
+        }
+        if (player.getRound2Score() != null && player.getRound2Score().compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalStateException("Thí sinh đã có điểm thi Vòng 2, không thể hủy chọn đề! Hãy dùng nút Cho thi lại nếu cần.");
+        }
+        Boolean isBatchRunning = round2BatchRunningMap.getOrDefault(sessionId, false);
+        List<Long> activeBatch = round2ActiveBatches.getOrDefault(sessionId, List.of());
+        if (Boolean.TRUE.equals(isBatchRunning) && activeBatch.contains(playerId)) {
+            throw new IllegalStateException("Thí sinh đang trong thời gian làm bài đợt thi, không thể hủy mã đề!");
+        }
+
+        String oldTopic = player.getRound2DrawCode();
+        player.setRound2DrawCode(null);
+        LivePlayer saved = livePlayerRepository.save(player);
+
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("sessionId", sessionId);
+        payload.put("playerId", playerId);
+        payload.put("oldTopicCode", oldTopic);
+        payload.put("player", convertPlayerToDto(saved));
+        broadcast(sessionId, "ROUND2_TOPIC_UNASSIGNED", payload);
+    }
+
+    @Override
+    @Transactional
+    public void resetPlayerRound2(Long sessionId, Long playerId) {
+        LivePlayer player = livePlayerRepository.findById(playerId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
+        if (!sessionId.equals(player.getSessionId())) {
+            throw new IllegalArgumentException("Thí sinh không thuộc phiên thi này!");
+        }
+
+        // Xóa thí sinh khỏi active batch nếu có
+        List<Long> activeBatch = round2ActiveBatches.get(sessionId);
+        if (activeBatch != null && activeBatch.contains(playerId)) {
+            List<Long> updatedBatch = new ArrayList<>(activeBatch);
+            updatedBatch.remove(playerId);
+            round2ActiveBatches.put(sessionId, updatedBatch);
+        }
+
+        player.setRound2DrawCode(null);
+        player.setRound2Scenario1Score(BigDecimal.ZERO);
+        player.setRound2Scenario2Score(BigDecimal.ZERO);
+        player.setRound2Score(BigDecimal.ZERO);
+        BigDecimal r1 = player.getRound1Score() != null ? player.getRound1Score() : BigDecimal.ZERO;
+        BigDecimal r3 = player.getRound3Score() != null ? player.getRound3Score() : BigDecimal.ZERO;
+        player.setTotalScore(r1.add(r3));
+        LivePlayer saved = livePlayerRepository.save(player);
+
+        Map<String, Object> payload = Map.of(
+                "sessionId", sessionId,
+                "playerId", playerId,
+                "player", convertPlayerToDto(saved)
+        );
+        broadcast(sessionId, "ROUND2_PLAYER_RESET", payload);
     }
 
     @Override
@@ -1150,16 +1252,159 @@ public class LiveArenaServiceImpl implements LiveArenaService {
 
     @Override
     @Transactional
+    public void startRound2Batch(Long sessionId, List<Long> playerIds, Integer durationSeconds) {
+        int duration = (durationSeconds != null && durationSeconds > 0) ? durationSeconds : 600;
+        long now = System.currentTimeMillis();
+        long endAt = now + (duration * 1000L);
+
+        List<LivePlayer> candidatePlayers = (playerIds != null && !playerIds.isEmpty())
+                ? livePlayerRepository.findAllById(playerIds)
+                : List.of();
+        // Lọc chỉ những thí sinh CHƯA CÓ ĐIỂM Vòng 2
+        List<LivePlayer> players = candidatePlayers.stream()
+                .filter(p -> p.getRound2Score() == null || p.getRound2Score().compareTo(BigDecimal.ZERO) == 0)
+                .toList();
+        List<Long> filteredPlayerIds = players.stream().map(LivePlayer::getId).toList();
+
+        round2BatchEndTimes.put(sessionId, endAt);
+        round2BatchRunningMap.put(sessionId, true);
+        round2ActiveBatches.put(sessionId, filteredPlayerIds);
+
+        // Hủy scheduler cũ nếu có
+        java.util.concurrent.ScheduledFuture<?> oldFuture = round2BatchFutures.remove(sessionId);
+        if (oldFuture != null && !oldFuture.isDone()) {
+            oldFuture.cancel(false);
+        }
+
+        // Tự động kết thúc đợt thi trên server sau đúng thời lượng duration
+        java.util.concurrent.ScheduledFuture<?> future = scheduler.schedule(() -> {
+            try {
+                log.info("Hết 10 phút đợt thi Vòng 2 cho phiên thi: {}. Hệ thống tự động phát lệnh kết thúc đợt thi.", sessionId);
+                endRound2Batch(sessionId);
+            } catch (Exception e) {
+                log.error("Lỗi khi tự động kết thúc đợt thi Vòng 2: {}", e.getMessage(), e);
+            }
+        }, duration, java.util.concurrent.TimeUnit.SECONDS);
+        round2BatchFutures.put(sessionId, future);
+
+        List<LivePlayerDto> playerDtos = players.stream().map(this::convertPlayerToDto).toList();
+
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("sessionId", sessionId);
+        payload.put("playerIds", filteredPlayerIds);
+        payload.put("players", playerDtos);
+        payload.put("durationSeconds", duration);
+        payload.put("startedAt", now);
+        payload.put("endAt", endAt);
+        broadcast(sessionId, "ROUND2_BATCH_STARTED", payload);
+    }
+
+    @Override
+    @Transactional
+    public void endRound2Batch(Long sessionId) {
+        java.util.concurrent.ScheduledFuture<?> future = round2BatchFutures.remove(sessionId);
+        if (future != null && !future.isDone()) {
+            future.cancel(false);
+        }
+        round2BatchRunningMap.put(sessionId, false);
+        round2BatchEndTimes.remove(sessionId);
+        Map<String, Object> payload = Map.of("sessionId", sessionId);
+        broadcast(sessionId, "ROUND2_BATCH_ENDED", payload);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void showRound2Leaderboard(Long sessionId) {
+        showRound2Leaderboard(sessionId, "ROUND2_ONLY");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void showRound2Leaderboard(Long sessionId, String viewType) {
+        String effectiveViewType = (viewType != null && !viewType.isBlank()) ? viewType : "ROUND2_ONLY";
+        List<LivePlayer> allPlayers = livePlayerRepository.findBySessionIdOrderByOrderNumberAsc(sessionId);
+        List<LivePlayer> players = allPlayers.stream()
+                .sorted(Comparator
+                        .comparing((LivePlayer p) -> p.getRound2Score() != null ? p.getRound2Score() : BigDecimal.ZERO, Comparator.reverseOrder())
+                        .thenComparing((LivePlayer p) -> Boolean.TRUE.equals(p.getIsCheckedIn()) ? 1 : 0, Comparator.reverseOrder())
+                        .thenComparingLong(p -> p.getRound1TotalTimeMs() != null ? p.getRound1TotalTimeMs() : Long.MAX_VALUE)
+                        .thenComparingInt(p -> p.getOrderNumber() != null ? p.getOrderNumber() : 999))
+                .collect(Collectors.toList());
+        List<LivePlayerDto> dtoList = players.stream().map(this::convertPlayerToDto).toList();
+        Map<String, Object> payload = Map.of(
+                "sessionId", sessionId,
+                "viewType", effectiveViewType,
+                "leaderboard", dtoList
+        );
+        broadcast(sessionId, "ROUND2_LEADERBOARD_REVEALED", payload);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void showRound2Selecting(Long sessionId) {
+        Map<String, Object> payload = Map.of("sessionId", sessionId);
+        broadcast(sessionId, "ROUND2_SELECTING_REVEALED", payload);
+    }
+
+    @Override
+    @Transactional
+    public void resetRound2Batch(Long sessionId) {
+        java.util.concurrent.ScheduledFuture<?> future = round2BatchFutures.remove(sessionId);
+        if (future != null && !future.isDone()) {
+            future.cancel(false);
+        }
+        round2BatchRunningMap.put(sessionId, false);
+        round2BatchEndTimes.remove(sessionId);
+        round2ActiveBatches.remove(sessionId);
+        Map<String, Object> payload = Map.of("sessionId", sessionId);
+        broadcast(sessionId, "ROUND2_BATCH_RESET", payload);
+    }
+
+    @Override
+    @Transactional
+    public List<LiveRound2Topic> resetDefaultRound2Topics(Long sessionId) {
+        List<LiveRound2Topic> existing = liveRound2TopicRepository.findBySessionIdOrderByCodeAsc(sessionId);
+        if (!existing.isEmpty()) {
+            liveRound2TopicRepository.deleteAll(existing);
+            liveRound2TopicRepository.flush();
+        }
+        List<LiveRound2Topic> topics = createDefault10Round2Topics(sessionId);
+        return liveRound2TopicRepository.saveAll(topics);
+    }
+
+    @Override
+    @Transactional
     public void updateRound2Score(Long playerId, BigDecimal score1, BigDecimal score2) {
         LivePlayer player = livePlayerRepository.findById(playerId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
 
-        player.setRound2Scenario1Score(score1 != null ? score1 : BigDecimal.ZERO);
-        player.setRound2Scenario2Score(score2 != null ? score2 : BigDecimal.ZERO);
-        BigDecimal totalR2 = player.getRound2Scenario1Score().add(player.getRound2Scenario2Score());
+        BigDecimal s1 = score1 != null ? score1 : BigDecimal.ZERO;
+        BigDecimal s2 = score2 != null ? score2 : BigDecimal.ZERO;
+
+        if (s1.compareTo(BigDecimal.ZERO) < 0 || s1.compareTo(BigDecimal.valueOf(20.0)) > 0) {
+            throw new IllegalArgumentException("Điểm Tình huống 1 phải nằm trong khoảng từ 0.0 đến 20.0 điểm!");
+        }
+        if (s2.compareTo(BigDecimal.ZERO) < 0 || s2.compareTo(BigDecimal.valueOf(20.0)) > 0) {
+            throw new IllegalArgumentException("Điểm Tình huống 2 phải nằm trong khoảng từ 0.0 đến 20.0 điểm!");
+        }
+
+        player.setRound2Scenario1Score(s1);
+        player.setRound2Scenario2Score(s2);
+        BigDecimal totalR2 = s1.add(s2);
         player.setRound2Score(totalR2);
-        player.setTotalScore(player.getRound1Score().add(totalR2).add(player.getRound3Score()));
+        BigDecimal r1 = player.getRound1Score() != null ? player.getRound1Score() : BigDecimal.ZERO;
+        BigDecimal r3 = player.getRound3Score() != null ? player.getRound3Score() : BigDecimal.ZERO;
+        player.setTotalScore(r1.add(totalR2).add(r3));
         livePlayerRepository.save(player);
+
+        // Loại bỏ thí sinh đã có điểm khỏi danh sách active batch của Vòng 2
+        Long sessionId = player.getSessionId();
+        List<Long> activeBatch = round2ActiveBatches.get(sessionId);
+        if (activeBatch != null && activeBatch.contains(playerId)) {
+            List<Long> updatedBatch = new ArrayList<>(activeBatch);
+            updatedBatch.remove(playerId);
+            round2ActiveBatches.put(sessionId, updatedBatch);
+        }
 
         Map<String, Object> payload = Map.of(
                 "playerId", playerId,
@@ -1174,9 +1419,35 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<LiveRound2Topic> getRound2Topics(Long sessionId) {
-        return liveRound2TopicRepository.findBySessionIdOrderByCodeAsc(sessionId);
+        List<LiveRound2Topic> topics = liveRound2TopicRepository.findBySessionIdOrderByCodeAsc(sessionId);
+        if (topics.isEmpty()) {
+            return resetDefaultRound2Topics(sessionId);
+        }
+        return topics;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LiveRound2Topic> getRound2TopicsForPublic(Long sessionId, Long playerId) {
+        List<LiveRound2Topic> topics = getRound2Topics(sessionId);
+        LivePlayer player = playerId != null ? livePlayerRepository.findById(playerId).orElse(null) : null;
+        String assignedCode = (player != null && sessionId.equals(player.getSessionId())) ? player.getRound2DrawCode() : null;
+        return topics.stream().map(t -> {
+            if (assignedCode != null && assignedCode.equalsIgnoreCase(t.getCode())) {
+                return t;
+            }
+            return LiveRound2Topic.builder()
+                    .id(t.getId())
+                    .sessionId(t.getSessionId())
+                    .code(t.getCode())
+                    .scenario1("")
+                    .scenario2("")
+                    .maxScore1(t.getMaxScore1())
+                    .maxScore2(t.getMaxScore2())
+                    .build();
+        }).toList();
     }
 
     // ==========================================
@@ -1217,25 +1488,248 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         }
 
         List<LiveRound3Pair> savedPairs = liveRound3PairRepository.saveAll(pairs);
+        List<Map<String, Object>> displayPairs = getRound3DisplayPairs(sessionId);
+        broadcast(sessionId, "ROUND3_PAIRS_UPDATED", Map.of("sessionId", sessionId, "pairs", displayPairs));
+        return savedPairs;
+    }
 
-        // Chuẩn bị payload trực quan cho màn hình LED hội trường
-        List<Map<String, Object>> displayPairs = new ArrayList<>();
-        for (LiveRound3Pair pair : savedPairs) {
-            LivePlayer p1 = livePlayerRepository.findById(pair.getPlayer1Id()).orElse(null);
-            LivePlayer p2 = livePlayerRepository.findById(pair.getPlayer2Id()).orElse(null);
-            displayPairs.add(Map.of(
-                    "pairNumber", pair.getPairNumber(),
-                    "player1", p1 != null ? convertPlayerToDto(p1) : Map.of(),
-                    "player2", p2 != null ? convertPlayerToDto(p2) : Map.of()
-            ));
+    @Override
+    @Transactional
+    public LiveRound3Pair assignRound3Pair(Long sessionId, Integer pairNumber, Long player1Id, Long player2Id) {
+        if (pairNumber == null || pairNumber < 1 || pairNumber > 5) {
+            throw new IllegalArgumentException("Số thứ tự cặp đấu phải từ 1 đến 5!");
+        }
+        if (player1Id == null || player2Id == null) {
+            throw new IllegalArgumentException("Vui lòng chọn đủ 2 thí sinh cho cặp đấu!");
+        }
+        if (player1Id.equals(player2Id)) {
+            throw new IllegalArgumentException("Không thể ghép cùng một thí sinh đấu với chính mình!");
         }
 
-        Map<String, Object> payload = Map.of(
-                "sessionId", sessionId,
-                "pairs", displayPairs
-        );
-        broadcast(sessionId, "ROUND3_PAIR_DRAWN", payload);
-        return savedPairs;
+        LivePlayer p1 = livePlayerRepository.findById(player1Id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh 1: " + player1Id));
+        LivePlayer p2 = livePlayerRepository.findById(player2Id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh 2: " + player2Id));
+
+        if (!sessionId.equals(p1.getSessionId()) || !sessionId.equals(p2.getSessionId())) {
+            throw new IllegalArgumentException("Thí sinh không thuộc phiên thi này!");
+        }
+
+        // Cập nhật cặp cũ nếu có
+        LiveRound3Pair pair = liveRound3PairRepository.findBySessionIdAndPairNumber(sessionId, pairNumber)
+                .orElse(LiveRound3Pair.builder()
+                        .sessionId(sessionId)
+                        .pairNumber(pairNumber)
+                        .player1Id(player1Id)
+                        .player2Id(player2Id)
+                        .build());
+
+        // Nếu pair đã tồn tại nhưng đổi thí sinh, xóa round3PairGroup của thí sinh cũ
+        if (pair.getId() != null) {
+            if (!pair.getPlayer1Id().equals(player1Id)) {
+                livePlayerRepository.findById(pair.getPlayer1Id()).ifPresent(oldP1 -> {
+                    oldP1.setRound3PairGroup(null);
+                    livePlayerRepository.save(oldP1);
+                });
+            }
+            if (!pair.getPlayer2Id().equals(player2Id)) {
+                livePlayerRepository.findById(pair.getPlayer2Id()).ifPresent(oldP2 -> {
+                    oldP2.setRound3PairGroup(null);
+                    livePlayerRepository.save(oldP2);
+                });
+            }
+        }
+
+        pair.setPlayer1Id(player1Id);
+        pair.setPlayer2Id(player2Id);
+        LiveRound3Pair saved = liveRound3PairRepository.save(pair);
+
+        p1.setRound3PairGroup(pairNumber);
+        p2.setRound3PairGroup(pairNumber);
+        livePlayerRepository.save(p1);
+        livePlayerRepository.save(p2);
+
+        // Phát WebSocket cập nhật danh sách 5 cặp đấu ngay lập tức
+        List<Map<String, Object>> displayPairs = getRound3DisplayPairs(sessionId);
+        broadcast(sessionId, "ROUND3_PAIRS_UPDATED", Map.of("sessionId", sessionId, "pairs", displayPairs));
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public void deleteRound3Pair(Long sessionId, Integer pairNumber) {
+        liveRound3PairRepository.findBySessionIdAndPairNumber(sessionId, pairNumber).ifPresent(pair -> {
+            livePlayerRepository.findById(pair.getPlayer1Id()).ifPresent(p -> {
+                p.setRound3PairGroup(null);
+                livePlayerRepository.save(p);
+            });
+            livePlayerRepository.findById(pair.getPlayer2Id()).ifPresent(p -> {
+                p.setRound3PairGroup(null);
+                livePlayerRepository.save(p);
+            });
+            liveRound3PairRepository.delete(pair);
+        });
+        // Khi xóa cặp thi, luôn reset màn hình LED về tổng quan 5 cặp
+        round3ActiveDuels.remove(sessionId);
+        List<Map<String, Object>> displayPairs = getRound3DisplayPairs(sessionId);
+        broadcast(sessionId, "ROUND3_PAIRS_UPDATED", Map.of("sessionId", sessionId, "pairs", displayPairs));
+        broadcast(sessionId, "ROUND3_SHOW_ALL_PAIRS", Map.of("sessionId", sessionId, "pairs", displayPairs));
+    }
+
+    @Override
+    @Transactional
+    public void resetAllRound3Pairs(Long sessionId) {
+        List<LivePlayer> players = livePlayerRepository.findBySessionIdOrderByOrderNumberAsc(sessionId);
+        for (LivePlayer p : players) {
+            if (p.getRound3PairGroup() != null) {
+                p.setRound3PairGroup(null);
+                livePlayerRepository.save(p);
+            }
+        }
+        liveRound3PairRepository.deleteBySessionId(sessionId);
+        round3ActiveDuels.remove(sessionId);
+        List<Map<String, Object>> displayPairs = getRound3DisplayPairs(sessionId);
+        broadcast(sessionId, "ROUND3_PAIRS_UPDATED", Map.of("sessionId", sessionId, "pairs", displayPairs));
+        broadcast(sessionId, "ROUND3_SHOW_ALL_PAIRS", Map.of("sessionId", sessionId, "pairs", displayPairs));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getRound3DisplayPairs(Long sessionId) {
+        List<LiveRound3Pair> pairs = liveRound3PairRepository.findBySessionIdOrderByPairNumberAsc(sessionId);
+        Map<Integer, LiveRound3Pair> pairMap = pairs.stream()
+                .collect(Collectors.toMap(LiveRound3Pair::getPairNumber, p -> p, (a, b) -> a));
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("pairNumber", i);
+            LiveRound3Pair pair = pairMap.get(i);
+            if (pair != null) {
+                LivePlayer p1 = livePlayerRepository.findById(pair.getPlayer1Id()).orElse(null);
+                LivePlayer p2 = livePlayerRepository.findById(pair.getPlayer2Id()).orElse(null);
+                map.put("id", pair.getId());
+                map.put("player1Id", pair.getPlayer1Id());
+                map.put("player2Id", pair.getPlayer2Id());
+                map.put("player1", p1 != null ? convertPlayerToDto(p1) : null);
+                map.put("player2", p2 != null ? convertPlayerToDto(p2) : null);
+            } else {
+                map.put("id", null);
+                map.put("player1Id", null);
+                map.put("player2Id", null);
+                map.put("player1", null);
+                map.put("player2", null);
+            }
+            result.add(map);
+        }
+        return result;
+    }
+
+    @Override
+    public void displayRound3Duel(Long sessionId, Integer pairNumber) {
+        Map<String, Object> duelState = new ConcurrentHashMap<>();
+        duelState.put("sessionId", sessionId);
+        duelState.put("pairNumber", pairNumber);
+        duelState.put("stage", "PREPARE");
+        duelState.put("stageTitle", "BAN GIÁM KHẢO CÔNG BỐ ĐỀ");
+        duelState.put("durationSeconds", 0);
+        duelState.put("startedAt", 0L);
+        duelState.put("endAt", 0L);
+        duelState.put("isTimerRunning", false);
+        duelState.put("isTimeUp", false);
+        duelState.put("isOvertimeRunning", false);
+        duelState.put("overtimeSeconds", 0);
+        duelState.put("activePlayerId", 0L);
+
+        LiveRound3Pair pair = liveRound3PairRepository.findBySessionIdAndPairNumber(sessionId, pairNumber).orElse(null);
+        if (pair != null) {
+            LivePlayer p1 = livePlayerRepository.findById(pair.getPlayer1Id()).orElse(null);
+            LivePlayer p2 = livePlayerRepository.findById(pair.getPlayer2Id()).orElse(null);
+            duelState.put("player1", p1 != null ? convertPlayerToDto(p1) : null);
+            duelState.put("player2", p2 != null ? convertPlayerToDto(p2) : null);
+        }
+
+        round3ActiveDuels.put(sessionId, duelState);
+        broadcast(sessionId, "ROUND3_DUEL_DISPLAYED", duelState);
+    }
+
+    @Override
+    public void startRound3Duel(Long sessionId, Integer pairNumber, String stage, String stageTitle, Integer durationSeconds, Long activePlayerId) {
+        int duration = (durationSeconds != null && durationSeconds > 0) ? durationSeconds : 120;
+        long now = System.currentTimeMillis();
+        long endAt = now + (long) duration * 1000L;
+
+        Map<String, Object> duelState = new ConcurrentHashMap<>();
+        duelState.put("sessionId", sessionId);
+        duelState.put("pairNumber", pairNumber);
+        duelState.put("stage", stage != null ? stage : "STAGE_1_PREP");
+        duelState.put("stageTitle", stageTitle != null ? stageTitle : "XỬ LÝ TÌNH HUỐNG");
+        duelState.put("durationSeconds", duration);
+        duelState.put("activePlayerId", activePlayerId != null ? activePlayerId : 0L);
+        duelState.put("startedAt", now);
+        duelState.put("endAt", endAt);
+        duelState.put("isTimerRunning", true);
+        duelState.put("isTimeUp", false);
+        duelState.put("isOvertimeRunning", false);
+        duelState.put("overtimeSeconds", 0);
+
+        LiveRound3Pair pair = liveRound3PairRepository.findBySessionIdAndPairNumber(sessionId, pairNumber).orElse(null);
+        if (pair != null) {
+            LivePlayer p1 = livePlayerRepository.findById(pair.getPlayer1Id()).orElse(null);
+            LivePlayer p2 = livePlayerRepository.findById(pair.getPlayer2Id()).orElse(null);
+            duelState.put("player1", p1 != null ? convertPlayerToDto(p1) : null);
+            duelState.put("player2", p2 != null ? convertPlayerToDto(p2) : null);
+        }
+
+        round3ActiveDuels.put(sessionId, duelState);
+        broadcast(sessionId, "ROUND3_DUEL_STARTED", duelState);
+    }
+
+    @Override
+    public void stopRound3DuelTimer(Long sessionId) {
+        Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
+        if (duelState != null) {
+            duelState.put("isTimerRunning", false);
+            duelState.put("isTimeUp", true);
+            duelState.put("endAt", System.currentTimeMillis());
+            broadcast(sessionId, "ROUND3_DUEL_TIME_UP", duelState);
+        }
+    }
+
+    @Override
+    public void startRound3Overtime(Long sessionId, Long playerId) {
+        Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
+        if (duelState != null) {
+            duelState.put("isOvertimeRunning", true);
+            duelState.put("overtimeStartedAt", System.currentTimeMillis());
+            duelState.put("activeOvertimePlayerId", playerId != null ? playerId : 0L);
+            broadcast(sessionId, "ROUND3_OVERTIME_STARTED", duelState);
+        }
+    }
+
+    @Override
+    public void stopRound3Overtime(Long sessionId, Integer overtimeSeconds) {
+        Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
+        if (duelState != null) {
+            duelState.put("isOvertimeRunning", false);
+            duelState.put("overtimeSeconds", overtimeSeconds != null ? overtimeSeconds : 0);
+            broadcast(sessionId, "ROUND3_OVERTIME_STOPPED", duelState);
+        }
+    }
+
+    @Override
+    public void showAllRound3Pairs(Long sessionId) {
+        round3ViewModes.put(sessionId, "PAIRS");
+        round3ActiveDuels.remove(sessionId);
+        List<Map<String, Object>> displayPairs = getRound3DisplayPairs(sessionId);
+        broadcast(sessionId, "ROUND3_SHOW_ALL_PAIRS", Map.of("sessionId", sessionId, "pairs", displayPairs));
+    }
+
+    @Override
+    public void showRound3Rules(Long sessionId) {
+        round3ViewModes.put(sessionId, "RULES");
+        round3ActiveDuels.remove(sessionId);
+        broadcast(sessionId, "ROUND3_RULES_DISPLAYED", Map.of("sessionId", sessionId));
     }
 
     @Override
@@ -1296,7 +1790,14 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         session.setStatus("FINISHED");
         liveSessionRepository.save(session);
 
-        List<LivePlayer> ranked = livePlayerRepository.findBySessionIdOrderByTotalScoreDescRound1TotalTimeMsAsc(sessionId);
+        List<LivePlayer> allPlayers = livePlayerRepository.findBySessionIdOrderByOrderNumberAsc(sessionId);
+        List<LivePlayer> ranked = allPlayers.stream()
+                .sorted(Comparator
+                        .comparing((LivePlayer p) -> p.getTotalScore() != null ? p.getTotalScore() : BigDecimal.ZERO, Comparator.reverseOrder())
+                        .thenComparing((LivePlayer p) -> Boolean.TRUE.equals(p.getIsCheckedIn()) ? 1 : 0, Comparator.reverseOrder())
+                        .thenComparingLong(p -> p.getRound1TotalTimeMs() != null ? p.getRound1TotalTimeMs() : Long.MAX_VALUE)
+                        .thenComparingInt(p -> p.getOrderNumber() != null ? p.getOrderNumber() : 999))
+                .collect(Collectors.toList());
         int rank = 1;
         List<Map<String, Object>> prizeList = new ArrayList<>();
 
@@ -1328,6 +1829,16 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         return convertToDto(session);
     }
 
+    @Override
+    public void switchFinishViewMode(Long sessionId, String viewMode) {
+        String mode = (viewMode != null && "BOARD".equalsIgnoreCase(viewMode.trim())) ? "BOARD" : "PODIUM";
+        Map<String, Object> payload = Map.of(
+                "sessionId", sessionId,
+                "viewMode", mode
+        );
+        broadcast(sessionId, "FINISH_VIEW_MODE_CHANGED", payload);
+    }
+
     // ==========================================
     // SEED DỮ LIỆU MẪU CHUẨN KỊCH BẢN
     // ==========================================
@@ -1335,199 +1846,242 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     @Override
     @Transactional
     public void initDefaultQuestionsAndTopics(Long sessionId) {
-        // 10 câu hỏi Vòng 1
+        // 10 câu hỏi Vòng 1 chính thức từ Ban Tổ chức (ĐỀ VÒNG 1 TRẮC NGHIỆM)
         if (liveQuestionRepository.findBySessionIdOrderByQuestionOrderAsc(sessionId).isEmpty()) {
             List<LiveQuestion> questions = List.of(
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(1)
-                            .title("Nghị quyết Đại hội Đoàn toàn quốc lần thứ XII xác định mục tiêu xây dựng thế hệ thanh niên Việt Nam phát triển toàn diện, giàu lòng yêu nước, có ý chí tự cường, tự hào dân tộc với bao nhiêu nhóm chỉ tiêu trọng tâm công tác Đoàn và phong trào thanh thiếu nhi nhiệm kỳ 2022 - 2027?")
+                            .title("Theo Nghị quyết Đại hội đại biểu toàn quốc lần thứ XIV của Đảng, nhiệm vụ nào sau đây được xác định là \"đột phá của đột phá\" trong hoàn thiện thể chế phát triển quốc gia?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("10 nhóm chỉ tiêu")
-                            .optionB("12 nhóm chỉ tiêu")
-                            .optionC("14 nhóm chỉ tiêu")
-                            .optionD("16 nhóm chỉ tiêu")
-                            .correctOption("B")
-                            .explanation("Đại hội Đoàn toàn quốc lần thứ XII nhiệm kỳ 2022 - 2027 đã biểu quyết thông qua 12 nhóm chỉ tiêu trọng tâm của cả nhiệm kỳ.")
+                            .optionA("Tập trung hoàn thiện khung pháp lý về chuyển đổi số và phát triển hạ tầng dữ liệu quốc gia")
+                            .optionB("Đẩy mạnh phân cấp, phân quyền triệt để giữa các cơ quan hành chính nhà nước ở trung ương và địa phương")
+                            .optionC("Tháo gỡ triệt để các điểm nghẽn thể chế, giải phóng toàn bộ năng lực sản xuất và khơi thông mọi nguồn lực xã hội")
+                            .optionD("Cơ cấu lại toàn bộ hệ thống cơ quan tư pháp và tăng cường tính độc lập của hoạt động tố tụng")
+                            .correctOption("C")
+                            .explanation("Nghị quyết Đại hội XIV của Đảng xác định tháo gỡ triệt để các điểm nghẽn thể chế, giải phóng toàn bộ năng lực sản xuất và khơi thông mọi nguồn lực xã hội là đột phá của đột phá.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(2)
-                            .title("Theo Điều lệ Đoàn TNCS Hồ Chí Minh khóa XII, độ tuổi kết nạp thanh niên vào Đoàn TNCS Hồ Chí Minh được quy định trong khoảng độ tuổi nào sau đây?")
+                            .title("Theo Nghị quyết Đại hội đại biểu toàn quốc Đoàn TNCS Hồ Chí Minh lần thứ XIII (nhiệm kỳ 2026 - 2031), phong trào hành động cách mạng nào sau đây đóng vai trò nòng cốt trong việc định hướng thanh niên tham gia xây dựng chính quyền số, kinh tế số và xã hội số?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Từ đủ 15 tuổi và không quá 30 tuổi")
-                            .optionB("Từ đủ 16 tuổi và không quá 30 tuổi")
-                            .optionC("Từ đủ 16 tuổi và không quá 35 tuổi")
-                            .optionD("Từ đủ 18 tuổi và không quá 35 tuổi")
+                            .optionA("Phong trào \"Tuổi trẻ sáng tạo và đổi mới mô hình quản trị xã hội trong kỷ nguyên mới\"")
+                            .optionB("Phong trào \"Thanh niên tiên phong chuyển đổi số và phát triển khoa học công nghệ\"")
+                            .optionC("Phong trào \"Tuổi trẻ xung kích phát triển hạ tầng dữ liệu và công nghệ cao quốc gia\"")
+                            .optionD("Phong trào \"Thanh niên Việt Nam tích cực tham gia hiện đại hóa nền hành chính nhà nước\"")
                             .correctOption("B")
-                            .explanation("Điều lệ Đoàn TNCS Hồ Chí Minh quy định: Thanh niên Việt Nam tuổi từ đủ 16 tuổi và không quá 30 tuổi, tích cực học tập, lao động và bảo vệ Tổ quốc được xét kết nạp vào Đoàn.")
+                            .explanation("Phong trào \"Thanh niên tiên phong chuyển đổi số và phát triển khoa học công nghệ\" đóng vai trò nòng cốt theo Nghị quyết Đại hội Đoàn toàn quốc lần thứ XIII.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(3)
-                            .title("Đoàn TNCS Hồ Chí Minh tỉnh Nghệ An được thành lập vào thời gian nào gắn liền với cao trào Xô viết Nghệ Tĩnh lịch sử?")
-                            .videoUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ") // Minh họa video
-                            .videoType("YOUTUBE")
-                            .optionA("Năm 1930")
-                            .optionB("Năm 1931")
-                            .optionC("Năm 1935")
-                            .optionD("Năm 1945")
-                            .correctOption("B")
-                            .explanation("Tổ chức Đoàn TNCS Hồ Chí Minh tỉnh Nghệ An ra đời và trưởng thành gắn liền với mốc son lịch sử năm 1931.")
+                            .title("Theo Nghị quyết Đại hội đại biểu toàn quốc Đoàn TNCS Hồ Chí Minh lần thứ XIII (nhiệm kỳ 2026 - 2031), trong nhóm chỉ tiêu về đồng hành với thanh niên, giải pháp mang tính đột phá nhằm nâng cao năng lực hội nhập quốc tế cho thanh thiếu nhi Việt Nam tập trung vào chỉ tiêu nào sau đây?")
+                            .videoUrl("")
+                            .videoType("NONE")
+                            .optionA("Phấn đấu đạt 5 triệu lượt thanh niên công chức, viên chức được bồi dưỡng kỹ năng làm việc trong môi trường quốc tế")
+                            .optionB("Phấn đấu 100% cán bộ Đoàn cấp huyện trở lên sử dụng thành thạo ít nhất một ngoại ngữ trong giao tiếp công vụ")
+                            .optionC("Phấn đấu hỗ trợ 15 triệu lượt học sinh, sinh viên tham gia các chương trình trao đổi thanh niên quốc tế")
+                            .optionD("Phấn đấu đạt 10 triệu lượt thanh thiếu nhi được tham gia các hoạt động nâng cao năng lực ngoại ngữ và hội nhập quốc tế")
+                            .correctOption("D")
+                            .explanation("Chỉ tiêu phấn đấu đạt 10 triệu lượt thanh thiếu nhi được tham gia các hoạt động nâng cao năng lực ngoại ngữ và hội nhập quốc tế là giải pháp đột phá.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(4)
-                            .title("Nội dung nào sau đây KHÔNG thuộc 3 phong trào hành động cách mạng của Đoàn TNCS Hồ Chí Minh trong nhiệm kỳ 2022 - 2027?")
+                            .title("Theo Nghị quyết Đại hội đại biểu Đảng bộ tỉnh Nghệ An lần thứ XX (nhiệm kỳ 2025 - 2030), đột phá chiến lược về phát triển nguồn nhân lực gắn với khoa học công nghệ của tỉnh tập trung ưu tiên cho lĩnh vực nào sau đây?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Thanh niên tình nguyện")
-                            .optionB("Tuổi trẻ sáng tạo")
-                            .optionC("Tuổi trẻ xung kích bảo vệ Tổ quốc")
-                            .optionD("Thanh niên lập nghiệp làm giàu")
-                            .correctOption("D")
-                            .explanation("3 phong trào hành động cách mạng của Đoàn là: Thanh niên tình nguyện, Tuổi trẻ sáng tạo, Tuổi trẻ xung kích bảo vệ Tổ quốc.")
+                            .optionA("Đào tạo nhân lực chất lượng cao, ưu tiên các ngành công nghiệp công nghệ cao, kinh tế số, logistics và du lịch chất lượng cao")
+                            .optionB("Nâng cao trình độ tay nghề công nhân kỹ thuật, ưu tiên phục vụ phát triển các khu công nghiệp tập trung và cụm công nghiệp phụ trợ")
+                            .optionC("Đào tạo đội ngũ chuyên gia công nghệ thông tin và quản trị kinh doanh đạt tiêu chuẩn quốc tế phục vụ thu hút đầu tư FDI")
+                            .optionD("Phát triển nguồn nhân lực quản lý nhà nước và quản trị doanh nghiệp đáp ứng yêu cầu chuyển dịch cơ cấu kinh tế toàn diện")
+                            .correctOption("A")
+                            .explanation("Đột phá chiến lược về phát triển nguồn nhân lực tỉnh Nghệ An tập trung đào tạo nhân lực chất lượng cao, ưu tiên công nghiệp công nghệ cao, kinh tế số, logistics và du lịch chất lượng cao.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(5)
-                            .title("Theo Nghị quyết số 39-NQ/TW của Bộ Chính trị về xây dựng và phát triển tỉnh Nghệ An đến năm 2030, tầm nhìn đến năm 2045, Nghệ An được định hướng trở thành trung tâm của vùng nào?")
+                            .title("Theo Nghị quyết Đại hội đại biểu Đảng bộ tỉnh Nghệ An lần thứ XX (nhiệm kỳ 2025 - 2030), định hướng phát triển không gian kinh tế của tỉnh Nghệ An được cấu trúc theo mô hình trọng tâm nào?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Bắc Trung Bộ")
-                            .optionB("Duyên hải miền Trung")
-                            .optionC("Vùng kinh tế trọng điểm miền Trung")
-                            .optionD("Bắc Bộ và Bắc Trung Bộ")
-                            .correctOption("A")
-                            .explanation("Nghị quyết 39-NQ/TW xác định xây dựng Nghệ An phát triển toàn diện, là trung tâm khu vực Bắc Trung Bộ về y tế, giáo dục, thương mại, du lịch, logistics.")
+                            .optionA("Tam giác tăng trưởng kinh tế biển (Cửa Lò - Hoàng Mai - Đông Hồi) kết hợp với hai vùng đô thị sinh thái phía Tây")
+                            .optionB("Bốn trung tâm công nghiệp công nghệ cao tập trung dọc theo tuyến đường ven biển và hành lang kinh tế Quốc lộ 1A")
+                            .optionC("Hai khu vực động lực phát triển (TP. Vinh mở rộng & Khu kinh tế Đông Nam) và ba hành lang kinh tế trọng điểm")
+                            .optionD("Mô hình đô thị đa cực lấy thành phố Vinh làm trung tâm kết nối trực tiếp với 05 vệ tinh kinh tế miền núi")
+                            .correctOption("C")
+                            .explanation("Cấu trúc không gian phát triển kinh tế tỉnh Nghệ An gồm hai khu vực động lực phát triển (TP. Vinh mở rộng & KKT Đông Nam) và ba hành lang kinh tế trọng điểm.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(6)
-                            .title("Phần mềm Quản lý đoàn viên (App Thanh niên Việt Nam) được triển khai nghiệp vụ số nào sau đây để quản lý chuyển sinh hoạt đoàn tự động?")
+                            .title("Theo Nghị quyết Đại hội đại biểu Đoàn TNCS Hồ Chí Minh tỉnh Nghệ An lần thứ XIX (nhiệm kỳ 2025 - 2030), trong đột phá về công tác cán bộ Đoàn, Tỉnh đoàn Nghệ An đặt ra yêu cầu trọng tâm nào đối với đội ngũ Bí thư Đoàn cơ sở?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Cấp phát mã định danh và QR đoàn viên")
-                            .optionB("Nghiệp vụ chuyển sinh hoạt đoàn trực tuyến")
-                            .optionC("Đánh giá xếp loại chất lượng đoàn viên tự động")
-                            .optionD("Cả A, B và C")
-                            .correctOption("D")
-                            .explanation("Hệ thống Quản lý đoàn viên tích hợp toàn diện định danh số, chuyển tiếp hồ sơ sinh hoạt đoàn và xếp loại định kỳ.")
+                            .optionA("100% có trình độ thạc sĩ trở lên, sử dụng thành thạo hai ngoại ngữ và có chứng chỉ quản lý nhà nước ngạch chuyên viên")
+                            .optionB("Chuẩn hóa về lý luận chính trị, có năng lực chuyển đổi số, kỹ năng vận động thanh niên và tinh thần dấn thân vì cộng đồng")
+                            .optionC("Phải có thời gian tham gia công tác Đoàn tối thiểu 05 năm và hoàn thành xuất sắc nhiệm vụ 03 năm liên tục")
+                            .optionD("Luân chuyển bắt buộc giữa các khu vực địa lý khác nhau để tích lũy thực tiễn trước khi bổ nhiệm chính thức")
+                            .correctOption("B")
+                            .explanation("Yêu cầu trọng tâm: Chuẩn hóa về lý luận chính trị, có năng lực chuyển đổi số, kỹ năng vận động thanh niên và tinh thần dấn thân vì cộng đồng.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(7)
-                            .title("Chủ đề công tác Đoàn và phong trào thanh thiếu nhi năm 2024 được Ban Bí thư Trung ương Đoàn xác định là gì?")
+                            .title("Theo Nghị quyết Đại hội đại biểu Đoàn TNCS Hồ Chí Minh tỉnh Nghệ An lần thứ XIX (nhiệm kỳ 2025 - 2030), chỉ tiêu đến cuối nhiệm kỳ về tỷ lệ thanh niên trên địa bàn tỉnh được tiếp cận các hoạt động nâng cao năng lực số đạt tối thiểu bao nhiêu %?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Năm Chuyển đổi số các hoạt động của Đoàn")
-                            .optionB("Năm Thanh niên tình nguyện")
-                            .optionC("Xây dựng tổ chức Đoàn vững mạnh toàn diện")
-                            .optionD("Khát vọng cống hiến - Lẽ sống thanh niên")
-                            .correctOption("B")
-                            .explanation("Chủ đề năm 2024 được xác định là: Năm Thanh niên tình nguyện.")
+                            .optionA("60%")
+                            .optionB("70%")
+                            .optionC("90%")
+                            .optionD("80%")
+                            .correctOption("D")
+                            .explanation("Nghị quyết xác định chỉ tiêu đến cuối nhiệm kỳ tối thiểu 80% thanh niên trên địa bàn tỉnh được tiếp cận các hoạt động nâng cao năng lực số.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(8)
-                            .title("Nguyên tắc tổ chức và hoạt động cơ bản nhất của Đoàn TNCS Hồ Chí Minh là nguyên tắc nào?")
+                            .title("Theo Điều lệ Đoàn TNCS Hồ Chí Minh khóa XIII, trường hợp đoàn viên được hoãn sinh hoạt Đoàn tạm thời do đi làm việc lưu động hoặc đi học tập xa nơi cư trú được quy định như thế nào?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Tập trung dân chủ")
-                            .optionB("Tự nguyện và hiệp thương")
-                            .optionC("Phối hợp và thống nhất hành động")
-                            .optionD("Dân chủ cơ sở")
+                            .optionA("Do Ban Chấp hành Chi đoàn xem xét, quyết định cho hoãn sinh hoạt nhưng thời hạn mỗi lần hoãn không quá 01 năm và đoàn viên vẫn phải đóng đoàn phí")
+                            .optionB("Do Bí thư Đoàn cơ sở quyết định trực tiếp và đoàn viên được miễn toàn bộ nghĩa vụ đóng đoàn phí trong thời gian hoãn")
+                            .optionC("Tự động được miễn sinh hoạt và không cần báo cáo với Ban Chấp hành Chi đoàn nếu thời gian đi xa dưới 06 tháng")
+                            .optionD("Do Ủy ban Kiểm tra Đoàn cấp trên trực tiếp phê duyệt bằng văn bản chính thức")
                             .correctOption("A")
-                            .explanation("Đoàn TNCS Hồ Chí Minh tổ chức và hoạt động theo nguyên tắc tập trung dân chủ.")
+                            .explanation("Điều lệ Đoàn quy định: Do Ban Chấp hành Chi đoàn xem xét, quyết định cho hoãn sinh hoạt nhưng thời hạn mỗi lần hoãn không quá 01 năm và đoàn viên vẫn phải đóng đoàn phí.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(9)
-                            .title("Trong sinh hoạt chi đoàn, tỷ lệ đoàn viên có mặt tối thiểu để cuộc họp chi đoàn được coi là hợp lệ theo Hướng dẫn thực hiện Điều lệ Đoàn là bao nhiêu?")
+                            .title("Theo Điều lệ Đoàn TNCS Hồ Chí Minh khóa XIII, đối với các quyết định kỷ luật đoàn viên hoặc tổ chức Đoàn, hiệu lực thi hành của quyết định kỷ luật được tính từ thời điểm nào?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Trên 1/2 tổng số đoàn viên chi đoàn")
-                            .optionB("Ít nhất 2/3 tổng số đoàn viên chi đoàn")
-                            .optionC("Ít nhất 3/4 tổng số đoàn viên chi đoàn")
-                            .optionD("100% đoàn viên chi đoàn")
+                            .optionA("Có hiệu lực sau 15 ngày kể từ ngày ban hành nếu đoàn viên hoặc tổ chức Đoàn không có đơn khiếu nại")
+                            .optionB("Có hiệu lực ngay sau khi cơ quan Đoàn có thẩm quyền công bố quyết định, mặc dù đoàn viên hoặc tổ chức Đoàn bị kỷ luật có quyền khiếu nại")
+                            .optionC("Có hiệu lực ngay sau khi được cấp ủy Đảng cùng cấp hoặc Ban Thường vụ Đoàn cấp trên trực tiếp phê chuẩn")
+                            .optionD("Có hiệu lực sau 30 ngày kể từ ngày họp xét kỷ luật của Ban Chấp hành Chi đoàn hoặc Đoàn cơ sở")
                             .correctOption("B")
-                            .explanation("Cuộc họp chi đoàn chỉ có giá trị khi có ít nhất 2/3 tổng số đoàn viên của chi đoàn có mặt tham dự.")
+                            .explanation("Hiệu lực kỷ luật có hiệu lực ngay sau khi cơ quan Đoàn có thẩm quyền công bố quyết định, mặc dù đoàn viên hoặc tổ chức Đoàn bị kỷ luật có quyền khiếu nại.")
                             .timeLimitSeconds(40)
                             .build(),
                     LiveQuestion.builder()
                             .sessionId(sessionId)
                             .questionOrder(10)
-                            .title("Hội thi Bí thư Đoàn cơ sở giỏi tỉnh Nghệ An năm 2026 đặt ra khẩu hiệu hành động tiêu biểu nào sau đây của người thủ lĩnh thanh niên cơ sở?")
+                            .title("Tại Đại hội đại biểu toàn quốc Đoàn TNCS Hồ Chí Minh lần thứ XIII (nhiệm kỳ 2026 - 2031), Tổng Bí thư, Chủ tịch nước Tô Lâm đã phát biểu chỉ đạo và đặt ra 5 yêu cầu trọng tâm đối với công tác Đoàn và phong trào thanh thiếu nhi. Yêu cầu thứ ba nhấn mạnh định hướng nào sau đây đối với các phong trào hành động cách mạng của Đoàn?")
                             .videoUrl("")
                             .videoType("NONE")
-                            .optionA("Tiên phong - Bản lĩnh - Đoàn kết - Sáng tạo")
-                            .optionB("Thông thái - Nhạy bén - Bản lĩnh")
-                            .optionC("Khát vọng - Tiên phong - Đổi mới")
-                            .optionD("Trách nhiệm - Kỷ cương - Gương mẫu")
-                            .correctOption("B")
-                            .explanation("3 chặng thi Vòng chung kết hội tụ phẩm chất của Bí thư Đoàn cơ sở giỏi: Thông thái (Vòng 1), Nhạy bén (Vòng 2), Bản lĩnh (Vòng 3).")
+                            .optionA("Mở rộng quy mô tổ chức các hoạt động để thu hút tối đa số lượng thanh niên tham gia.")
+                            .optionB("Tập trung nguồn lực cho công tác tình nguyện quốc tế và giao lưu văn hóa thanh niên")
+                            .optionC("Đổi mới mạnh mẽ các phong trào hành động cách mạng theo hướng thiết thực, chuyên sâu, có sản phẩm cụ thể và tác động xã hội rõ ràng")
+                            .optionD("Chuyển giao toàn bộ việc tổ chức phong trào hành động cách mạng cho các hội quần chúng trực thuộc tự đảm nhận")
+                            .correctOption("C")
+                            .explanation("Yêu cầu thứ ba: Đổi mới mạnh mẽ các phong trào hành động cách mạng theo hướng thiết thực, chuyên sâu, có sản phẩm cụ thể và tác động xã hội rõ ràng.")
                             .timeLimitSeconds(40)
                             .build()
             );
             liveQuestionRepository.saveAll(questions);
         }
 
-        // 5 Mã đề Vòng 2 (Mỗi đề 2 tình huống nghiệp vụ Quản lý đoàn viên)
+        // 10 Bộ đề Vòng 2 chính thức từ Ban Tổ chức (Mỗi đề 2 câu hỏi thực hành trên phần mềm YUM)
         if (liveRound2TopicRepository.findBySessionIdOrderByCodeAsc(sessionId).isEmpty()) {
-            List<LiveRound2Topic> topics = List.of(
-                    LiveRound2Topic.builder()
-                            .sessionId(sessionId)
-                            .code("ĐỀ 01")
-                            .scenario1("Tình huống 1 (20 điểm): Thao tác tiếp nhận 05 đoàn viên chuyển sinh hoạt Đoàn từ trường Đại học về sinh hoạt tại địa phương trên phần mềm Quản lý đoàn viên, đồng thời cập nhật biến động danh sách chi đoàn trực thuộc.")
-                            .scenario2("Tình huống 2 (20 điểm): Thao tác tạo lập đợt đánh giá xếp loại đoàn viên cuối năm cho 10 đoàn viên theo hướng dẫn của Huyện đoàn, xuất báo cáo tổng hợp kết quả.")
-                            .maxScore1(BigDecimal.valueOf(20.0))
-                            .maxScore2(BigDecimal.valueOf(20.0))
-                            .build(),
-                    LiveRound2Topic.builder()
-                            .sessionId(sessionId)
-                            .code("ĐỀ 02")
-                            .scenario1("Tình huống 1 (20 điểm): Thao tác chuyển sinh hoạt Đoàn tạm thời cho 03 đoàn viên đi làm ăn xa ngoài tỉnh và giải quyết thủ tục giới thiệu sinh hoạt nơi cư trú trên hệ thống phần mềm.")
-                            .scenario2("Tình huống 2 (20 điểm): Thao tác thực hiện quy trình chuẩn bị hồ sơ kết nạp Đoàn viên mới (Lớp đoàn viên 95 năm thành lập Đoàn) trên hệ thống phần mềm Quản lý đoàn viên.")
-                            .maxScore1(BigDecimal.valueOf(20.0))
-                            .maxScore2(BigDecimal.valueOf(20.0))
-                            .build(),
-                    LiveRound2Topic.builder()
-                            .sessionId(sessionId)
-                            .code("ĐỀ 03")
-                            .scenario1("Tình huống 1 (20 điểm): Thao tác thực hiện cấp lại thông tin định danh đoàn viên bị sai lệch căn cước công dân và xác thực số điện thoại trên hệ thống phần mềm Quản lý đoàn viên.")
-                            .scenario2("Tình huống 2 (20 điểm): Thao tác thành lập mới 01 Chi đoàn Doanh nghiệp ngoài nhà nước trực thuộc Đoàn cơ sở và gán quyền quản trị cho Bí thư chi đoàn mới.")
-                            .maxScore1(BigDecimal.valueOf(20.0))
-                            .maxScore2(BigDecimal.valueOf(20.0))
-                            .build(),
-                    LiveRound2Topic.builder()
-                            .sessionId(sessionId)
-                            .code("ĐỀ 04")
-                            .scenario1("Tình huống 1 (20 điểm): Thao tác phân bổ và quản lý thu nộp Đoàn phí trực tuyến năm 2026 cho toàn bộ các chi đoàn trực thuộc Đoàn cơ sở trên hệ thống phần mềm.")
-                            .scenario2("Tình huống 2 (20 điểm): Thao tác xử lý thủ tục cho 02 đoàn viên trưởng thành Đoàn theo đúng quy định của Điều lệ Đoàn trên hệ thống.")
-                            .maxScore1(BigDecimal.valueOf(20.0))
-                            .maxScore2(BigDecimal.valueOf(20.0))
-                            .build(),
-                    LiveRound2Topic.builder()
-                            .sessionId(sessionId)
-                            .code("ĐỀ 05")
-                            .scenario1("Tình huống 1 (20 điểm): Thao tác đồng bộ dữ liệu đoàn viên tham gia Chiến dịch Thanh niên tình nguyện Hè 2026 và ghi nhận điểm rèn luyện tình nguyện trên ứng dụng Thanh niên Việt Nam.")
-                            .scenario2("Tình huống 2 (20 điểm): Thao tác trích xuất danh sách đoàn viên ưu tú giới thiệu cho Đảng xem xét kết nạp và hoàn thiện biên bản nhận xét trên phần mềm.")
-                            .maxScore1(BigDecimal.valueOf(20.0))
-                            .maxScore2(BigDecimal.valueOf(20.0))
-                            .build()
-            );
-            liveRound2TopicRepository.saveAll(topics);
+            resetDefaultRound2Topics(sessionId);
         }
+    }
+
+    private List<LiveRound2Topic> createDefault10Round2Topics(Long sessionId) {
+        return List.of(
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 01")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện thao tác chuyển sinh hoạt Đoàn đi cho 01 đoàn viên bất kỳ từ 1 chi đoàn sang chi đoàn khác ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy sáp nhập 2 chi đoàn bất kỳ thành chi đoàn mới ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 02")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện nghiệp vụ trưởng thành Đoàn cho 01 đoàn viên bất kỳ ở chi đoàn thuộc xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy chia tách 01 chi đoàn bất kỳ thành 02 chi đoàn mới ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 03")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện thao tác cấp lại thẻ đoàn viên cho 01 đoàn viên bất kỳ ở chi đoàn thuộc xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy thực hiện quy trình kết nạp cho 01 đoàn viên mới (các trường thông tin của đoàn viên mới do thí sinh biên tập) của 01 chi đoàn tại xã nơi thí sinh công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 04")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện thao tác tạo 01 chi đoàn mới và cấp tài khoản đăng nhập cho chi đoàn đó ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy sáp nhập 2 chi đoàn bất kỳ thành chi đoàn mới ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 05")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện ban hành 01 văn bản/thông báo chỉ đạo điều hành gửi cho các chi đoàn trực thuộc ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy chia tách 01 chi đoàn bất kỳ thành 02 chi đoàn mới ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 06")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện thao tác chuyển sinh hoạt Đoàn đi cho 01 đoàn viên bất kỳ từ 1 chi đoàn sang chi đoàn khác ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy thực hiện quy trình kết nạp cho 01 đoàn viên mới (các trường thông tin của đoàn viên mới do thí sinh biên tập) của 01 chi đoàn tại xã nơi thí sinh công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 07")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện nghiệp vụ trưởng thành Đoàn cho 01 đoàn viên bất kỳ (đến tuổi trưởng thành đoàn) ở chi đoàn thuộc xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy sáp nhập 2 chi đoàn bất kỳ thành chi đoàn mới ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 08")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện thao tác cấp lại thẻ đoàn viên cho 01 đoàn viên bất kỳ ở chi đoàn thuộc xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy chia tách 01 chi đoàn bất kỳ thành 02 chi đoàn mới ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 09")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện thao tác tạo 01 chi đoàn mới và cấp tài khoản đăng nhập cho chi đoàn đó ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy thực hiện quy trình kết nạp cho 01 đoàn viên mới (các trường thông tin của đoàn viên mới do thí sinh biên tập) của 01 chi đoàn tại xã nơi thí sinh công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build(),
+                LiveRound2Topic.builder()
+                        .sessionId(sessionId)
+                        .code("BỘ ĐỀ 10")
+                        .scenario1("Câu 1: Thí sinh hãy thực hiện ban hành 01 văn bản/thông báo chỉ đạo điều hành gửi cho các chi đoàn trực thuộc ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .scenario2("Câu 2: Thí sinh hãy sáp nhập 2 chi đoàn bất kỳ thành chi đoàn mới ở xã nơi thí sinh đang công tác trên Phần mềm Quản lý đoàn viên (YUM).")
+                        .maxScore1(BigDecimal.valueOf(20.0))
+                        .maxScore2(BigDecimal.valueOf(20.0))
+                        .build()
+        );
     }
 
     // ==========================================
@@ -1619,6 +2173,11 @@ public class LiveArenaServiceImpl implements LiveArenaService {
                 .players(players.stream().map(p -> convertPlayerToDto(p, playerAnswersMap.get(p.getId()), questionOrderMap, s)).collect(Collectors.toList()))
                 .currentQuestion(question != null ? convertQuestionToDto(question, "ANSWER_REVEALED".equalsIgnoreCase(s.getRound1State()) || "LEADERBOARD".equalsIgnoreCase(s.getRound1State())) : null)
                 .revealedData(revealedData)
+                .round2BatchEndAt(round2BatchEndTimes.get(s.getId()))
+                .round2BatchRunning(round2BatchRunningMap.getOrDefault(s.getId(), false))
+                .round2BatchPlayerIds(round2ActiveBatches.getOrDefault(s.getId(), List.of()))
+                .round3DuelState(round3ActiveDuels.get(s.getId()))
+                .round3ViewMode(round3ViewModes.getOrDefault(s.getId(), "PAIRS"))
                 .build();
     }
 
@@ -1760,7 +2319,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
 
     @Override
     @Transactional
-    public void resetSessionData(Long sessionId) {
+    public LiveSessionDto resetSessionData(Long sessionId) {
         LiveSession session = null;
         if (sessionId != null) {
             session = liveSessionRepository.findById(sessionId).orElse(null);
@@ -1779,10 +2338,13 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         final Long actualSessionId = session.getId();
         log.info("Làm sạch toàn bộ dữ liệu thi test cho LiveSession ID: {}", actualSessionId);
 
-        // 1. Xóa sạch lịch sử trả lời của thí sinh
+        // 1. Xóa sạch lịch sử trả lời của thí sinh (Vòng 1 & Vòng 2)
         livePlayerAnswerRepository.deleteBySessionId(actualSessionId);
 
-        // 2. Reset điểm số, NSHV, kết quả của các thí sinh về 0
+        // 2. Xóa sạch kết quả bốc thăm ghép cặp đối kháng Vòng 3
+        liveRound3PairRepository.deleteBySessionId(actualSessionId);
+
+        // 3. Reset điểm số, NSHV, mã đề thi và kết quả của các thí sinh về 0 (giữ nguyên danh sách và hồ sơ thí sinh)
         List<LivePlayer> players = livePlayerRepository.findBySessionIdOrderByOrderNumberAsc(actualSessionId);
         for (LivePlayer p : players) {
             p.setHopeStarUsed(false);
@@ -1804,18 +2366,28 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         }
         livePlayerRepository.saveAll(players);
 
-        // 3. Đưa phiên thi về sảnh chờ LOBBY ban đầu
+        // 4. Đưa phiên thi về sảnh chờ LOBBY ban đầu
         session.setStatus("LOBBY");
         session.setCurrentRound(1);
         session.setCurrentQuestionIndex(0);
         session.setRound1State("IDLE");
         liveSessionRepository.save(session);
 
+        // 5. Làm sạch bộ nhớ đệm và trạng thái thời gian thực
         questionStartTimes.keySet().removeIf(k -> k.startsWith(actualSessionId + ":"));
         previousRanks.clear();
+        round2BatchRunningMap.remove(actualSessionId);
+        round2BatchEndTimes.remove(actualSessionId);
+        round2ActiveBatches.remove(actualSessionId);
 
+        // 6. Phát WebSocket broadcast đồng bộ trạng thái đến màn LED Host, Thí sinh và Ban tổ chức
         LiveSessionDto dto = convertToDto(session);
         broadcast(actualSessionId, "SESSION_STATUS_CHANGED", dto);
         broadcast(actualSessionId, "PLAYERS_CONFIGURED", dto.getPlayers());
+        broadcast(actualSessionId, "ROUND2_BATCH_RESET", Map.of("sessionId", actualSessionId));
+        broadcast(actualSessionId, "ROUND3_PAIR_DRAWN", Map.of("sessionId", actualSessionId, "pairs", List.of()));
+        broadcast(actualSessionId, "SESSION_RESET", dto);
+
+        return dto;
     }
 }

@@ -43,6 +43,7 @@ import {
   LiveRound3Pair,
   LiveSessionDto,
 } from '../../../types/live';
+import ResetLiveContestModal from '../../components/admin/ResetLiveContestModal';
 
 export default function AdminLiveConfig() {
   const navigate = useNavigate();
@@ -122,7 +123,7 @@ export default function AdminLiveConfig() {
 
   // Round 3 Inputs
   const [r3PlayerId, setR3PlayerId] = useState<number | ''>('');
-  const [r3Score, setR3Score] = useState<number>(85);
+  const [r3Score, setR3Score] = useState<number>(0);
   const [round3Pairs, setRound3Pairs] = useState<LiveRound3Pair[]>([]);
 
   // Load session
@@ -582,28 +583,23 @@ export default function AdminLiveConfig() {
     });
   };
 
-  const handleResetSession = () => {
-    setConfirmDialog({
-      title: 'Làm sạch dữ liệu thi thử',
-      message: 'Xác nhận xóa sạch toàn bộ lịch sử trả lời, điểm số của các thí sinh? Phiên thi sẽ được đưa về Sảnh chờ ban đầu để sẵn sàng chạy lại.',
-      confirmText: 'Làm sạch & Bắt đầu lại',
-      confirmType: 'danger',
-      onConfirm: async () => {
-        try {
-          setActionLoading(true);
-          const active = await liveApi.getActiveSession().catch(() => null);
-          const targetId = active?.id || session?.id;
-          await adminLiveApi.resetSession(targetId);
-          toast.success('Đã làm sạch toàn bộ dữ liệu thi thử thành công!');
-          await fetchSession();
-        } catch (err: any) {
-          const errMsg = err?.response?.data?.message || err?.message || 'Lỗi khi làm sạch dữ liệu thi';
-          toast.error(errMsg);
-        } finally {
-          setActionLoading(false);
-        }
-      },
-    });
+  const [resetContestModalOpen, setResetContestModalOpen] = useState(false);
+
+  const handleConfirmResetContest = async () => {
+    try {
+      setActionLoading(true);
+      const active = await liveApi.getActiveSession().catch(() => null);
+      const targetId = active?.id || session?.id;
+      await adminLiveApi.resetSession(targetId);
+      toast.success('Đã reset đợt thi và làm sạch toàn bộ dữ liệu thi test của 3 vòng thành công!');
+      setResetContestModalOpen(false);
+      await fetchSession();
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Lỗi khi reset đợt thi';
+      toast.error(errMsg);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const round1State = session?.round1State || 'IDLE';
@@ -630,13 +626,13 @@ export default function AdminLiveConfig() {
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
-            onClick={handleResetSession}
+            onClick={() => setResetContestModalOpen(true)}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold shadow-xs transition-colors"
-            title="Làm sạch toàn bộ điểm số và kết quả thi thử"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-50 to-red-50 hover:from-rose-100 hover:to-red-100 border border-rose-300 text-rose-700 text-xs font-bold shadow-xs transition-colors"
+            title="Xóa toàn bộ dữ liệu kết quả thi test của 3 vòng, đưa phòng thi về trạng thái ban đầu"
           >
             <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
-            Làm sạch dữ liệu test
+            Reset đợt thi (Xóa dữ liệu test)
           </button>
 
           <button
@@ -1420,6 +1416,15 @@ export default function AdminLiveConfig() {
           </div>
         </div>
       )}
+
+      {/* Modal Cảnh báo Đỏ Quan Trọng: Reset đợt thi */}
+      <ResetLiveContestModal
+        isOpen={resetContestModalOpen}
+        onClose={() => setResetContestModalOpen(false)}
+        onConfirm={handleConfirmResetContest}
+        sessionName={session?.name}
+        loading={actionLoading}
+      />
       </div>
       </main>
     </div>

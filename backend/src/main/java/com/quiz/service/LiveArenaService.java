@@ -52,13 +52,35 @@ public interface LiveArenaService {
     LiveQuestionDto getShuffledQuestionForPlayer(Long questionId, Long playerId);
 
     // Vòng 2: Nhạy bén (Mã đề & Điểm 10 phút)
+    void selectRound2Candidate(Long sessionId, Long playerId);
     void assignRound2Topic(Long sessionId, Long playerId, String topicCode);
+    void unassignRound2Topic(Long sessionId, Long playerId);
+    void resetPlayerRound2(Long sessionId, Long playerId);
     void showRound2TopicQuestion(Long sessionId, String topicCode);
+    void startRound2Batch(Long sessionId, List<Long> playerIds, Integer durationSeconds);
+    void endRound2Batch(Long sessionId);
+    void showRound2Leaderboard(Long sessionId);
+    void showRound2Leaderboard(Long sessionId, String viewType);
+    void showRound2Selecting(Long sessionId);
+    void resetRound2Batch(Long sessionId);
+    List<LiveRound2Topic> resetDefaultRound2Topics(Long sessionId);
     void updateRound2Score(Long playerId, BigDecimal score1, BigDecimal score2);
     List<LiveRound2Topic> getRound2Topics(Long sessionId);
+    List<LiveRound2Topic> getRound2TopicsForPublic(Long sessionId, Long playerId);
 
-    // Vòng 3: Bản lĩnh (Live Random Pairing & Điểm đối kháng)
+    // Vòng 3: Bản lĩnh (Live Pairing & Đối kháng 3 giai đoạn)
     List<LiveRound3Pair> generateRandomPairs(Long sessionId);
+    LiveRound3Pair assignRound3Pair(Long sessionId, Integer pairNumber, Long player1Id, Long player2Id);
+    void deleteRound3Pair(Long sessionId, Integer pairNumber);
+    void resetAllRound3Pairs(Long sessionId);
+    void displayRound3Duel(Long sessionId, Integer pairNumber);
+    void startRound3Duel(Long sessionId, Integer pairNumber, String stage, String stageTitle, Integer durationSeconds, Long activePlayerId);
+    void stopRound3DuelTimer(Long sessionId);
+    void startRound3Overtime(Long sessionId, Long playerId);
+    void stopRound3Overtime(Long sessionId, Integer overtimeSeconds);
+    void showAllRound3Pairs(Long sessionId);
+    void showRound3Rules(Long sessionId);
+    java.util.List<java.util.Map<String, Object>> getRound3DisplayPairs(Long sessionId);
     void updateRound3Score(Long playerId, BigDecimal score);
     List<LiveRound3Pair> getRound3Pairs(Long sessionId);
 
@@ -69,9 +91,10 @@ public interface LiveArenaService {
 
     // Kết thúc & Vinh danh
     LiveSessionDto finishSession(Long sessionId);
+    void switchFinishViewMode(Long sessionId, String viewMode);
 
     // Xóa & Làm sạch dữ liệu phiên thi
     void deleteSession(Long sessionId);
     void deleteAllSessionsByPhaseId(Long phaseId);
-    void resetSessionData(Long sessionId);
+    LiveSessionDto resetSessionData(Long sessionId);
 }

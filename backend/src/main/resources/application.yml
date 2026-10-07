@@ -11,7 +11,7 @@ spring:
       max-request-size: 5MB
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:quiz_database}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:quiz_doan}
     username: ${DB_USER:postgres}
     password: ${DB_PASS:123456}
     driver-class-name: org.postgresql.Driver
@@ -72,7 +72,7 @@ captcha:
     site-key: ${VITE_TURNSTILE_SITE_KEY:${CAPTCHA_TURNSTILE_SITE_KEY:}}
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:ChonMotChuoiThatDaiVaBiMatTren64KyTuDeDamBaoAnToanTuyetDoiChoHeThongQuiz1234}
   expiration-ms: 28800000
 
 quiz:

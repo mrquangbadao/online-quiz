@@ -20,6 +20,7 @@ import {
   LogOut,
   Mail,
   Lock,
+  Swords,
 } from 'lucide-react';
 import { liveApi } from '../../../api/liveApi';
 import { useLiveSocket } from '../../../hooks/useLiveSocket';
@@ -34,6 +35,7 @@ import {
   LiveSessionDto,
   ShuffledOption,
 } from '../../../types/live';
+import { formatScore } from '../../../utils/scoreFormatter';
 
 // Helper to get or create a unique device ID per browser tab
 function getTabDeviceId(): string {
@@ -87,8 +89,27 @@ export default function LivePlayerMobile() {
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
   const [revealedData, setRevealedData] = useState<any | null>(null);
 
+  // Round 2 states
+  const [round2Topics, setRound2Topics] = useState<LiveRound2Topic[]>([]);
+  const [r2BatchRunning, setR2BatchRunning] = useState<boolean>(false);
+  const [r2Timer, setR2Timer] = useState<number>(600);
+  const [r2TimerRunning, setR2TimerRunning] = useState<boolean>(false);
+  const [r2TimeUp, setR2TimeUp] = useState<boolean>(false);
+
+  // Current active contestant
+  const player = useMemo<LivePlayerDto | undefined>(() => {
+    if (!session || !selectedPlayerId) return undefined;
+    const found = session.players?.find((p) => p.id === selectedPlayerId);
+    // If contestant was reset/kicked out on server (isCheckedIn is false), invalidate active player
+    if (found && !found.isCheckedIn) {
+      return undefined;
+    }
+    return found;
+  }, [session, selectedPlayerId]);
+
   const questionStartTimeRef = useRef<number>(0);
   const targetEndTimeRef = useRef<number | null>(null);
+  const r2TargetEndTimeRef = useRef<number | null>(null);
   const candidateIdRef = useRef<number | null>(candidateId);
   const selectedPlayerIdRef = useRef<number | null>(selectedPlayerId);
   const rescueRequestedRef = useRef<boolean>(rescueRequested);
@@ -197,6 +218,27 @@ export default function LivePlayerMobile() {
           fetchPlayerQuestion(data.currentQuestion.id, activePId);
         }
       }
+
+      // Restore Round 2 10-minute timer if candidate reloads page during exam
+      if (data && data.status === 'ROUND2' && data.round2BatchRunning && data.round2BatchEndAt) {
+        const activePId = selectedPlayerIdRef.current || (sessionStorage.getItem('live_player_id') ? Number(sessionStorage.getItem('live_player_id')) : null);
+        const inBatch = !data.round2BatchPlayerIds || data.round2BatchPlayerIds.length === 0 || (activePId && data.round2BatchPlayerIds.includes(activePId));
+        if (inBatch) {
+          const remainingR2 = Math.max(0, Math.ceil((data.round2BatchEndAt - Date.now()) / 1000));
+          if (remainingR2 > 0) {
+            r2TargetEndTimeRef.current = data.round2BatchEndAt;
+            setR2Timer(remainingR2);
+            setR2TimerRunning(true);
+            setR2BatchRunning(true);
+            setR2TimeUp(false);
+          } else {
+            r2TargetEndTimeRef.current = null;
+            setR2Timer(0);
+            setR2TimerRunning(false);
+            setR2TimeUp(true);
+          }
+        }
+      }
     } catch (err) {
       console.error('Lỗi tải phiên thi:', err);
     } finally {
@@ -207,6 +249,38 @@ export default function LivePlayerMobile() {
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
+
+  // Round 2 Topics Fetching
+  useEffect(() => {
+    if (session?.id && (session.status === 'ROUND2' || round2Topics.length === 0)) {
+      const pId = selectedPlayerId || (sessionStorage.getItem('live_player_id') ? Number(sessionStorage.getItem('live_player_id')) : undefined);
+      liveApi
+        .getRound2Topics(session.id, pId)
+        .then((topics) => {
+          if (topics && topics.length > 0) {
+            setRound2Topics(topics);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [session?.id, session?.status, selectedPlayerId, player?.round2DrawCode]);
+
+  // Round 2 10-Minute Timer Ticker synchronized with server epoch
+  useEffect(() => {
+    if (!r2TimerRunning || !r2TargetEndTimeRef.current) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((r2TargetEndTimeRef.current! - Date.now()) / 1000));
+      setR2Timer(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        setR2TimerRunning(false);
+        setR2TimeUp(true);
+        r2TargetEndTimeRef.current = null;
+        liveSound.playBuzzer();
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [r2TimerRunning]);
 
   // Auto-sync when mobile tab wakes up, regains visibility or window focus
   useEffect(() => {
@@ -264,16 +338,6 @@ export default function LivePlayerMobile() {
     return () => clearInterval(interval);
   }, [selectedPlayerId, rescueRequested, fetchSession]);
 
-  // Current active contestant
-  const player = useMemo<LivePlayerDto | undefined>(() => {
-    if (!session || !selectedPlayerId) return undefined;
-    const found = session.players?.find((p) => p.id === selectedPlayerId);
-    // If contestant was reset/kicked out on server (isCheckedIn is false), invalidate active player
-    if (found && !found.isCheckedIn) {
-      return undefined;
-    }
-    return found;
-  }, [session, selectedPlayerId]);
 
   // If session sync detects this device's player is no longer checked in (e.g. admin reset session), kick out to check-in screen
   useEffect(() => {
@@ -360,6 +424,19 @@ export default function LivePlayerMobile() {
               });
             } catch (e) {}
           }
+          break;
+
+        case 'SESSION_RESET':
+          setSession(event.payload);
+          setSelectedKey(null);
+          setHasSubmitted(false);
+          setSubmitTimeMs(null);
+          setHopeStarActive(false);
+          try {
+            Object.keys(sessionStorage).forEach((k) => {
+              if (k.startsWith('live_ans_')) sessionStorage.removeItem(k);
+            });
+          } catch (e) {}
           break;
 
         case 'PLAYER_CHECKED_IN': {
@@ -592,7 +669,79 @@ export default function LivePlayerMobile() {
           fetchSession();
           break;
 
-        case 'ROUND2_TOPIC_ASSIGNED':
+        case 'ROUND2_TOPIC_ASSIGNED': {
+          const myPId =
+            selectedPlayerIdRef.current ||
+            (sessionStorage.getItem('live_player_id')
+              ? Number(sessionStorage.getItem('live_player_id'))
+              : null);
+          if (event.payload?.playerId === myPId && event.payload?.topic) {
+            setRound2Topics((prev) => {
+              const assignedTopic = event.payload.topic;
+              if (!assignedTopic || !assignedTopic.code) return prev;
+              const exists = prev.some((t) => t.code === assignedTopic.code);
+              if (exists) {
+                return prev.map((t) => (t.code === assignedTopic.code ? { ...t, ...assignedTopic } : t));
+              }
+              return [...prev, assignedTopic];
+            });
+          }
+          fetchSession();
+          break;
+        }
+
+        case 'ROUND2_TOPIC_UNASSIGNED':
+        case 'ROUND2_PLAYER_RESET':
+          fetchSession();
+          break;
+
+        case 'ROUND2_BATCH_STARTED': {
+          const myPId =
+            selectedPlayerIdRef.current ||
+            (sessionStorage.getItem('live_player_id')
+              ? Number(sessionStorage.getItem('live_player_id'))
+              : null);
+          const pIds = event.payload?.playerIds || [];
+          if (myPId && pIds.includes(myPId)) {
+            const endAt = event.payload?.endAt || (Date.now() + (event.payload?.durationSeconds || 600) * 1000);
+            r2TargetEndTimeRef.current = endAt;
+            const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+            setR2BatchRunning(true);
+            setR2Timer(rem);
+            setR2TimerRunning(true);
+            setR2TimeUp(false);
+            liveSound.playFanfare();
+          } else {
+            setR2BatchRunning(false);
+            setR2TimerRunning(false);
+          }
+          fetchSession();
+          break;
+        }
+
+        case 'ROUND2_BATCH_ENDED': {
+          r2TargetEndTimeRef.current = null;
+          setR2TimerRunning(false);
+          setR2Timer(0);
+          if (r2BatchRunning) {
+            setR2TimeUp(true);
+            setR2BatchRunning(false);
+            liveSound.playBuzzer();
+          }
+          fetchSession();
+          break;
+        }
+
+        case 'ROUND2_BATCH_RESET': {
+          r2TargetEndTimeRef.current = null;
+          setR2BatchRunning(false);
+          setR2TimerRunning(false);
+          setR2TimeUp(false);
+          setR2Timer(600);
+          fetchSession();
+          break;
+        }
+
         case 'ROUND2_TOPIC_REVEALED':
         case 'ROUND2_SCORE_UPDATED':
         case 'ROUND3_PAIR_DRAWN':
@@ -1208,20 +1357,20 @@ export default function LivePlayerMobile() {
         <div className="max-w-4xl lg:max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5 font-medium">
             <span>
-              V1: <strong className="text-yellow-300 font-bold">{player.round1Score ?? 0}đ</strong>
+              V1: <strong className="text-yellow-300 font-bold">{formatScore(player.round1Score)}đ</strong>
             </span>
             <span className="text-white/30">|</span>
             <span>
-              V2: <strong className="text-yellow-300 font-bold">{player.round2Score ?? 0}đ</strong>
+              V2: <strong className="text-yellow-300 font-bold">{formatScore(player.round2Score)}đ</strong>
             </span>
             <span className="text-white/30">|</span>
             <span>
-              V3: <strong className="text-yellow-300 font-bold">{player.round3Score ?? 0}đ</strong>
+              V3: <strong className="text-yellow-300 font-bold">{formatScore(player.round3Score)}đ</strong>
             </span>
           </div>
           <div className="font-black text-blue-950 flex items-center gap-1.5 bg-yellow-400 px-2.5 py-1 rounded-lg shadow-xs">
             <Award className="w-3.5 h-3.5 text-blue-950" />
-            <span>Tổng: {player.totalScore ?? 0}đ</span>
+            <span>Tổng: {formatScore(player.totalScore)}đ</span>
           </div>
         </div>
       </div>
@@ -1778,64 +1927,198 @@ export default function LivePlayerMobile() {
         )}
 
         {/* 2. ROUND 2 VIEW */}
-        {session?.status === 'ROUND2' && (
-          <div className="flex-1 flex flex-col justify-center py-6 animate-fadeIn text-center w-full max-w-xl mx-auto">
-            <div className="w-14 h-14 rounded-full bg-yellow-400/20 border border-yellow-300/60 flex items-center justify-center mx-auto mb-3">
-              <Zap className="w-7 h-7 text-yellow-300" />
-            </div>
-            <h2 className="text-base font-black text-white uppercase">VÒNG 2: NHẠY BÉN</h2>
-            <p className="text-xs text-sky-200 mt-1 mb-6">
-              Xử lý tình huống trên phần mềm Quản lý đoàn viên (10 phút)
-            </p>
+        {session?.status === 'ROUND2' && (() => {
+          const myTopic = round2Topics.find((t) => t.code === player.round2DrawCode);
+          const hasScore = (player.round2Score ?? 0) > 0;
 
-            <div className="bg-white text-slate-900 border border-blue-100 rounded-2xl p-5 text-left space-y-3 shadow-xl">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="text-xs text-slate-500">Mã đề bốc thăm:</span>
-                <span className="text-sm font-black text-[#134bc4]">
-                  {player.round2DrawCode || 'Chưa bốc thăm'}
-                </span>
+          return (
+            <div className="flex-1 flex flex-col py-4 animate-fadeIn w-full max-w-xl mx-auto space-y-4">
+              <div className="text-center">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-1">
+                  <Zap className="w-3.5 h-3.5 text-amber-300" /> THỰC HÀNH NGHIỆP VỤ YUM (10 PHÚT)
+                </div>
+                <h2 className="text-base font-black text-white uppercase">VÒNG 2: NHẠY BÉN</h2>
               </div>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="text-xs text-slate-500">Điểm tình huống 1:</span>
-                <span className="text-xs font-bold text-slate-900">
-                  {player.round2Scenario1Score ?? 0} / 20đ
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="text-xs text-slate-500">Điểm tình huống 2:</span>
-                <span className="text-xs font-bold text-slate-900">
-                  {player.round2Scenario2Score ?? 0} / 20đ
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs font-bold text-slate-700">Tổng điểm Vòng 2:</span>
-                <span className="text-sm font-black text-amber-600">{player.round2Score ?? 0}đ</span>
+
+              {/* TRƯỜNG HỢP 1: ĐANG THI 10 PHÚT */}
+              {r2BatchRunning && !r2TimeUp && !hasScore && (
+                <div className="space-y-4 animate-scaleUp">
+                  {/* Đồng hồ 10 phút */}
+                  <div className="bg-slate-900 border-2 border-amber-400 rounded-2xl p-4 text-center shadow-xl">
+                    <div className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex items-center justify-center gap-1.5 mb-1">
+                      <Timer className="w-4 h-4 animate-spin text-amber-400" /> THỜI GIAN LÀM BÀI CÒN LẠI:
+                    </div>
+                    <div className={`text-5xl font-black font-mono tracking-tight ${r2Timer <= 60 ? 'text-rose-500 animate-pulse' : 'text-amber-400'}`}>
+                      {String(Math.floor(r2Timer / 60)).padStart(2, '0')}:
+                      {String(r2Timer % 60).padStart(2, '0')}
+                    </div>
+                  </div>
+
+                  {/* Card Mã đề & 2 Câu hỏi tình huống */}
+                  <div className="bg-white text-slate-900 border-2 border-blue-200 rounded-3xl p-5 shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">MÃ ĐỀ CỦA BẠN:</span>
+                        <span className="text-xl font-black text-blue-700">{player.round2DrawCode || 'BỘ ĐỀ THI'}</span>
+                      </div>
+                      <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs border border-emerald-300">
+                        Đang làm bài
+                      </span>
+                    </div>
+
+                    {/* Câu 1 */}
+                    <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-blue-800 uppercase tracking-wide">TÌNH HUỐNG 01</span>
+                        <span className="text-xs font-black text-amber-600">Tối đa 20 điểm</span>
+                      </div>
+                      <p className="text-xs text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                        {myTopic?.scenario1 || 'Đang cập nhật câu hỏi 1...'}
+                      </p>
+                    </div>
+
+                    {/* Câu 2 */}
+                    <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-900 uppercase tracking-wide">TÌNH HUỐNG 02</span>
+                        <span className="text-xs font-black text-amber-600">Tối đa 20 điểm</span>
+                      </div>
+                      <p className="text-xs text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                        {myTopic?.scenario2 || 'Đang cập nhật câu hỏi 2...'}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                      <p className="text-[11px] text-slate-600 font-medium">
+                        💡 Thí sinh hãy thực hiện thao tác nghiệp vụ trên <strong>Phần mềm Quản lý đoàn viên (YUM)</strong> tại máy tính dự thi.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TRƯỜNG HỢP 2: HẾT GIỜ LÀM BÀI */}
+              {r2TimeUp && !hasScore && (
+                <div className="bg-white text-slate-900 border-2 border-rose-400 rounded-3xl p-6 text-center space-y-3 shadow-2xl animate-scaleUp">
+                  <div className="w-14 h-14 rounded-full bg-rose-100 border-2 border-rose-400 flex items-center justify-center mx-auto text-rose-600">
+                    <Timer className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-lg font-black text-rose-600 uppercase">HẾT GIỜ LÀM BÀI</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
+                    Đã hết 10 phút thời gian làm bài. Thí sinh vui lòng dừng mọi thao tác trên máy tính và chờ Ban Giám khảo chấm điểm.
+                  </p>
+                </div>
+              )}
+
+              {/* TRƯỜNG HỢP 3: CHƯA BẮT ĐẦU THI HOẶC CHỜ LƯỢT */}
+              {!r2BatchRunning && !r2TimeUp && !hasScore && (
+                <div className="bg-white text-slate-900 border border-blue-100 rounded-3xl p-6 text-center space-y-4 shadow-xl">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-50 border-2 border-amber-400 flex items-center justify-center mx-auto text-amber-600 shadow-sm">
+                    <Zap className="w-7 h-7" />
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block mb-1">
+                      MÃ ĐỀ BỐC THĂM CỦA BẠN:
+                    </span>
+                    <div className="text-2xl font-black text-blue-700">
+                      {player.round2DrawCode || 'CHƯA BỐC MÃ ĐỀ'}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed max-w-xs mx-auto">
+                    {player.round2DrawCode
+                      ? 'Thí sinh đã bốc thăm mã đề thành công. Vui lòng chuẩn bị đăng nhập phần mềm Quản lý đoàn viên trên máy tính và chờ hiệu lệnh BẮT ĐẦU THI 10 PHÚT từ Ban Tổ chức!'
+                      : 'Thí sinh vui lòng chú ý lắng nghe hiệu lệnh của MC trên sân khấu để tiến hành bốc thăm mã đề thi!'}
+                  </p>
+                </div>
+              )}
+
+              {/* TRƯỜNG HỢP 4: ĐÃ HOÀN THÀNH BÀI THI & CÓ ĐIỂM */}
+              {hasScore && (
+                <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border-2 border-emerald-400 rounded-3xl p-5 text-center space-y-2 shadow-lg animate-fadeIn">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center mx-auto text-emerald-400 shadow-sm">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-black text-white uppercase">
+                    ĐÃ HOÀN THÀNH PHẦN THI VÒNG 2
+                  </h3>
+                  <p className="text-xs text-emerald-200">
+                    Điểm số phần thi thực hành của bạn đã được Ban Giám khảo chấm và ghi nhận thành công!
+                  </p>
+                </div>
+              )}
+
+              {/* BẢNG ĐIỂM CHI TIẾT (KHI ĐÃ ĐƯỢC CHẤM HOẶC CÓ KẾT QUẢ) */}
+              <div className="bg-white text-slate-900 border border-blue-100 rounded-2xl p-5 text-left space-y-3 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs text-slate-500 font-bold">Mã đề bốc thăm:</span>
+                  <span className="text-sm font-black text-blue-700">
+                    {player.round2DrawCode || 'Chưa bốc thăm'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs text-slate-500">Điểm tình huống 1:</span>
+                  <span className="text-xs font-black text-slate-900">
+                    {formatScore(player.round2Scenario1Score)} / 20đ
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs text-slate-500">Điểm tình huống 2:</span>
+                  <span className="text-xs font-black text-slate-900">
+                    {formatScore(player.round2Scenario2Score)} / 20đ
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-black text-slate-800">Tổng điểm Vòng 2:</span>
+                  <span className="text-base font-black text-emerald-600">{formatScore(player.round2Score)}đ</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                  <span className="text-xs font-black text-slate-800">Tổng điểm tích lũy:</span>
+                  <span className="text-base font-black text-amber-600">{formatScore(player.totalScore)}đ</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* 3. ROUND 3 VIEW */}
         {session?.status === 'ROUND3' && (
-          <div className="flex-1 flex flex-col justify-center py-6 animate-fadeIn text-center w-full max-w-xl mx-auto">
-            <div className="w-14 h-14 rounded-full bg-white/20 border border-white/40 flex items-center justify-center mx-auto mb-3">
-              <Users className="w-7 h-7 text-white" />
+          <div className="flex-1 flex flex-col items-center justify-center py-8 animate-fadeIn text-center w-full max-w-md mx-auto space-y-4">
+            <div className="w-20 h-20 rounded-3xl bg-amber-400/20 border-2 border-amber-400 text-amber-300 flex items-center justify-center mx-auto shadow-xl">
+              <Swords className="w-10 h-10 text-amber-400" />
             </div>
-            <h2 className="text-base font-black text-white uppercase">VÒNG 3: BẢN LĨNH</h2>
-            <p className="text-xs text-sky-200 mt-1 mb-6">Tranh biện đối kháng trực tiếp trên sân khấu</p>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-300 text-xs font-black uppercase tracking-wider mb-2">
+                TRANH TÀI ĐỐI KHÁNG TRỰC TIẾP
+              </div>
+              <h2 className="text-xl font-black text-white uppercase">VÒNG 3: BẢN LĨNH</h2>
+              <p className="text-sm text-sky-200 font-semibold mt-2 max-w-xs mx-auto leading-relaxed">
+                Đang diễn ra Vòng 3: Bản lĩnh
+              </p>
+            </div>
 
-            <div className="bg-white text-slate-900 border border-blue-100 rounded-2xl p-5 text-left space-y-3 shadow-xl">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="text-xs text-slate-500">Cặp đấu bốc thăm:</span>
-                <span className="text-sm font-black text-[#134bc4]">
-                  {player.round3PairGroup ? `CẶP 0${player.round3PairGroup}` : 'Chưa ghép cặp'}
+            <div className="bg-white text-slate-900 border border-blue-100 rounded-3xl p-5 w-full text-left space-y-3 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <span className="text-xs text-slate-500 font-bold">Thí sinh:</span>
+                <span className="text-sm font-black text-slate-900">
+                  {player?.fullName || 'Thí sinh'} {player?.orderNumber ? `(SBD ${String(player.orderNumber).padStart(2, '0')})` : ''}
                 </span>
               </div>
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs font-bold text-slate-700">Điểm đối kháng:</span>
-                <span className="text-sm font-black text-[#134bc4]">
-                  {player.round3Score ?? 0} / 100đ
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <span className="text-xs text-slate-500 font-bold">Đơn vị:</span>
+                <span className="text-xs font-bold text-slate-700">{player?.unit || '—'}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <span className="text-xs text-slate-500 font-bold">Cặp thi đấu:</span>
+                <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-800 border border-amber-300">
+                  {player?.round3PairGroup ? `CẶP 0${player.round3PairGroup}` : 'Chờ ghép cặp'}
                 </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 text-center">
+                <p className="text-xs text-blue-900 font-medium">
+                  📢 Thí sinh chú ý theo dõi hiệu lệnh điều hành của Ban Tổ chức và Ban Giám khảo trên sân khấu chính.
+                </p>
               </div>
             </div>
           </div>
@@ -1856,7 +2139,7 @@ export default function LivePlayerMobile() {
                 HẠNG {player.finalRank ?? '-'}
               </div>
               <div className="text-xs font-bold text-slate-900 pt-2 border-t border-slate-100">
-                Tổng điểm: {player.totalScore}đ
+                Tổng điểm: {formatScore(player.totalScore)}đ
               </div>
             </div>
           </div>

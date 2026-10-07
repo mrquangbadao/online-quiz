@@ -115,12 +115,19 @@ public class LiveArenaController {
     }
 
     @GetMapping("/round2/session/{sessionId}/topics")
-    public ResponseEntity<ApiResponse<List<LiveRound2Topic>>> getRound2Topics(@PathVariable Long sessionId) {
-        return ResponseEntity.ok(ApiResponse.ok(liveArenaService.getRound2Topics(sessionId)));
+    public ResponseEntity<ApiResponse<List<LiveRound2Topic>>> getRound2Topics(
+            @PathVariable Long sessionId,
+            @RequestParam(required = false) Long playerId) {
+        return ResponseEntity.ok(ApiResponse.ok(liveArenaService.getRound2TopicsForPublic(sessionId, playerId)));
     }
 
     @GetMapping("/round3/session/{sessionId}/pairs")
     public ResponseEntity<ApiResponse<List<LiveRound3Pair>>> getRound3Pairs(@PathVariable Long sessionId) {
         return ResponseEntity.ok(ApiResponse.ok(liveArenaService.getRound3Pairs(sessionId)));
+    }
+
+    @GetMapping("/round3/session/{sessionId}/display-pairs")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getRound3DisplayPairs(@PathVariable Long sessionId) {
+        return ResponseEntity.ok(ApiResponse.ok(liveArenaService.getRound3DisplayPairs(sessionId)));
     }
 }

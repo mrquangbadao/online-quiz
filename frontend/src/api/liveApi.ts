@@ -6,6 +6,7 @@ import {
   LiveQuestionDto,
   LiveRound2Topic,
   LiveRound3Pair,
+  LiveRound3DisplayPair,
   LiveSessionDto,
 } from '../types/live';
 
@@ -95,16 +96,24 @@ export const liveApi = {
     return res.data.data;
   },
 
-  getRound2Topics: async (sessionId: number): Promise<LiveRound2Topic[]> => {
-    const res = await axiosClient.get<ApiResponse<LiveRound2Topic[]>>(
-      `/live/round2/session/${sessionId}/topics`
-    );
+  getRound2Topics: async (sessionId: number, playerId?: number): Promise<LiveRound2Topic[]> => {
+    const url = playerId
+      ? `/live/round2/session/${sessionId}/topics?playerId=${playerId}`
+      : `/live/round2/session/${sessionId}/topics`;
+    const res = await axiosClient.get<ApiResponse<LiveRound2Topic[]>>(url);
     return res.data.data;
   },
 
   getRound3Pairs: async (sessionId: number): Promise<LiveRound3Pair[]> => {
     const res = await axiosClient.get<ApiResponse<LiveRound3Pair[]>>(
       `/live/round3/session/${sessionId}/pairs`
+    );
+    return res.data.data;
+  },
+
+  getRound3DisplayPairs: async (sessionId: number): Promise<LiveRound3DisplayPair[]> => {
+    const res = await axiosClient.get<ApiResponse<LiveRound3DisplayPair[]>>(
+      `/live/round3/session/${sessionId}/display-pairs`
     );
     return res.data.data;
   },
