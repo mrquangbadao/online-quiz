@@ -882,15 +882,12 @@ export default function LivePlayerMobile() {
                     className="w-13 h-13 rounded-xl object-cover border border-blue-300 shrink-0"
                   />
                 ) : (
-                  <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-red-600 to-red-700 text-yellow-300 font-black text-lg flex items-center justify-center shrink-0 border border-red-500/40 shadow-sm">
-                    {String(candidate.orderNumber).padStart(2, '0')}
+                  <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-xl flex items-center justify-center shrink-0 border border-blue-500/40 shadow-sm">
+                    {candidate.fullName.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-yellow-400 text-blue-950 font-black text-[11px] shrink-0 tracking-wide">
-                      SBD {String(candidate.orderNumber).padStart(2, '0')}
-                    </span>
                     <h3 className="font-black text-blue-950 text-sm sm:text-base truncate">
                       {candidate.fullName}
                     </h3>
@@ -1120,12 +1117,9 @@ export default function LivePlayerMobile() {
                       : 'bg-gradient-to-br from-red-600 to-red-700 text-yellow-300 border border-white/60'
                   }`}
                 >
-                  {player.fullName.trim().split(' ').slice(-1)[0]?.charAt(0)?.toUpperCase() || String(player.orderNumber)}
+                  {player.fullName.trim().split(' ').slice(-1)[0]?.charAt(0)?.toUpperCase() || player.fullName.charAt(0)}
                 </div>
               )}
-              <div className="absolute -bottom-1 -right-1 px-1 min-w-[18px] h-[16px] rounded bg-yellow-400 text-blue-950 font-black text-[9px] flex items-center justify-center border border-white shadow-xs">
-                {String(player.orderNumber).padStart(2, '0')}
-              </div>
             </div>
 
             <div className="min-w-0">
@@ -1206,9 +1200,6 @@ export default function LivePlayerMobile() {
                       {player.fullName.trim().split(' ').slice(-1)[0]?.charAt(0)?.toUpperCase() || player.fullName.charAt(0)}
                     </span>
                   )}
-                </div>
-                <div className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-lg bg-yellow-400 text-blue-950 font-black text-xs flex items-center justify-center shadow border-2 border-white">
-                  SBD {String(player.orderNumber).padStart(2, '0')}
                 </div>
               </div>
 

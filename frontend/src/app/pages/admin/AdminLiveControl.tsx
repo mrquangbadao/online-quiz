@@ -1471,8 +1471,7 @@ export default function AdminLiveControl() {
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-500">
-                        <th className="pb-2.5 font-bold">SBD</th>
-                        <th className="pb-2.5 font-bold">Họ và tên</th>
+                        <th className="pb-2.5 font-bold">Thí sinh</th>
                         <th className="pb-2.5 font-bold">Đơn vị</th>
                         <th className="pb-2.5 font-bold text-center">Ngôi sao hy vọng</th>
                         <th className="pb-2.5 font-bold text-center">Trạng thái Câu {currentQuestionOrder}</th>
@@ -1484,14 +1483,23 @@ export default function AdminLiveControl() {
                         const ans = questionAnswers[p.id];
                         const rev = revealedAnswers?.find((r) => r.playerId === p.id);
                         const hasHopeStarThisQ = p.hopeStarUsed && p.hopeStarQuestionIndex === currentQuestionOrder;
+                        const initialChar = p.fullName.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase();
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-3 font-black text-amber-600">
-                              {String(p.orderNumber).padStart(2, '0')}
-                            </td>
                             <td className="py-3">
-                              <span className="font-bold text-slate-900">{p.fullName}</span>
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-slate-100 border border-slate-200 flex items-center justify-center shadow-2xs">
+                                  {p.avatarUrl ? (
+                                    <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-xs font-black text-blue-600">
+                                      {initialChar}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="font-bold text-slate-900">{p.fullName}</span>
+                              </div>
                             </td>
                             <td className="py-3 text-slate-600 max-w-[180px] truncate">{p.unit}</td>
                             <td className="py-3 text-center">

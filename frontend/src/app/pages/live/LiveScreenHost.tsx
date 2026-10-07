@@ -655,10 +655,6 @@ export default function LiveScreenHost() {
                       : 'bg-white/95 border-slate-200 opacity-80'
                   }`}
                 >
-                  <div className="absolute top-3.5 left-3.5 w-8 h-8 rounded-xl bg-red-600 text-yellow-300 font-black text-xs flex items-center justify-center shadow-md">
-                    {String(p.orderNumber).padStart(2, '0')}
-                  </div>
-
                   <div className="w-24 h-24 rounded-2xl bg-slate-100 border-2 border-blue-500 flex items-center justify-center text-3xl font-black text-blue-700 mb-3 overflow-hidden shadow-md">
                     {p.avatarUrl ? (
                       <img src={p.avatarUrl} alt={p.fullName} className="w-full h-full object-cover" />
@@ -860,18 +856,26 @@ export default function LiveScreenHost() {
                         {checkedInList.length === 0 ? (
                           <span className="text-xs text-blue-300 italic">Chưa có thí sinh nào vào phòng</span>
                         ) : (
-                          checkedInList.map((p) => (
-                            <div
-                              key={p.id}
-                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/10 border border-white/20 text-xs font-bold text-white"
-                              title={`SBD ${p.orderNumber}: ${p.fullName} - ${p.unit}`}
-                            >
-                              <span className="w-4 h-4 rounded-md bg-red-600 text-[10px] text-yellow-300 font-black flex items-center justify-center">
-                                {p.orderNumber}
-                              </span>
-                              <span className="max-w-[80px] truncate">{p.fullName.split(' ').slice(-1)[0]}</span>
-                            </div>
-                          ))
+                          checkedInList.map((p) => {
+                            const lastWord = p.fullName.trim().split(' ').slice(-1)[0] || '';
+                            const initialChar = lastWord.charAt(0).toUpperCase();
+                            return (
+                              <div
+                                key={p.id}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/10 border border-white/20 text-xs font-bold text-white shadow-2xs"
+                                title={`${p.fullName} - ${p.unit}`}
+                              >
+                                <div className="w-5 h-5 rounded-md bg-white/20 overflow-hidden flex items-center justify-center text-[10px] font-black shrink-0">
+                                  {p.avatarUrl ? (
+                                    <img src={p.avatarUrl} alt={p.fullName} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-yellow-300">{initialChar}</span>
+                                  )}
+                                </div>
+                                <span className="max-w-[80px] truncate">{lastWord}</span>
+                              </div>
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -1248,41 +1252,89 @@ export default function LiveScreenHost() {
                     {session?.players?.map((p) => {
                       const answered = answeredPlayers.has(p.id);
                       const isHopeStar = (p.hopeStarUsed && p.hopeStarQuestionIndex === session?.currentQuestionIndex) || hopeStarPlayers.has(p.id);
+                      const lastWord = p.fullName.trim().split(' ').slice(-1)[0] || '';
+                      const initialChar = lastWord.charAt(0).toUpperCase();
 
                       return (
                         <div
                           key={p.id}
-                          className={`p-2 rounded-xl border-2 text-center transition-all shadow-sm relative overflow-hidden ${
+                          className={`p-2 rounded-2xl border-2 text-center transition-all duration-300 shadow-sm relative flex flex-col items-center justify-between ${
                             isHopeStar
                               ? answered
                                 ? 'bg-gradient-to-b from-amber-400 to-emerald-600 border-yellow-300 text-white font-black scale-105 shadow-amber-500/40 ring-4 ring-amber-300/60'
                                 : 'bg-gradient-to-b from-amber-50 to-yellow-100 border-amber-400 text-amber-950 font-black scale-105 shadow-amber-500/30 ring-4 ring-amber-300/50 animate-pulse'
                               : answered
-                              ? 'bg-emerald-500 border-emerald-400 text-white font-black scale-105 shadow-emerald-500/30'
-                              : 'bg-white border-slate-200 text-slate-700 font-bold'
+                              ? 'bg-gradient-to-b from-emerald-500 to-teal-600 border-emerald-400 text-white font-black scale-105 shadow-emerald-500/30'
+                              : 'bg-white border-slate-200 text-slate-700 font-bold hover:border-slate-300'
                           }`}
                         >
                           {/* Floating Star Badge for Hope Star Contestant */}
                           {isHopeStar && (
-                            <div className="absolute top-1 right-1 bg-amber-400 text-slate-950 rounded-full p-0.5 shadow-sm">
-                              <Star className="w-2.5 h-2.5 fill-slate-950" />
+                            <div className="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 rounded-full p-1 shadow-md border-2 border-white z-10 animate-bounce">
+                              <Star className="w-3 h-3 fill-slate-950 text-slate-950" />
                             </div>
                           )}
 
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-xs font-black">SBD {String(p.orderNumber).padStart(2, '0')}</span>
-                            {isHopeStar && <Star className="w-3 h-3 text-amber-500 fill-amber-400 inline" />}
-                          </div>
-                          <div className="text-[11px] truncate mt-0.5">{p.fullName.split(' ').pop()}</div>
-                          {answered ? (
-                            <CheckCircle2 className="w-4 h-4 text-white mx-auto mt-1" />
-                          ) : isHopeStar ? (
-                            <div className="text-[9px] font-black uppercase text-amber-900 bg-amber-200/90 rounded px-1.5 py-0.2 mt-1 inline-block">
-                              ⭐ NSHV
+                          {/* Contestant Avatar with letter fallback */}
+                          <div className="relative mb-1">
+                            <div
+                              className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center font-black shadow-xs transition-all ${
+                                answered
+                                  ? 'border-2 border-white/80 ring-2 ring-emerald-300/50'
+                                  : isHopeStar
+                                  ? 'border-2 border-amber-400 ring-2 ring-yellow-400/50'
+                                  : 'border border-slate-200 bg-slate-100'
+                              }`}
+                            >
+                              {p.avatarUrl ? (
+                                <img src={p.avatarUrl} alt={p.fullName} className="w-full h-full object-cover" />
+                              ) : (
+                                <span
+                                  className={`text-sm font-black ${
+                                    answered
+                                      ? 'text-white'
+                                      : isHopeStar
+                                      ? 'text-amber-900 bg-amber-200 w-full h-full flex items-center justify-center'
+                                      : 'text-blue-700 bg-blue-50 w-full h-full flex items-center justify-center'
+                                  }`}
+                                >
+                                  {initialChar}
+                                </span>
+                              )}
                             </div>
-                          ) : (
-                            <div className="w-2.5 h-2.5 rounded-full bg-slate-300 mx-auto mt-1.5" />
-                          )}
+
+                            {/* Small Status Badge Overlay on Avatar corner */}
+                            {answered && (
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-white flex items-center justify-center shadow-xs">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-950 fill-emerald-100" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Contestant Name (No SBD) */}
+                          <div
+                            className={`text-xs font-black truncate max-w-full leading-tight ${
+                              answered ? 'text-white drop-shadow-xs' : 'text-slate-900'
+                            }`}
+                            title={p.fullName}
+                          >
+                            {lastWord}
+                          </div>
+
+                          {/* Status indicator below */}
+                          <div className="mt-1">
+                            {answered ? (
+                              <span className="text-[10px] font-black uppercase text-emerald-100 bg-emerald-900/40 px-1.5 py-0.5 rounded-full inline-block">
+                                Đã nộp
+                              </span>
+                            ) : isHopeStar ? (
+                              <span className="text-[9px] font-black uppercase text-amber-900 bg-amber-200/90 rounded px-1.5 py-0.2 inline-block">
+                                ⭐ NSHV
+                              </span>
+                            ) : (
+                              <div className="w-2.5 h-2.5 rounded-full bg-slate-300 mx-auto" />
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -1489,11 +1541,15 @@ export default function LiveScreenHost() {
                           >
                             <div className="min-w-0 pr-1 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded font-black text-xs shrink-0 text-white ${
-                                  ans ? (isCorrect ? 'bg-emerald-600' : 'bg-slate-700') : 'bg-slate-400'
-                                }`}>
-                                  SBD {String(p.orderNumber).padStart(2, '0')}
-                                </span>
+                                <div className="w-6 h-6 rounded-lg overflow-hidden shrink-0 bg-slate-200 border border-slate-300 flex items-center justify-center shadow-2xs">
+                                  {p.avatarUrl ? (
+                                    <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-[10px] font-black text-slate-700">
+                                      {p.fullName.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-xs lg:text-sm font-black text-slate-900 truncate">
                                   {p.fullName}
                                 </span>
@@ -1684,21 +1740,6 @@ export default function LiveScreenHost() {
                                   </span>
                                 )}
                               </div>
-
-                              {/* SBD */}
-                              <span
-                                className={`font-mono font-black text-xs px-2 py-1 rounded-lg shrink-0 ${
-                                  rank === 1
-                                    ? 'text-amber-950 bg-amber-200/90 border border-amber-400 shadow-2xs'
-                                    : rank === 2
-                                    ? 'text-sky-950 bg-sky-100/90 border border-sky-300/80 shadow-2xs'
-                                    : rank === 3
-                                    ? 'text-amber-950 bg-orange-100/90 border border-orange-300 shadow-2xs'
-                                    : 'text-amber-900 bg-amber-100/90 px-2 py-1 border border-amber-300/70'
-                                }`}
-                              >
-                                SBD {String(p.orderNumber).padStart(2, '0')}
-                              </span>
 
                               {/* Thông tin thí sinh: Họ tên + Đơn vị (hiển thị hết không bị cắt) */}
                               <div className="min-w-0 flex-1">
@@ -1996,8 +2037,14 @@ export default function LiveScreenHost() {
 
                       {/* Player 1 */}
                       <div className="py-3 text-center">
-                        <div className="w-14 h-14 rounded-xl bg-blue-50 border-2 border-blue-500 mx-auto flex items-center justify-center font-black text-blue-700 mb-1.5 text-base shadow">
-                          {pair.player1?.orderNumber ? String(pair.player1.orderNumber).padStart(2, '0') : '01'}
+                        <div className="w-14 h-14 rounded-2xl bg-blue-50 border-2 border-blue-500 mx-auto flex items-center justify-center overflow-hidden mb-1.5 shadow-md">
+                          {pair.player1?.avatarUrl ? (
+                            <img src={pair.player1.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xl font-black text-blue-700">
+                              {pair.player1?.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '1'}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs font-bold text-slate-900 line-clamp-1">{pair.player1?.fullName}</div>
                         <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{pair.player1?.unit}</div>
@@ -2007,8 +2054,14 @@ export default function LiveScreenHost() {
 
                       {/* Player 2 */}
                       <div className="py-3 text-center">
-                        <div className="w-14 h-14 rounded-xl bg-red-50 border-2 border-red-500 mx-auto flex items-center justify-center font-black text-red-700 mb-1.5 text-base shadow">
-                          {pair.player2?.orderNumber ? String(pair.player2.orderNumber).padStart(2, '0') : '02'}
+                        <div className="w-14 h-14 rounded-2xl bg-red-50 border-2 border-red-500 mx-auto flex items-center justify-center overflow-hidden mb-1.5 shadow-md">
+                          {pair.player2?.avatarUrl ? (
+                            <img src={pair.player2.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xl font-black text-red-700">
+                              {pair.player2?.fullName?.trim().split(' ').slice(-1)[0]?.charAt(0).toUpperCase() || '2'}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs font-bold text-slate-900 line-clamp-1">{pair.player2?.fullName}</div>
                         <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{pair.player2?.unit}</div>
@@ -2193,22 +2246,7 @@ export default function LiveScreenHost() {
                               )}
                             </div>
 
-                            {/* SBD */}
-                            <span
-                              className={`font-mono font-black text-xs px-2 py-1 rounded-lg shrink-0 ${
-                                rank === 1
-                                  ? 'text-amber-950 bg-amber-200/90 border border-amber-400 shadow-2xs'
-                                  : rank === 2
-                                  ? 'text-sky-950 bg-sky-100/90 border border-sky-300/80 shadow-2xs'
-                                  : rank === 3
-                                  ? 'text-amber-950 bg-orange-100/90 border border-orange-300 shadow-2xs'
-                                  : 'text-amber-900 bg-amber-100/90 px-2 py-1 border border-amber-300/70'
-                              }`}
-                            >
-                              SBD {String(p.orderNumber).padStart(2, '0')}
-                            </span>
-
-                            {/* Thông tin thí sinh: Họ tên + Danh hiệu + Đơn vị */}
+                              {/* Thông tin thí sinh: Họ tên + Danh hiệu + Đơn vị */}
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 truncate">
                                 <span
