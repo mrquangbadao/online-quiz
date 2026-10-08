@@ -169,6 +169,7 @@ export default function AdminLiveControl() {
   const [r3OvertimeSeconds, setR3OvertimeSeconds] = useState<number>(0);
   const [r3OvertimePlayerId, setR3OvertimePlayerId] = useState<number | null>(null);
   const r3OvertimeTargetStartRef = React.useRef<number | null>(null);
+  const pairSelectionsInitializedRef = React.useRef<boolean>(false);
 
   // Load session
   const fetchSession = useCallback(async () => {
@@ -199,18 +200,23 @@ export default function AdminLiveControl() {
           const displayPairs = await adminLiveApi.getRound3DisplayPairs(data.id);
           if (displayPairs && displayPairs.length > 0) {
             setRound3DisplayPairs(displayPairs);
-            setPairSelections((prev) => {
-              const updated = { ...prev };
-              displayPairs.forEach((dp) => {
-                if (dp.pairNumber) {
-                  updated[dp.pairNumber] = {
-                    p1: dp.player1Id ?? dp.player1?.id ?? '',
-                    p2: dp.player2Id ?? dp.player2?.id ?? '',
-                  };
-                }
+            // Chỉ nạp dữ liệu vào form pairSelections 1 lần duy nhất khi khởi tạo trang,
+            // không ghi đè định kỳ khi polling để tránh mất lựa chọn đang chọn dở của Admin
+            if (!pairSelectionsInitializedRef.current) {
+              pairSelectionsInitializedRef.current = true;
+              setPairSelections((prev) => {
+                const updated = { ...prev };
+                displayPairs.forEach((dp) => {
+                  if (dp.pairNumber) {
+                    updated[dp.pairNumber] = {
+                      p1: dp.player1Id ?? dp.player1?.id ?? '',
+                      p2: dp.player2Id ?? dp.player2?.id ?? '',
+                    };
+                  }
+                });
+                return updated;
               });
-              return updated;
-            });
+            }
           }
         } catch (e) {
           console.error('Lỗi tải danh sách cặp đấu V3:', e);
@@ -531,20 +537,21 @@ export default function AdminLiveControl() {
       if (event.eventType === 'ROUND3_PAIRS_UPDATED') {
         if (event.payload?.pairs) {
           setRound3DisplayPairs(event.payload.pairs);
+          // Chỉ đồng bộ vào form các cặp đã được lưu đủ 2 thí sinh trên server,
+          // tránh xóa đè các cặp đang được Admin thao tác dở
           setPairSelections((prev) => {
             const updated = { ...prev };
             event.payload.pairs.forEach((dp: LiveRound3DisplayPair) => {
-              if (dp.pairNumber) {
+              if (dp.pairNumber && dp.player1Id && dp.player2Id) {
                 updated[dp.pairNumber] = {
-                  p1: dp.player1Id ?? dp.player1?.id ?? '',
-                  p2: dp.player2Id ?? dp.player2?.id ?? '',
+                  p1: dp.player1Id,
+                  p2: dp.player2Id,
                 };
               }
             });
             return updated;
           });
         }
-        fetchSession();
       }
       if (event.eventType === 'ROUND3_DUEL_STARTED') {
         const duel = event.payload;
@@ -1310,6 +1317,28 @@ export default function AdminLiveControl() {
         try {
           setActionLoading(true);
           await adminLiveApi.drawRandomPairs(session.id);
+          const pairs = await adminLiveApi.getRound3DisplayPairs(session.id);
+          if (pairs && pairs.length > 0) {
+            setRound3DisplayPairs(pairs);
+            setPairSelections(() => {
+              const updated: Record<number, { p1: number | ''; p2: number | '' }> = {
+                1: { p1: '', p2: '' },
+                2: { p1: '', p2: '' },
+                3: { p1: '', p2: '' },
+                4: { p1: '', p2: '' },
+                5: { p1: '', p2: '' },
+              };
+              pairs.forEach((dp) => {
+                if (dp.pairNumber) {
+                  updated[dp.pairNumber] = {
+                    p1: dp.player1Id ?? dp.player1?.id ?? '',
+                    p2: dp.player2Id ?? dp.player2?.id ?? '',
+                  };
+                }
+              });
+              return updated;
+            });
+          }
           await fetchSession();
           toast.success('Đã bốc thăm ghép cặp ngẫu nhiên thành công!');
         } catch (err) {
@@ -3353,6 +3382,14 @@ export default function AdminLiveControl() {
                     if (Number(pNumStr) !== pairNum) {
                       if (s.p1) usedOtherPlayerIds.add(Number(s.p1));
                       if (s.p2) usedOtherPlayerIds.add(Number(s.p2));
+                    }
+                  });
+                  round3DisplayPairs.forEach((dp) => {
+                    if (dp.pairNumber !== pairNum) {
+                      const p1Id = dp.player1Id ?? dp.player1?.id;
+                      const p2Id = dp.player2Id ?? dp.player2?.id;
+                      if (p1Id) usedOtherPlayerIds.add(p1Id);
+                      if (p2Id) usedOtherPlayerIds.add(p2Id);
                     }
                   });
 
