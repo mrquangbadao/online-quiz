@@ -432,10 +432,15 @@ export default function LiveScreenHost() {
           if (!event.payload?.player || event.payload?.playerId === 0) {
             setR2InspectingPlayer(null);
           } else {
-            setActivePlayerRound2(event.payload.player);
-            setR2CandidateSelecting(event.payload.player);
-            setR2CandidateTopicCode(event.payload.player.round2DrawCode || null);
-            setR2InspectingPlayer(event.payload.player);
+            const pl = { ...event.payload.player };
+            if (event.payload.scenario1 || event.payload.topic?.scenario1) {
+              (pl as any).scenario1 = event.payload.scenario1 || event.payload.topic?.scenario1;
+              (pl as any).scenario2 = event.payload.scenario2 || event.payload.topic?.scenario2;
+            }
+            setActivePlayerRound2(pl);
+            setR2CandidateSelecting(pl);
+            setR2CandidateTopicCode(pl.round2DrawCode || null);
+            setR2InspectingPlayer(pl);
             setR2ViewMode((prev) => (prev === 'EXAM_RUNNING' ? 'EXAM_RUNNING' : 'SELECTING'));
             if (soundEnabled) liveSound.playButtonClick();
           }
@@ -784,6 +789,20 @@ export default function LiveScreenHost() {
     }, 200);
     return () => clearInterval(interval);
   }, [round2TimerRunning, soundEnabled]);
+
+  // Tự động tải lại nội dung đề thi đầy đủ nếu chưa có scenario text
+  useEffect(() => {
+    if (r2InspectingPlayer && session?.id) {
+      const topic = round2Topics.find((t) => t.code === r2InspectingPlayer.round2DrawCode);
+      if (!topic || !topic.scenario1) {
+        liveApi.getRound2Topics(session.id).then((topics) => {
+          if (topics && topics.length > 0) {
+            setRound2Topics(topics);
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [r2InspectingPlayer, session?.id, round2Topics]);
 
   // Round 3 Duel countdown ticker synchronized with server epoch
   useEffect(() => {
@@ -2578,7 +2597,9 @@ export default function LiveScreenHost() {
                     {/* Chi tiết 2 tình huống */}
                     {(() => {
                       const currentTopic = round2Topics.find((t) => t.code === r2InspectingPlayer.round2DrawCode);
-                      if (!currentTopic) {
+                      const s1 = currentTopic?.scenario1 || (r2InspectingPlayer as any)?.scenario1;
+                      const s2 = currentTopic?.scenario2 || (r2InspectingPlayer as any)?.scenario2;
+                      if (!currentTopic && !s1 && !s2) {
                         return (
                           <div className="p-6 text-center text-slate-500 font-bold text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-300">
                             Thí sinh này chưa được gán bộ đề thi hoặc chưa có dữ liệu câu hỏi.
@@ -2595,11 +2616,11 @@ export default function LiveScreenHost() {
                                 TÌNH HUỐNG 01
                               </span>
                               <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                                Tối đa {currentTopic.maxScore1 || 20} điểm
+                                Tối đa {currentTopic?.maxScore1 || 20} điểm
                               </span>
                             </div>
                             <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
-                              {currentTopic.scenario1}
+                              {s1 || 'Đang cập nhật nội dung tình huống 1...'}
                             </p>
                           </div>
 
@@ -2611,11 +2632,11 @@ export default function LiveScreenHost() {
                                 TÌNH HUỐNG 02
                               </span>
                               <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                                Tối đa {currentTopic.maxScore2 || 20} điểm
+                                Tối đa {currentTopic?.maxScore2 || 20} điểm
                               </span>
                             </div>
                             <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
-                              {currentTopic.scenario2}
+                              {s2 || 'Đang cập nhật nội dung tình huống 2...'}
                             </p>
                           </div>
                         </div>

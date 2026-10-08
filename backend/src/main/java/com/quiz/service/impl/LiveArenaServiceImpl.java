@@ -1145,11 +1145,19 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         }
         LivePlayer player = livePlayerRepository.findById(playerId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
-        Map<String, Object> payload = Map.of(
-                "sessionId", sessionId,
-                "playerId", playerId,
-                "player", convertPlayerToDto(player)
-        );
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("sessionId", sessionId);
+        payload.put("playerId", playerId);
+        payload.put("player", convertPlayerToDto(player));
+        if (player.getRound2DrawCode() != null) {
+            liveRound2TopicRepository.findBySessionIdAndCode(sessionId, player.getRound2DrawCode())
+                    .ifPresent(topic -> {
+                        payload.put("topic", topic);
+                        payload.put("topicCode", topic.getCode());
+                        payload.put("scenario1", topic.getScenario1());
+                        payload.put("scenario2", topic.getScenario2());
+                    });
+        }
         broadcast(sessionId, "ROUND2_CANDIDATE_SELECTED", payload);
     }
 
@@ -1450,7 +1458,11 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     @Transactional(readOnly = true)
     public List<LiveRound2Topic> getRound2TopicsForPublic(Long sessionId, Long playerId) {
         List<LiveRound2Topic> topics = getRound2Topics(sessionId);
-        LivePlayer player = playerId != null ? livePlayerRepository.findById(playerId).orElse(null) : null;
+        // Khi playerId == null (màn hình LED / Host sân khấu), trả về đầy đủ nội dung câu hỏi
+        if (playerId == null) {
+            return topics;
+        }
+        LivePlayer player = livePlayerRepository.findById(playerId).orElse(null);
         String assignedCode = (player != null && sessionId.equals(player.getSessionId())) ? player.getRound2DrawCode() : null;
         return topics.stream().map(t -> {
             if (assignedCode != null && assignedCode.equalsIgnoreCase(t.getCode())) {
