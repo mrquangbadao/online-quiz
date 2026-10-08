@@ -2463,64 +2463,6 @@ export default function LiveScreenHost() {
                           </div>
                         </div>
                       </div>
-
-                      {/* Chi tiết câu hỏi của bộ đề khi thí sinh đã có mã đề */}
-                      {topicCode && (
-                        <div className="bg-white border-4 border-amber-400 rounded-3xl p-6 shadow-2xl space-y-4 animate-scaleUp">
-                          <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-100 pb-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-lg shadow">
-                                <FileText className="w-5 h-5 text-slate-950" />
-                              </div>
-                              <div>
-                                <h4 className="text-base sm:text-lg font-black text-slate-900 uppercase">
-                                  CÂU HỎI {topicCode} {candidate?.fullName ? `— ${candidate.fullName}` : ''}
-                                </h4>
-                                <div className="text-xs text-slate-500 font-bold">
-                                  SBD {candidate?.orderNumber ? String(candidate.orderNumber).padStart(2, '0') : '--'} • {candidate?.unit || 'Thí sinh dự thi'}
-                                </div>
-                              </div>
-                            </div>
-                            <span className="px-3 py-1 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 text-xs font-black uppercase">
-                              TỔNG ĐIỂM: 40 ĐIỂM
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Tình huống 1 */}
-                            <div className="p-4 rounded-2xl bg-gradient-to-b from-blue-50/90 to-blue-100/40 border-2 border-blue-300 space-y-2 shadow-sm">
-                              <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-                                <span className="text-xs font-black text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
-                                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">1</span>
-                                  TÌNH HUỐNG 01
-                                </span>
-                                <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                                  Tối đa {currentTopic?.maxScore1 || 20} điểm
-                                </span>
-                              </div>
-                              <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
-                                {s1 || 'Đang nạp dữ liệu tình huống 1...'}
-                              </p>
-                            </div>
-
-                            {/* Tình huống 2 */}
-                            <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-50/90 to-amber-100/40 border-2 border-amber-300 space-y-2 shadow-sm">
-                              <div className="flex items-center justify-between border-b border-amber-200 pb-2">
-                                <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
-                                  <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
-                                  TÌNH HUỐNG 02
-                                </span>
-                                <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                                  Tối đa {currentTopic?.maxScore2 || 20} điểm
-                                </span>
-                              </div>
-                              <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
-                                {s2 || 'Đang nạp dữ liệu tình huống 2...'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })()}
@@ -2626,58 +2568,6 @@ export default function LiveScreenHost() {
                     })}
                   </div>
                 </div>
-
-                {/* Danh sách các thí sinh đã chọn đề trong lượt này (chuẩn bị thi) */}
-                {(() => {
-                  const activeReadyBatchPlayers = r2CurrentBatchPlayers
-                    .map((bp) => session?.players?.find((p) => p.id === bp.id) || bp)
-                    .filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0));
-
-                  if (activeReadyBatchPlayers.length === 0) return null;
-
-                  return (
-                    <div className="bg-white border-2 border-emerald-400 rounded-3xl p-5 shadow-lg space-y-3 animate-fadeIn">
-                      <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
-                        <span className="text-xs font-black text-emerald-800 uppercase tracking-wider flex items-center gap-2">
-                          <Users className="w-4 h-4 text-emerald-600" /> CÁC THÍ SINH SẴN SÀNG THI TRONG ĐỢT NÀY ({activeReadyBatchPlayers.length} THÍ SINH):
-                        </span>
-                        <span className="text-[11px] font-bold text-emerald-600">
-                          Chờ hiệu lệnh bắt đầu thi từ MC & Ban Tổ chức
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3.5">
-                        {activeReadyBatchPlayers.map((p) => {
-                          const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
-                          const initialChar = lastWord.charAt(0).toUpperCase() || '?';
-
-                          return (
-                            <div
-                              key={p.id}
-                              className="p-3.5 px-4 rounded-2xl bg-emerald-50/70 border border-emerald-300 flex items-center justify-between shadow-xs gap-4 min-w-[280px]"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-400 flex items-center justify-center text-white font-black text-base shrink-0 overflow-hidden shadow-xs">
-                                  {p.avatarUrl ? (
-                                    <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                  ) : (
-                                    initialChar
-                                  )}
-                                </div>
-                                <span className="text-sm sm:text-base font-black text-slate-900 whitespace-nowrap">
-                                  {p.fullName}
-                                </span>
-                              </div>
-                              <span className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs shrink-0 border border-amber-300 shadow-2xs">
-                                {p.round2DrawCode}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
             )}
 
