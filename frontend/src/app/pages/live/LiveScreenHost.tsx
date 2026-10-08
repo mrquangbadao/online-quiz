@@ -2681,10 +2681,10 @@ export default function LiveScreenHost() {
               </div>
             )}
 
-            {/* CHẾ ĐỘ 2: ĐANG THI 10 PHÚT (EXAM_RUNNING) - ĐỒNG HỒ NỔI TRÒN NHƯ VÒNG 1 (THEO ĐÚNG ẢNH USER) */}
+            {/* CHẾ ĐỘ 2: ĐANG THI 10 PHÚT (EXAM_RUNNING) - ĐỒNG HỒ NỔI TRÒN CỰC ĐẠI, VIỀN TRONG SUỐT (GIỐNG VÒNG 1 KHẨN TRƯƠNG) */}
             {r2ViewMode === 'EXAM_RUNNING' && (
-              <div className="space-y-4 max-w-6xl mx-auto animate-fadeIn w-full pt-8">
-                {/* 2. KHUNG CÂU HỎI CỦA THÍ SINH ĐANG CHIẾU (ĐỒNG HỒ TRÒN NỔI LÊN PHÍA TRÊN, KHÔNG CHIẾM DIỆN TÍCH) */}
+              <div className="space-y-4 max-w-6xl mx-auto animate-fadeIn w-full pt-10 md:pt-14">
+                {/* 2. KHUNG CÂU HỎI CỦA THÍ SINH ĐANG CHIẾU (ĐỒNG HỒ TRÒN TO NỔI BẬT LÊN PHÍA TRÊN, GỐI LÊN CARD) */}
                 {(() => {
                   const r2DisplayPlayers = (r2CurrentBatchPlayers && r2CurrentBatchPlayers.length > 0)
                     ? r2CurrentBatchPlayers
@@ -2701,31 +2701,48 @@ export default function LiveScreenHost() {
 
                   return (
                     <div className="bg-white border-4 border-amber-400 rounded-3xl p-5 pt-8 shadow-2xl space-y-3.5 relative animate-scaleUp">
-                      {/* ĐỒNG HỒ TRÒN NỔI BẬT LÊN PHÍA TRÊN GIỐNG VÒNG 1 (ĐÚNG Y HỆT ẢNH CỦA BẠN) */}
-                      <div className="absolute left-1/2 -translate-x-1/2 -top-13 z-20">
+                      {/* ĐỒNG HỒ ĐẾM GIỜ TO NỔI BẬT LÊN PHÍA TRÊN, VIỀN TRONG SUỐT GLASSMORPHISM (GIỐNG VÒNG 1 KHẨN TRƯƠNG) */}
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-16 md:-top-20 z-30 pointer-events-none">
                         <div
                           className={`relative transition-all duration-300 flex flex-col items-center justify-center rounded-full select-none ${
                             round2Timer <= 60
-                              ? 'w-26 h-26 md:w-28 md:h-28 bg-red-600 border-4 border-yellow-300 text-yellow-300 shadow-2xl shadow-red-600/70 ring-8 ring-red-400/40 scale-105 animate-pulse'
-                              : 'w-26 h-26 md:w-28 md:h-28 bg-white border-4 border-emerald-500 text-emerald-600 shadow-2xl ring-8 ring-emerald-400/25'
+                              ? 'w-36 h-36 md:w-44 md:h-44 bg-red-600/90 backdrop-blur-md border-4 border-yellow-300 text-yellow-300 shadow-[0_0_60px_rgba(239,68,68,0.7)] ring-8 ring-red-400/50 scale-110 animate-pulse'
+                              : 'w-32 h-32 md:w-40 md:h-40 bg-slate-950/80 backdrop-blur-md border-4 border-emerald-400 text-emerald-300 shadow-[0_0_50px_rgba(52,211,153,0.35)] ring-8 ring-emerald-400/25'
                           }`}
                         >
                           {/* Animated Ping Ring trong 60 giây cuối */}
                           {round2Timer <= 60 && (
-                            <span className="absolute -inset-2 rounded-full border-2 border-red-500 animate-ping opacity-60 pointer-events-none" />
+                            <span className="absolute -inset-3 rounded-full border-2 border-red-500 animate-ping opacity-60 pointer-events-none" />
                           )}
 
                           <div className="flex items-baseline justify-center">
-                            <span className="text-3xl md:text-4xl font-black font-mono tracking-tight leading-none">
+                            <span
+                              className={`font-black font-mono tracking-tight leading-none ${
+                                round2Timer <= 60
+                                  ? 'text-5xl md:text-6xl text-yellow-300 drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]'
+                                  : 'text-3xl md:text-4xl text-emerald-300 drop-shadow-[0_0_15px_rgba(52,211,153,0.8)]'
+                              }`}
+                            >
                               {round2Timer <= 60
                                 ? round2Timer
                                 : `${String(Math.floor(round2Timer / 60)).padStart(2, '0')}:${String(round2Timer % 60).padStart(2, '0')}`}
                             </span>
-                            {round2Timer <= 60 && <span className="text-sm md:text-base font-bold ml-0.5">s</span>}
+                            {round2Timer <= 60 && (
+                              <span className="text-sm md:text-base font-bold text-white uppercase ml-0.5">
+                                s
+                              </span>
+                            )}
                           </div>
-                          <span className="text-[10px] md:text-xs font-black uppercase tracking-wider mt-0.5 text-center">
-                            {round2Timer <= 60 ? 'GIÂY' : 'THỜI GIAN'}
-                          </span>
+
+                          <div
+                            className={`text-[10px] md:text-xs font-black uppercase tracking-wider mt-1 text-center ${
+                              round2Timer <= 60
+                                ? 'text-white font-extrabold animate-bounce drop-shadow-md'
+                                : 'text-emerald-400 font-bold'
+                            }`}
+                          >
+                            {round2Timer <= 60 ? 'KHẨN TRƯƠNG!' : 'THỜI GIAN'}
+                          </div>
                         </div>
                       </div>
 
