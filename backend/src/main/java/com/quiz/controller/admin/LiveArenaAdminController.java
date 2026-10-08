@@ -363,7 +363,41 @@ public class LiveArenaAdminController {
     @PostMapping("/round3/{id}/stop-duel-timer")
     public ResponseEntity<ApiResponse<Void>> stopRound3DuelTimer(@PathVariable Long id) {
         liveArenaService.stopRound3DuelTimer(id);
-        return ResponseEntity.ok(ApiResponse.ok("Đã dừng đồng hồ phần thi", null));
+        return ResponseEntity.ok(ApiResponse.ok("Đã kết thúc phần đếm giờ", null));
+    }
+
+    @PostMapping({"/round3/{id}/pause-duel-timer", "/round3/{id}/duel/pause"})
+    public ResponseEntity<ApiResponse<Void>> pauseRound3Timer(@PathVariable Long id) {
+        liveArenaService.pauseRound3Timer(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã tạm dừng đồng hồ", null));
+    }
+
+    @PostMapping({"/round3/{id}/resume-duel-timer", "/round3/{id}/duel/resume"})
+    public ResponseEntity<ApiResponse<Void>> resumeRound3Timer(@PathVariable Long id) {
+        liveArenaService.resumeRound3Timer(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã tiếp tục đếm giờ", null));
+    }
+
+    @PostMapping({"/round3/{id}/reset-duel-timer", "/round3/{id}/duel/reset"})
+    public ResponseEntity<ApiResponse<Void>> resetRound3Timer(@PathVariable Long id) {
+        liveArenaService.resetRound3Timer(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã thiết lập lại đồng hồ", null));
+    }
+
+    @PostMapping({"/round3/{id}/end-duel-timer", "/round3/{id}/duel/end"})
+    public ResponseEntity<ApiResponse<Void>> endRound3Timer(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Integer overtimeSeconds = null;
+        if (body != null && body.get("overtimeSeconds") != null) {
+            try {
+                overtimeSeconds = (int) Math.round(Double.parseDouble(body.get("overtimeSeconds").toString()));
+            } catch (Exception ignored) {
+                overtimeSeconds = 0;
+            }
+        }
+        liveArenaService.endRound3Timer(id, overtimeSeconds);
+        return ResponseEntity.ok(ApiResponse.ok("Đã kết thúc phần thi đếm giờ", null));
     }
 
     @PostMapping("/round3/{id}/start-overtime")

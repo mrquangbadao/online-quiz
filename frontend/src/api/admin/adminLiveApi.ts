@@ -326,6 +326,31 @@ export const adminLiveApi = {
     );
   },
 
+  pauseRound3Timer: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/pause-duel-timer`
+    );
+  },
+
+  resumeRound3Timer: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/resume-duel-timer`
+    );
+  },
+
+  resetRound3Timer: async (sessionId: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/reset-duel-timer`
+    );
+  },
+
+  endRound3Timer: async (sessionId: number, overtimeSeconds?: number): Promise<void> => {
+    await axiosClient.post<ApiResponse<void>>(
+      `/admin/live/round3/${sessionId}/end-duel-timer`,
+      { overtimeSeconds }
+    );
+  },
+
   startRound3Overtime: async (sessionId: number, playerId?: number): Promise<void> => {
     await axiosClient.post<ApiResponse<void>>(
       `/admin/live/round3/${sessionId}/start-overtime`,

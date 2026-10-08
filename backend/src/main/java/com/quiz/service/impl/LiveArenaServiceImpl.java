@@ -50,6 +50,19 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     // Track Round 3 active duels in-memory state per session
     private final Map<Long, Map<String, Object>> round3ActiveDuels = new ConcurrentHashMap<>();
     private final Map<Long, String> round3ViewModes = new ConcurrentHashMap<>();
+    private final Map<Long, Map<Long, Integer>> round3PlayerOvertimeSeconds = new ConcurrentHashMap<>();
+
+    public int getPlayerRound3OvertimeSeconds(Long sessionId, Long playerId) {
+        if (sessionId == null || playerId == null) return 0;
+        Map<Long, Integer> playerMap = round3PlayerOvertimeSeconds.get(sessionId);
+        return playerMap != null ? playerMap.getOrDefault(playerId, 0) : 0;
+    }
+
+    public void addPlayerRound3OvertimeSeconds(Long sessionId, Long playerId, int additionalSeconds) {
+        if (sessionId == null || playerId == null || additionalSeconds <= 0) return;
+        round3PlayerOvertimeSeconds.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>())
+                .merge(playerId, additionalSeconds, Integer::sum);
+    }
 
     // Background scheduler for authoritative timeout auto-reveal (40s question & 5s hope star)
     private final java.util.concurrent.ScheduledExecutorService scheduler = java.util.concurrent.Executors.newScheduledThreadPool(4);
@@ -1669,7 +1682,9 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         duelState.put("startedAt", 0L);
         duelState.put("endAt", 0L);
         duelState.put("isTimerRunning", false);
+        duelState.put("isTimerPaused", false);
         duelState.put("isTimeUp", false);
+        duelState.put("isEnded", false);
         duelState.put("isOvertimeRunning", false);
         duelState.put("overtimeSeconds", 0);
         duelState.put("activePlayerId", 0L);
@@ -1702,9 +1717,13 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         duelState.put("startedAt", now);
         duelState.put("endAt", endAt);
         duelState.put("isTimerRunning", true);
+        duelState.put("isTimerPaused", false);
+        duelState.put("pausedRemainingSeconds", duration);
         duelState.put("isTimeUp", false);
         duelState.put("isOvertimeRunning", false);
         duelState.put("overtimeSeconds", 0);
+        duelState.put("overtimeStartedAt", 0L);
+        duelState.put("isEnded", false);
 
         LiveRound3Pair pair = liveRound3PairRepository.findBySessionIdAndPairNumber(sessionId, pairNumber).orElse(null);
         if (pair != null) {
@@ -1719,35 +1738,121 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     }
 
     @Override
-    public void stopRound3DuelTimer(Long sessionId) {
+    public void pauseRound3Timer(Long sessionId) {
         Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
         if (duelState != null) {
-            duelState.put("isTimerRunning", false);
-            duelState.put("isTimeUp", true);
-            duelState.put("endAt", System.currentTimeMillis());
-            broadcast(sessionId, "ROUND3_DUEL_TIME_UP", duelState);
+            boolean wasRunning = Boolean.TRUE.equals(duelState.get("isTimerRunning"));
+            if (wasRunning) {
+                long endAt = duelState.get("endAt") != null ? Long.parseLong(duelState.get("endAt").toString()) : 0L;
+                int remaining = Math.max(0, (int) Math.ceil((endAt - System.currentTimeMillis()) / 1000.0));
+                duelState.put("isTimerRunning", false);
+                duelState.put("isTimerPaused", true);
+                duelState.put("pausedRemainingSeconds", remaining);
+                broadcast(sessionId, "ROUND3_TIMER_PAUSED", duelState);
+            }
         }
+    }
+
+    @Override
+    public void resumeRound3Timer(Long sessionId) {
+        Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
+        if (duelState != null) {
+            boolean isPaused = Boolean.TRUE.equals(duelState.get("isTimerPaused"));
+            if (isPaused) {
+                int remaining = duelState.get("pausedRemainingSeconds") != null
+                        ? Integer.parseInt(duelState.get("pausedRemainingSeconds").toString())
+                        : 0;
+                long now = System.currentTimeMillis();
+                long endAt = now + (long) remaining * 1000L;
+                duelState.put("isTimerRunning", true);
+                duelState.put("isTimerPaused", false);
+                duelState.put("startedAt", now);
+                duelState.put("endAt", endAt);
+                broadcast(sessionId, "ROUND3_TIMER_RESUMED", duelState);
+            }
+        }
+    }
+
+    @Override
+    public void resetRound3Timer(Long sessionId) {
+        Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
+        if (duelState != null) {
+            int duration = duelState.get("durationSeconds") != null
+                    ? Integer.parseInt(duelState.get("durationSeconds").toString())
+                    : 120;
+            duelState.put("isTimerRunning", false);
+            duelState.put("isTimerPaused", false);
+            duelState.put("pausedRemainingSeconds", duration);
+            duelState.put("startedAt", 0L);
+            duelState.put("endAt", 0L);
+            duelState.put("isTimeUp", false);
+            duelState.put("isOvertimeRunning", false);
+            duelState.put("overtimeSeconds", 0);
+            duelState.put("overtimeStartedAt", 0L);
+            duelState.put("isEnded", false);
+            broadcast(sessionId, "ROUND3_TIMER_RESET", duelState);
+        }
+    }
+
+    @Override
+    public void endRound3Timer(Long sessionId, Integer overtimeSeconds) {
+        Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
+        if (duelState != null) {
+            boolean wasOvertime = Boolean.TRUE.equals(duelState.get("isOvertimeRunning"));
+            int finalOt = (overtimeSeconds != null && overtimeSeconds > 0)
+                    ? overtimeSeconds
+                    : (duelState.get("overtimeSeconds") != null ? Integer.parseInt(duelState.get("overtimeSeconds").toString()) : 0);
+
+            if (wasOvertime && duelState.get("overtimeStartedAt") != null) {
+                long otStart = Long.parseLong(duelState.get("overtimeStartedAt").toString());
+                int calcOt = Math.max(0, (int) Math.floor((System.currentTimeMillis() - otStart) / 1000.0));
+                if (calcOt > finalOt) finalOt = calcOt;
+            }
+
+            duelState.put("isTimerRunning", false);
+            duelState.put("isTimerPaused", false);
+            duelState.put("isTimeUp", true);
+            duelState.put("isOvertimeRunning", false);
+            duelState.put("overtimeSeconds", finalOt);
+            duelState.put("isEnded", true);
+
+            Long activeSpeakerId = duelState.get("activePlayerId") != null
+                    ? Long.parseLong(duelState.get("activePlayerId").toString())
+                    : 0L;
+            if (activeSpeakerId > 0 && finalOt > 0) {
+                addPlayerRound3OvertimeSeconds(sessionId, activeSpeakerId, finalOt);
+            }
+
+            broadcast(sessionId, "ROUND3_TIMER_ENDED", duelState);
+            // Broadcast cập nhật phiên thi để DTO của người chơi có overtime mới nhất
+            broadcast(sessionId, "SESSION_STATUS_CHANGED", convertToDto(getSessionEntity(sessionId)));
+        }
+    }
+
+    @Override
+    public void stopRound3DuelTimer(Long sessionId) {
+        endRound3Timer(sessionId, null);
     }
 
     @Override
     public void startRound3Overtime(Long sessionId, Long playerId) {
         Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
         if (duelState != null) {
+            duelState.put("isTimerRunning", false);
+            duelState.put("isTimerPaused", false);
+            duelState.put("isTimeUp", true);
             duelState.put("isOvertimeRunning", true);
             duelState.put("overtimeStartedAt", System.currentTimeMillis());
-            duelState.put("activeOvertimePlayerId", playerId != null ? playerId : 0L);
+            if (playerId != null && playerId > 0) {
+                duelState.put("activePlayerId", playerId);
+            }
             broadcast(sessionId, "ROUND3_OVERTIME_STARTED", duelState);
         }
     }
 
     @Override
     public void stopRound3Overtime(Long sessionId, Integer overtimeSeconds) {
-        Map<String, Object> duelState = round3ActiveDuels.get(sessionId);
-        if (duelState != null) {
-            duelState.put("isOvertimeRunning", false);
-            duelState.put("overtimeSeconds", overtimeSeconds != null ? overtimeSeconds : 0);
-            broadcast(sessionId, "ROUND3_OVERTIME_STOPPED", duelState);
-        }
+        endRound3Timer(sessionId, overtimeSeconds);
     }
 
     @Override
@@ -1771,8 +1876,11 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         LivePlayer player = livePlayerRepository.findById(playerId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
 
-        player.setRound3Score(score != null ? score : BigDecimal.ZERO);
-        player.setTotalScore(player.getRound1Score().add(player.getRound2Score()).add(player.getRound3Score()));
+        BigDecimal r1 = player.getRound1Score() != null ? player.getRound1Score() : BigDecimal.ZERO;
+        BigDecimal r2 = player.getRound2Score() != null ? player.getRound2Score() : BigDecimal.ZERO;
+        BigDecimal r3 = score != null ? score : BigDecimal.ZERO;
+        player.setRound3Score(r3);
+        player.setTotalScore(r1.add(r2).add(r3));
         livePlayerRepository.save(player);
 
         Map<String, Object> payload = Map.of(
@@ -1838,7 +1946,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
             p.setFinalRank(rank);
             String prizeTitle;
             if (rank == 1) {
-                prizeTitle = "GIẢI NHẤT";
+                prizeTitle = "QUÁN QUÂN";
             } else if (rank <= 4) {
                 prizeTitle = "GIẢI NHÌ";
             } else {
@@ -2255,6 +2363,9 @@ public class LiveArenaServiceImpl implements LiveArenaService {
             }
         }
 
+        int otSeconds = getPlayerRound3OvertimeSeconds(p.getSessionId(), p.getId());
+        int suggestedPen = (otSeconds / 15) * 5;
+
         return LivePlayerDto.builder()
                 .id(p.getId())
                 .sessionId(p.getSessionId())
@@ -2281,6 +2392,8 @@ public class LiveArenaServiceImpl implements LiveArenaService {
                 .round2Score(p.getRound2Score())
                 .round3PairGroup(p.getRound3PairGroup())
                 .round3Score(p.getRound3Score())
+                .round3OvertimeSeconds(otSeconds)
+                .round3SuggestedPenalty(suggestedPen)
                 .totalScore(p.getTotalScore())
                 .finalRank(p.getFinalRank())
                 .round1History(round1History.isEmpty() ? null : round1History)

@@ -33,6 +33,8 @@ import {
   Crown,
   Swords,
   BookOpen,
+  Pause,
+  StopCircle,
 } from 'lucide-react';
 import AdminSidebar from './AdminSidebar';
 import { toast } from '../../components/ui/Toast';
@@ -163,6 +165,8 @@ export default function AdminLiveControl() {
   const [r3Timer, setR3Timer] = useState<number>(120);
   const [r3TimerRunning, setR3TimerRunning] = useState<boolean>(false);
   const [r3TimeUp, setR3TimeUp] = useState<boolean>(false);
+  const [r3TimerPaused, setR3TimerPaused] = useState<boolean>(false);
+  const [r3TimerEnded, setR3TimerEnded] = useState<boolean>(false);
   const r3TargetEndTimeRef = React.useRef<number | null>(null);
   const [r3ScoresMap, setR3ScoresMap] = useState<Record<number, number>>({});
   const [r3PenaltyMap, setR3PenaltyMap] = useState<Record<number, number>>({});
@@ -250,6 +254,16 @@ export default function AdminLiveControl() {
             return nextR3;
           });
 
+          setR3PenaltyMap((prev) => {
+            const nextPen = { ...prev };
+            data.players.forEach((p) => {
+              if (nextPen[p.id] === undefined && p.round3SuggestedPenalty !== undefined && p.round3SuggestedPenalty !== null) {
+                nextPen[p.id] = p.round3SuggestedPenalty;
+              }
+            });
+            return nextPen;
+          });
+
           // Loại bỏ các thí sinh đã có điểm khỏi danh sách đợt thi hiện tại
           setR2BatchPlayerIds((prev) =>
             prev.filter((id) => {
@@ -301,12 +315,26 @@ export default function AdminLiveControl() {
         if (duel.activePlayerId && Number(duel.activePlayerId) > 0) {
           setR3ActiveSpeakerId(Number(duel.activePlayerId));
         }
-        if (duel.isTimerRunning && duel.endAt) {
+        if (duel.isTimerPaused) {
+          setR3TimerRunning(false);
+          setR3TimerPaused(true);
+          setR3Timer(duel.pausedRemainingSeconds !== undefined ? Number(duel.pausedRemainingSeconds) : 0);
+          r3TargetEndTimeRef.current = null;
+        } else if (duel.isEnded) {
+          r3TargetEndTimeRef.current = null;
+          setR3Timer(0);
+          setR3TimerRunning(false);
+          setR3TimerPaused(false);
+          setR3TimeUp(true);
+          setR3TimerEnded(true);
+        } else if (duel.isTimerRunning && duel.endAt) {
           const rem = Math.max(0, Math.ceil((duel.endAt - Date.now()) / 1000));
           if (rem > 0) {
             r3TargetEndTimeRef.current = duel.endAt;
             setR3Timer(rem);
             setR3TimerRunning(true);
+            setR3TimerPaused(false);
+            setR3TimerEnded(false);
             setR3TimeUp(false);
           } else {
             r3TargetEndTimeRef.current = null;
@@ -321,14 +349,17 @@ export default function AdminLiveControl() {
           setR3TimeUp(true);
         }
 
-        if (duel.isOvertimeRunning && duel.overtimeStartedAt) {
-          r3OvertimeTargetStartRef.current = duel.overtimeStartedAt;
-          const elapsed = Math.max(0, Math.floor((Date.now() - duel.overtimeStartedAt) / 1000));
+        if (duel.isOvertimeRunning) {
+          const startEpoch = duel.overtimeStartedAt ? Number(duel.overtimeStartedAt) : Date.now();
+          r3OvertimeTargetStartRef.current = startEpoch;
+          const elapsed = Math.max(0, Math.floor((Date.now() - startEpoch) / 1000));
           setR3OvertimeSeconds(elapsed);
           setR3OvertimeRunning(true);
-          setR3OvertimePlayerId(duel.activeOvertimePlayerId ? Number(duel.activeOvertimePlayerId) : null);
+          setR3OvertimePlayerId(duel.activePlayerId ? Number(duel.activePlayerId) : null);
         } else if (duel.overtimeSeconds) {
           setR3OvertimeSeconds(Number(duel.overtimeSeconds));
+          setR3OvertimeRunning(false);
+        } else {
           setR3OvertimeRunning(false);
         }
       }
@@ -561,20 +592,76 @@ export default function AdminLiveControl() {
         r3TargetEndTimeRef.current = Date.now() + duration * 1000;
         setR3Timer(duration);
         setR3TimerRunning(true);
+        setR3TimerPaused(false);
         setR3TimeUp(false);
+        setR3TimerEnded(false);
+        setR3OvertimeRunning(false);
+        setR3OvertimeSeconds(0);
         fetchSession();
       }
-      if (event.eventType === 'ROUND3_DUEL_TIME_UP') {
-        r3TargetEndTimeRef.current = null;
+      if (event.eventType === 'ROUND3_TIMER_PAUSED') {
         setR3TimerRunning(false);
-        setR3Timer(0);
+        setR3TimerPaused(true);
+        r3TargetEndTimeRef.current = null;
+        if (event.payload?.pausedRemainingSeconds !== undefined) {
+          setR3Timer(Number(event.payload.pausedRemainingSeconds));
+        }
+      }
+      if (event.eventType === 'ROUND3_TIMER_RESUMED') {
+        setR3TimerRunning(true);
+        setR3TimerPaused(false);
+        const endAt = event.payload?.endAt || (Date.now() + r3Timer * 1000);
+        r3TargetEndTimeRef.current = endAt;
+      }
+      if (event.eventType === 'ROUND3_TIMER_RESET') {
+        setR3TimerRunning(false);
+        setR3TimerPaused(false);
+        setR3TimeUp(false);
+        setR3TimerEnded(false);
+        setR3OvertimeRunning(false);
+        setR3OvertimeSeconds(0);
+        r3TargetEndTimeRef.current = null;
+        r3OvertimeTargetStartRef.current = null;
+        setR3Timer(Number(event.payload?.durationSeconds || r3DuelDuration || 120));
+      }
+      if (event.eventType === 'ROUND3_TIMER_ENDED' || event.eventType === 'ROUND3_DUEL_TIME_UP') {
+        r3TargetEndTimeRef.current = null;
+        r3OvertimeTargetStartRef.current = null;
+        setR3TimerRunning(false);
+        setR3TimerPaused(false);
         setR3TimeUp(true);
+        setR3TimerEnded(true);
+        setR3OvertimeRunning(false);
+        if (event.payload?.overtimeSeconds !== undefined) {
+          setR3OvertimeSeconds(Number(event.payload.overtimeSeconds));
+        }
+        fetchSession();
+      }
+      if (event.eventType === 'ROUND3_OVERTIME_STARTED') {
+        setR3TimerRunning(false);
+        setR3TimerPaused(false);
+        setR3TimeUp(true);
+        setR3OvertimeRunning(true);
+        r3OvertimeTargetStartRef.current = event.payload?.overtimeStartedAt || Date.now();
+        setR3OvertimeSeconds(0);
+      }
+      if (event.eventType === 'ROUND3_OVERTIME_STOPPED') {
+        setR3OvertimeRunning(false);
+        r3OvertimeTargetStartRef.current = null;
+        if (event.payload?.overtimeSeconds !== undefined) {
+          setR3OvertimeSeconds(Number(event.payload.overtimeSeconds));
+        }
+        fetchSession();
       }
       if (event.eventType === 'ROUND3_SHOW_ALL_PAIRS') {
         setActiveDuelPairNumber(null);
         r3TargetEndTimeRef.current = null;
         setR3TimerRunning(false);
+        setR3TimerPaused(false);
         setR3TimeUp(false);
+        setR3TimerEnded(false);
+        setR3OvertimeRunning(false);
+        setR3OvertimeSeconds(0);
         fetchSession();
       }
       if (
@@ -620,10 +707,28 @@ export default function AdminLiveControl() {
         setR3TimerRunning(false);
         setR3TimeUp(true);
         r3TargetEndTimeRef.current = null;
+        // TỰ ĐỘNG KÍCH HOẠT TÍNH QUÁ GIỜ NẾU CHƯA BẤM KẾT THÚC
+        if (session?.id) {
+          adminLiveApi.startRound3Overtime(session.id, r3ActiveSpeakerId ?? undefined).catch(console.error);
+        }
+        r3OvertimeTargetStartRef.current = Date.now();
+        setR3OvertimeRunning(true);
+        setR3OvertimeSeconds(0);
+        setR3OvertimePlayerId(r3ActiveSpeakerId ?? null);
       }
     }, 250);
     return () => clearInterval(interval);
-  }, [r3TimerRunning]);
+  }, [r3TimerRunning, session?.id, r3ActiveSpeakerId]);
+
+  // Round 3 Overtime Ticker counting seconds
+  useEffect(() => {
+    if (!r3OvertimeRunning || !r3OvertimeTargetStartRef.current) return;
+    const interval = setInterval(() => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - r3OvertimeTargetStartRef.current!) / 1000));
+      setR3OvertimeSeconds(elapsed);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [r3OvertimeRunning]);
 
   const { isConnected } = useLiveSocket({
     sessionId: session?.id,
@@ -1449,6 +1554,8 @@ export default function AdminLiveControl() {
       setR3ActiveSpeakerId(null);
       setR3Timer(0);
       setR3TimerRunning(false);
+      setR3TimerPaused(false);
+      setR3TimerEnded(false);
       setR3TimeUp(false);
       setR3OvertimeRunning(false);
       setR3OvertimeSeconds(0);
@@ -1504,6 +1611,8 @@ export default function AdminLiveControl() {
       r3TargetEndTimeRef.current = endAt;
       setR3Timer(durationSeconds);
       setR3TimerRunning(true);
+      setR3TimerPaused(false);
+      setR3TimerEnded(false);
       setR3TimeUp(false);
       await fetchSession();
       toast.success(`Đã phát lệnh thi đấu Cặp 0${pairNumber}: ${stageTitle}!`);
@@ -1514,19 +1623,123 @@ export default function AdminLiveControl() {
     }
   };
 
-  const handleStopRound3DuelTimer = async () => {
+  const handlePauseRound3DuelTimer = async () => {
     if (!session) return;
     try {
       setActionLoading(true);
-      await adminLiveApi.stopRound3DuelTimer(session.id);
-      r3TargetEndTimeRef.current = null;
+      await adminLiveApi.pauseRound3Timer(session.id);
       setR3TimerRunning(false);
-      setR3Timer(0);
-      setR3TimeUp(true);
-      await fetchSession();
-      toast.success('Đã kết thúc thời gian phần thi đối kháng!');
+      setR3TimerPaused(true);
+      toast.info('Đã tạm dừng đồng hồ Vòng 3.');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Lỗi dừng đồng hồ');
+      toast.error(err?.response?.data?.message || 'Lỗi tạm dừng');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResumeRound3DuelTimer = async () => {
+    if (!session) return;
+    try {
+      setActionLoading(true);
+      await adminLiveApi.resumeRound3Timer(session.id);
+      r3TargetEndTimeRef.current = Date.now() + r3Timer * 1000;
+      setR3TimerRunning(true);
+      setR3TimerPaused(false);
+      toast.success('Đã tiếp tục đếm ngược thời gian.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Lỗi tiếp tục');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetRound3DuelTimer = async () => {
+    if (!session) return;
+    try {
+      setActionLoading(true);
+      await adminLiveApi.resetRound3Timer(session.id);
+      r3TargetEndTimeRef.current = null;
+      r3OvertimeTargetStartRef.current = null;
+      setR3Timer(r3DuelDuration || 120);
+      setR3TimerRunning(false);
+      setR3TimerPaused(false);
+      setR3TimeUp(false);
+      setR3TimerEnded(false);
+      setR3OvertimeRunning(false);
+      setR3OvertimeSeconds(0);
+      toast.success('Đã thiết lập lại đồng hồ về thời gian ban đầu.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Lỗi làm mới đồng hồ');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEndRound3DuelTimer = async () => {
+    if (!session) return;
+    if (r3TimerEnded && !r3TimerRunning && !r3OvertimeRunning) {
+      toast.info('Phần thi đã được chốt kết thúc.');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      const finalSec = Math.max(0, Number(r3OvertimeSeconds || 0));
+      await adminLiveApi.endRound3Timer(session.id, finalSec);
+      r3TargetEndTimeRef.current = null;
+      r3OvertimeTargetStartRef.current = null;
+      setR3TimerRunning(false);
+      setR3TimerPaused(false);
+      setR3TimeUp(true);
+      setR3TimerEnded(true);
+      setR3OvertimeRunning(false);
+
+      const suggestedPenalty = finalSec >= 15 ? Math.floor(finalSec / 15) * 5 : 0;
+      const targetPlayerId = r3OvertimePlayerId ?? r3ActiveSpeakerId;
+      if (targetPlayerId) {
+        setR3PenaltyMap((prev) => ({
+          ...prev,
+          [targetPlayerId]: (prev[targetPlayerId] || 0) + suggestedPenalty,
+        }));
+      }
+
+      try {
+        await fetchSession();
+      } catch (fetchErr) {
+        console.warn('Lỗi fetchSession sau khi end timer:', fetchErr);
+      }
+
+      if (finalSec > 0) {
+        toast.warning(`Đã chốt kết thúc phần thi! Quá giờ: ${finalSec}s (Gợi ý trừ: ${suggestedPenalty}đ).`);
+      } else {
+        toast.success('Đã chốt kết thúc phần thi đúng thời gian!');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Lỗi kết thúc đếm giờ');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStopRound3DuelTimer = async () => {
+    await handleEndRound3DuelTimer();
+  };
+
+  const handleSaveAllR3Scores = async () => {
+    if (!session?.players) return;
+    try {
+      setActionLoading(true);
+      const promises = session.players.map((p) => {
+        const raw = Number(r3ScoresMap[p.id] ?? (p.round3Score ? Number(p.round3Score) : 0));
+        const pen = Number(r3PenaltyMap[p.id] ?? p.round3SuggestedPenalty ?? 0);
+        const finalScore = Math.max(0, raw - pen);
+        return adminLiveApi.updateRound3Score(p.id, finalScore);
+      });
+      await Promise.all(promises);
+      await fetchSession();
+      toast.success('Đã lưu toàn bộ điểm Vòng 3 cho 10 thí sinh thành công!');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Lỗi lưu điểm');
     } finally {
       setActionLoading(false);
     }
@@ -1571,7 +1784,7 @@ export default function AdminLiveControl() {
       }
 
       await fetchSession();
-      toast.success(`Đã dừng đếm quá giờ: +${finalSec}s. Tự động gợi ý trừ: ${suggestedPenalty} điểm.`);
+      toast.success(`Đã dừng đếm quá giờ: ${finalSec}s. Tự động gợi ý trừ: ${suggestedPenalty} điểm.`);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Lỗi dừng tính quá giờ');
     } finally {
@@ -1642,12 +1855,15 @@ export default function AdminLiveControl() {
     }
   };
 
-  const handleSaveSingleR3Score = async (playerId: number, score: number) => {
+  const handleSaveSingleR3Score = async (playerId: number, rawScore?: number, penScore?: number) => {
     try {
       setActionLoading(true);
-      await adminLiveApi.updateRound3Score(playerId, score);
+      const raw = rawScore !== undefined ? rawScore : Number(r3ScoresMap[playerId] ?? 0);
+      const pen = penScore !== undefined ? penScore : Number(r3PenaltyMap[playerId] ?? 0);
+      const finalScore = Math.max(0, raw - pen);
+      await adminLiveApi.updateRound3Score(playerId, finalScore);
       await fetchSession();
-      toast.success('Đã cập nhật điểm Vòng 3 thành công!');
+      toast.success(`Đã cập nhật điểm Vòng 3: ${finalScore}đ (${raw}đ - trừ ${pen}đ quá giờ)!`);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Lỗi cập nhật điểm Vòng 3');
     } finally {
@@ -1704,6 +1920,7 @@ export default function AdminLiveControl() {
     try {
       setActionLoading(true);
       await adminLiveApi.switchFinishViewMode(session.id, mode);
+      await fetchSession();
       toast.success(
         mode === 'PODIUM'
           ? 'Đã chuyển màn hình LED sang BỤC VINH DANH!'
@@ -1771,6 +1988,16 @@ export default function AdminLiveControl() {
 
         {/* Quick Screen Links */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={() => handleSwitchFinishViewMode('BOARD')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-800 font-bold text-xs shadow-xs transition-all active:scale-95"
+            title="Chiếu Bảng tổng điểm tích lũy 3 vòng lên màn LED ở bất kỳ vòng nào (không kết thúc hội thi)"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-blue-700" />
+            <span>Chiếu Bảng điểm 3 vòng (LED)</span>
+          </button>
           <button
             onClick={() => setResetContestModalOpen(true)}
             disabled={actionLoading}
@@ -3880,260 +4107,173 @@ export default function AdminLiveControl() {
                     </div>
                   </div>
 
-                  {/* Đồng hồ đếm ngược chính & Đồng hồ phụ đếm quá giờ */}
-                  <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 flex flex-col lg:flex-row items-center justify-between gap-6 shadow-inner">
-                    <div className="space-y-1 text-center lg:text-left">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        GIAI ĐOẠN ĐANG ĐIỀU PHỐI:
+                  {/* BẢNG ĐIỀU KHIỂN ĐỒNG HỒ THI ĐẤU (PAUSE, RESUME, RESET, END & TỰ ĐỘNG QUÁ GIỜ) */}
+                  <div className="bg-slate-950/90 border border-slate-800 rounded-3xl p-6 shadow-inner space-y-6">
+                    <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+                      {/* Trạng thái giai đoạn & Thí sinh */}
+                      <div className="space-y-1.5 text-center lg:text-left">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          GIAI ĐOẠN ĐANG ĐIỀU HÀNH:
+                        </div>
+                        <div className="text-base font-black text-amber-300">
+                          {r3DuelStageTitle || 'Chưa chọn giai đoạn'}
+                        </div>
+                        {r3ActiveSpeakerId ? (
+                          <div className="text-xs font-bold text-emerald-400 flex items-center justify-center lg:justify-start gap-1.5 mt-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>
+                              Thí sinh phát biểu:{' '}
+                              <strong className="text-white">
+                                {r3ActiveSpeakerId === p1.id ? p1.fullName : p2.fullName}
+                              </strong>
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-400">
+                            Cả 2 thí sinh cùng chuẩn bị
+                          </div>
+                        )}
                       </div>
-                      <div className="text-sm font-black text-amber-300">
-                        {r3DuelStageTitle}
+
+                      {/* Đồng hồ số trung tâm */}
+                      <div className="flex flex-col items-center justify-center">
+                        {r3OvertimeRunning ? (
+                          <div className="text-center animate-scaleUp">
+                            <div className="text-4xl sm:text-6xl font-mono font-black text-rose-500 animate-pulse drop-shadow-[0_0_20px_rgba(244,63,94,0.6)]">
+                              {String(Math.floor(r3OvertimeSeconds / 60)).padStart(2, '0')}:
+                              {String(r3OvertimeSeconds % 60).padStart(2, '0')}
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/50 text-rose-300 text-[10px] font-black uppercase tracking-wider mt-2 animate-bounce">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>ĐANG QUÁ GIỜ (CỨ 15S TRỪ 5Đ)</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <div className={`text-4xl sm:text-6xl font-mono font-black tracking-tight ${
+                              r3TimerRunning
+                                ? 'text-emerald-400 animate-pulse drop-shadow-[0_0_20px_rgba(52,211,153,0.5)]'
+                                : r3TimerPaused
+                                ? 'text-amber-400 drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]'
+                                : r3TimerEnded || r3TimeUp
+                                ? 'text-rose-500'
+                                : 'text-slate-300'
+                            }`}>
+                              {String(Math.floor(r3Timer / 60)).padStart(2, '0')}:
+                              {String(r3Timer % 60).padStart(2, '0')}
+                            </div>
+                            <div className="mt-2">
+                              {r3TimerPaused ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 text-[10px] font-black uppercase tracking-wider animate-pulse">
+                                  <Pause className="w-3 h-3 fill-current" /> ĐANG TẠM DỪNG
+                                </span>
+                              ) : r3TimerRunning ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+                                  <Timer className="w-3 h-3" /> ĐANG ĐẾM GIỜ
+                                </span>
+                              ) : r3TimerEnded ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black uppercase tracking-wider">
+                                  <CheckCircle2 className="w-3 h-3" /> ĐÃ KẾT THÚC PHẦN THI
+                                </span>
+                              ) : r3TimeUp ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-rose-500/20 border border-rose-400 text-rose-300 text-[10px] font-black uppercase tracking-wider">
+                                  HẾT GIỜ
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                                  CHỜ PHÁT LỆNH
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      {r3ActiveSpeakerId && (
-                        <div className="text-xs font-bold text-emerald-400 flex items-center justify-center lg:justify-start gap-1 mt-0.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>
-                            Thí sinh đang trình bày:{' '}
-                            <strong className="text-white">
-                              {r3ActiveSpeakerId === p1.id ? p1.fullName : p2.fullName}
-                            </strong>
-                          </span>
+
+                      {/* Hiển thị số giây quá giờ đã chốt nếu có */}
+                      {!r3OvertimeRunning && r3OvertimeSeconds > 0 && (
+                        <div className="text-center p-3 rounded-2xl bg-slate-900 border border-slate-800">
+                          <div className="text-xs text-slate-400 font-bold">Quá giờ đã ghi nhận:</div>
+                          <div className="text-xl font-mono font-black text-rose-400 mt-0.5">
+                            {r3OvertimeSeconds}s
+                          </div>
+                          <div className="text-[10px] text-amber-400 font-bold">
+                            Gợi ý trừ: -{Math.floor(r3OvertimeSeconds / 15) * 5}đ
+                          </div>
                         </div>
                       )}
                     </div>
 
-                    {/* Khối Timer Chính & Timer Phụ quá giờ */}
-                    <div className="flex flex-wrap items-center justify-center gap-6">
-                      {/* Timer Chính */}
-                      <div className="text-center">
-                        <div className={`text-4xl sm:text-5xl font-mono font-black ${
-                          r3TimerRunning
-                            ? 'text-emerald-400 animate-pulse'
-                            : r3TimeUp
-                            ? 'text-rose-500'
-                            : 'text-slate-300'
-                        }`}>
-                          {String(Math.floor(r3Timer / 60)).padStart(2, '0')}:
-                          {String(r3Timer % 60).padStart(2, '0')}
-                        </div>
-                        <div className="text-[10px] font-black uppercase mt-1 tracking-wider text-slate-400">
-                          {r3TimeUp ? 'HẾT GIỜ' : r3TimerRunning ? 'ĐANG TÍNH GIỜ' : 'CHỜ PHÁT LỆNH'}
-                        </div>
-                      </div>
-
-                      {/* Nút Kết thúc sớm / Dừng timer */}
-                      {r3TimerRunning && (
+                    {/* 4 NÚT ĐIỀU KHIỂN CHÍNH */}
+                    <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-center gap-3">
+                      {/* Nút 1: Tiếp tục (khi đang tạm dừng) */}
+                      {r3TimerPaused && (
                         <button
                           type="button"
                           disabled={actionLoading}
-                          onClick={handleStopRound3DuelTimer}
-                          className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg transition-all active:scale-95 flex items-center gap-1.5"
+                          onClick={handleResumeRound3DuelTimer}
+                          className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg transition-all active:scale-95 flex items-center gap-2 animate-pulse"
                         >
-                          <XCircle className="w-4 h-4" />
-                          <span>DỪNG / KẾT THÚC SỚM</span>
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>TIẾP TỤC ĐẾM GIỜ</span>
                         </button>
                       )}
 
-                      {/* BỘ ĐẾM THỜI GIAN PHỤ (QUÁ GIỜ) */}
-                      {(r3TimeUp || r3OvertimeRunning || r3OvertimeSeconds > 0) && (
-                        <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
-                          <div className="text-center">
-                            <div className="text-2xl sm:text-3xl font-mono font-black text-yellow-300">
-                              +{String(Math.floor(r3OvertimeSeconds / 60)).padStart(2, '0')}:
-                              {String(r3OvertimeSeconds % 60).padStart(2, '0')}
-                            </div>
-                            <div className="text-[9px] font-black uppercase text-rose-400 tracking-wider">
-                              {r3OvertimeRunning ? '⚠️ ĐANG QUÁ GIỜ' : 'CHỐT QUÁ GIỜ'}
-                            </div>
-                          </div>
-
-                          {!r3OvertimeRunning ? (
-                            <button
-                              type="button"
-                              disabled={actionLoading}
-                              onClick={() => handleStartRound3Overtime()}
-                              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1"
-                              title="Bấm để bắt đầu đếm thời gian thí sinh nói quá giờ"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                              <span>TÍNH QUÁ GIỜ (+)</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={actionLoading}
-                              onClick={handleStopRound3Overtime}
-                              className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1 animate-pulse"
-                              title="Dừng đếm thời gian quá giờ và tự động tính điểm trừ"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span>DỪNG QUÁ GIỜ</span>
-                            </button>
-                          )}
-                        </div>
+                      {/* Nút 2: Tạm dừng (khi đang chạy) */}
+                      {(r3TimerRunning || r3OvertimeRunning) && !r3TimerPaused && (
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={handlePauseRound3DuelTimer}
+                          className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg transition-all active:scale-95 flex items-center gap-2"
+                        >
+                          <Pause className="w-4 h-4 fill-current" />
+                          <span>TẠM DỪNG</span>
+                        </button>
                       )}
-                    </div>
-                  </div>
 
-                  {/* BẢNG NHẬP ĐIỂM BAN GIÁM KHẢO & ĐIỂM TRỪ QUÁ GIỜ (CÓ Ô TRỪ ĐIỂM) */}
-                  <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-5 space-y-4">
-                    <div className="text-xs font-black text-indigo-300 uppercase tracking-wider flex items-center justify-between">
-                      <span>NHẬP ĐIỂM & ĐIỂM TRỪ CHO 2 THÍ SINH CỦA CẶP:</span>
-                      <span className="text-[11px] text-slate-300 font-normal">
-                        Tổng điểm V3 = Điểm BGK (0-100) - Điểm trừ quá giờ/vi phạm
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* Thí sinh 1 */}
-                      <div className="bg-slate-900/90 border border-amber-500/50 rounded-2xl p-4 space-y-3 shadow-md">
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                          <div>
-                            <span className="text-[10px] font-black text-amber-400 uppercase">THÍ SINH 1 (BÊN TRÁI)</span>
-                            <div className="text-sm font-black text-white">{p1.fullName}</div>
-                            <div className="text-[11px] text-slate-400">SBD {String(p1.orderNumber).padStart(2, '0')} • {p1.unit}</div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 block">ĐIỂM TỔNG V3</span>
-                            <span className="text-2xl font-black text-amber-300 font-mono">{p1Final}đ</span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-300 block mb-1">
-                              Điểm BGK (0 - 100):
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="1"
-                              value={p1Raw}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setR3ScoresMap((prev) => ({ ...prev, [p1.id]: val }));
-                              }}
-                              className="w-full text-center bg-slate-950 border border-amber-400/60 rounded-xl py-2 px-2 text-base font-black text-amber-300 focus:outline-none"
-                            />
-                          </div>
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="text-[10px] font-bold text-rose-300">
-                                Điểm trừ:
-                              </label>
-                              {r3OvertimeSeconds >= 15 && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setR3PenaltyMap((prev) => ({
-                                      ...prev,
-                                      [p1.id]: Math.floor(r3OvertimeSeconds / 15) * 5,
-                                    }))
-                                  }
-                                  className="text-[9px] text-amber-400 hover:underline"
-                                  title="Áp dụng điểm trừ từ thời gian quá giờ"
-                                >
-                                  Gán quá giờ (-{Math.floor(r3OvertimeSeconds / 15) * 5}đ)
-                                </button>
-                              )}
-                            </div>
-                            <input
-                              type="number"
-                              min="0"
-                              max="50"
-                              step="1"
-                              value={p1Pen}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setR3PenaltyMap((prev) => ({ ...prev, [p1.id]: val }));
-                              }}
-                              className="w-full text-center bg-slate-950 border border-rose-500/60 rounded-xl py-2 px-2 text-base font-black text-rose-400 focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Thí sinh 2 */}
-                      <div className="bg-slate-900/90 border border-rose-500/50 rounded-2xl p-4 space-y-3 shadow-md">
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                          <div>
-                            <span className="text-[10px] font-black text-rose-400 uppercase">THÍ SINH 2 (BÊN PHẢI)</span>
-                            <div className="text-sm font-black text-white">{p2.fullName}</div>
-                            <div className="text-[11px] text-slate-400">SBD {String(p2.orderNumber).padStart(2, '0')} • {p2.unit}</div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 block">ĐIỂM TỔNG V3</span>
-                            <span className="text-2xl font-black text-rose-300 font-mono">{p2Final}đ</span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-300 block mb-1">
-                              Điểm BGK (0 - 100):
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="1"
-                              value={p2Raw}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setR3ScoresMap((prev) => ({ ...prev, [p2.id]: val }));
-                              }}
-                              className="w-full text-center bg-slate-950 border border-rose-400/60 rounded-xl py-2 px-2 text-base font-black text-rose-300 focus:outline-none"
-                            />
-                          </div>
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="text-[10px] font-bold text-rose-300">
-                                Điểm trừ:
-                              </label>
-                              {r3OvertimeSeconds >= 15 && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setR3PenaltyMap((prev) => ({
-                                      ...prev,
-                                      [p2.id]: Math.floor(r3OvertimeSeconds / 15) * 5,
-                                    }))
-                                  }
-                                  className="text-[9px] text-rose-400 hover:underline"
-                                  title="Áp dụng điểm trừ từ thời gian quá giờ"
-                                >
-                                  Gán quá giờ (-{Math.floor(r3OvertimeSeconds / 15) * 5}đ)
-                                </button>
-                              )}
-                            </div>
-                            <input
-                              type="number"
-                              min="0"
-                              max="50"
-                              step="1"
-                              value={p2Pen}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setR3PenaltyMap((prev) => ({ ...prev, [p2.id]: val }));
-                              }}
-                              className="w-full text-center bg-slate-950 border border-rose-500/60 rounded-xl py-2 px-2 text-base font-black text-rose-400 focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
+                      {/* Nút 3: Reset đồng hồ */}
                       <button
                         type="button"
                         disabled={actionLoading}
-                        onClick={() => handleSaveDuelScores(p1.id, p2.id)}
-                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-black text-xs shadow-lg transition-all active:scale-95 flex items-center gap-2"
+                        onClick={handleResetRound3DuelTimer}
+                        className="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-40"
                       >
-                        <Save className="w-4 h-4" />
-                        <span>LƯU ĐIỂM CẶP 0{activeDuelPairNumber} ({p1Final}đ - {p2Final}đ)</span>
+                        <RotateCcw className="w-4 h-4" />
+                        <span>RESET ĐẾM GIỜ</span>
                       </button>
+
+                      {/* Nút 4: Kết thúc phần đếm giờ (Chốt giờ) */}
+                      <button
+                        type="button"
+                        disabled={actionLoading || (r3TimerEnded && !r3TimerRunning && !r3OvertimeRunning)}
+                        onClick={handleEndRound3DuelTimer}
+                        className={`px-6 py-3 rounded-2xl text-white font-black text-xs shadow-lg transition-all active:scale-95 flex items-center gap-2 ${
+                          r3TimerEnded && !r3TimerRunning && !r3OvertimeRunning
+                            ? 'bg-slate-700 text-slate-400 cursor-not-allowed border border-slate-600 opacity-80'
+                            : 'bg-rose-600 hover:bg-rose-500'
+                        }`}
+                        title="Dừng đếm giờ, kết thúc phần thi và tự động ghi nhận số giây quá giờ để gợi ý điểm trừ"
+                      >
+                        <StopCircle className="w-4 h-4" />
+                        <span>{r3TimerEnded && !r3TimerRunning && !r3OvertimeRunning ? 'ĐÃ CHỐT KẾT THÚC' : 'KẾT THÚC PHẦN THI (CHỐT GIỜ)'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* THÔNG BÁO CHUYỂN CHẤM ĐIỂM SANG BƯỚC 3 */}
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                        <Award className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-200">
+                          Chấm điểm tập trung một lần ở Bước 3
+                        </div>
+                        <div className="text-slate-400 text-[11px] mt-0.5">
+                          Ban Giám khảo chỉ cần tập trung điều phối timer trong khi thi. Điểm số sẽ được nhập và chốt tại <strong className="text-amber-300">Bảng tổng hợp điểm (Bước 3)</strong> bên dưới. Hệ thống tự động ghi nhận số giây quá giờ để tính sẵn điểm trừ gợi ý (có thể chỉnh sửa).
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4142,7 +4282,7 @@ export default function AdminLiveControl() {
 
             {/* BƯỚC 3: BẢNG KẾT QUẢ ĐỐI KHÁNG VÒNG 3 & TỔNG ĐIỂM CHUNG CUỘC */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
                 <div className="flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 text-xs font-black flex items-center justify-center">
                     3
@@ -4152,10 +4292,20 @@ export default function AdminLiveControl() {
                       BẢNG TỔNG HỢP ĐIỂM VÒNG 3 & TỔNG ĐIỂM CHUNG CUỘC
                     </h4>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Toàn bộ 10 thí sinh xếp theo Số báo danh. Admin có thể chỉnh sửa và lưu điểm trực tiếp tại đây.
+                      Toàn bộ 10 thí sinh xếp theo Số báo danh. Điểm chốt V3 = Điểm BGK chấm - Điểm trừ quá giờ.
                     </p>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={handleSaveAllR3Scores}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 shrink-0"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>LƯU TẤT CẢ 10 THÍ SINH</span>
+                </button>
               </div>
 
               <div className="overflow-x-auto">
@@ -4166,20 +4316,25 @@ export default function AdminLiveControl() {
                       <th className="py-3 px-3">Thí sinh</th>
                       <th className="py-3 px-3">Đơn vị</th>
                       <th className="py-3 px-3">Cặp đấu</th>
-                      <th className="py-3 px-3 text-center">Điểm Vòng 1</th>
-                      <th className="py-3 px-3 text-center">Điểm Vòng 2</th>
-                      <th className="py-3 px-3 text-center min-w-[120px]">Điểm Vòng 3 (max 100)</th>
+                      <th className="py-3 px-3 text-center">Điểm V1</th>
+                      <th className="py-3 px-3 text-center">Điểm V2</th>
+                      <th className="py-3 px-3 text-center min-w-[120px]">Điểm BGK (max 100)</th>
+                      <th className="py-3 px-3 text-center min-w-[140px]">Trừ quá giờ (Gợi ý)</th>
+                      <th className="py-3 px-3 text-center font-black text-slate-900">Điểm chốt V3</th>
                       <th className="py-3 px-3 text-right">Tổng tích lũy</th>
                       <th className="py-3 px-3 text-center">Hành động</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {session?.players?.map((p) => {
-                      const sc3 = r3ScoresMap[p.id] ?? (p.round3Score ? Number(p.round3Score) : 0);
+                      const rawScore = r3ScoresMap[p.id] ?? (p.round3Score ? Number(p.round3Score) : 0);
+                      const penScore = r3PenaltyMap[p.id] ?? (p.round3SuggestedPenalty ?? 0);
+                      const finalV3 = Math.max(0, rawScore - penScore);
                       const totalCumulative =
                         Number(p.round1Score || 0) +
                         Number(p.round2Score || 0) +
-                        Number(sc3 || 0);
+                        Number(finalV3 || 0);
+                      const otSec = p.round3OvertimeSeconds || 0;
 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -4218,13 +4373,37 @@ export default function AdminLiveControl() {
                               min="0"
                               max="100"
                               step="1"
-                              value={sc3}
+                              value={rawScore}
                               onChange={(e) => {
                                 const val = Number(e.target.value);
                                 setR3ScoresMap((prev) => ({ ...prev, [p.id]: val }));
                               }}
                               className="w-20 text-center bg-white border border-slate-300 focus:border-indigo-500 rounded-lg py-1.5 px-2 text-xs font-black text-slate-900 shadow-2xs"
                             />
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <input
+                                type="number"
+                                min="0"
+                                max="50"
+                                step="1"
+                                value={penScore}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  setR3PenaltyMap((prev) => ({ ...prev, [p.id]: val }));
+                                }}
+                                className="w-20 text-center bg-rose-50/60 border border-rose-300 focus:border-rose-500 rounded-lg py-1.5 px-2 text-xs font-black text-rose-600 shadow-2xs"
+                              />
+                              {otSec > 0 && (
+                                <span className="text-[10px] font-bold text-rose-500 bg-rose-100/80 px-1.5 py-0.5 rounded">
+                                  {otSec}s quá giờ
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-center font-black text-sm text-indigo-700">
+                            {formatScore(finalV3)}đ
                           </td>
                           <td className="py-3 px-3 text-right font-black text-amber-600 text-sm">
                             {formatScore(totalCumulative)}đ
@@ -4233,7 +4412,7 @@ export default function AdminLiveControl() {
                             <button
                               type="button"
                               disabled={actionLoading}
-                              onClick={() => handleSaveSingleR3Score(p.id, sc3)}
+                              onClick={() => handleSaveSingleR3Score(p.id, rawScore, penScore)}
                               className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 inline-flex items-center gap-1"
                               title="Lưu điểm Vòng 3 thí sinh này"
                             >
@@ -4280,10 +4459,9 @@ export default function AdminLiveControl() {
                     disabled={actionLoading}
                     onClick={() => {
                       handleSwitchFinishViewMode('BOARD');
-                      setActiveTab('finish');
                     }}
                     className="px-4 py-2.5 rounded-2xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 font-black text-xs transition-all flex items-center gap-1.5 shadow-2xs active:scale-95"
-                    title="Chiếu Bảng điểm tổng hợp 3 vòng lên màn LED và chuyển sang tab Tổng kết"
+                    title="Chiếu Bảng điểm tổng hợp 3 vòng lên màn LED (không kết thúc phiên thi)"
                   >
                     <BarChart3 className="w-4 h-4" />
                     <span>Chiếu Bảng điểm 3 vòng</span>
@@ -4386,18 +4564,23 @@ export default function AdminLiveControl() {
                   <tbody className="divide-y divide-slate-800/60">
                     {sortedLeaderboard.map((p, idx) => {
                       const rank = p.finalRank || (idx + 1);
-                      const prize = rank === 1 ? 'GIẢI NHẤT' : rank <= 4 ? 'GIẢI NHÌ' : 'GIẢI BA';
+                      const prize = rank === 1 ? 'QUÁN QUÂN' : rank <= 4 ? 'GIẢI NHÌ' : 'GIẢI BA';
                       return (
                         <tr key={p.id} className="hover:bg-slate-200/40">
-                          <td className="py-2.5 font-black text-amber-600">{rank}</td>
+                          <td className="py-2.5 font-black text-amber-600">
+                            <span className="flex items-center gap-1">
+                              <span>{rank === 1 ? '🥇' : rank <= 4 ? '🥈' : '🥉'}</span>
+                              <span>{rank}</span>
+                            </span>
+                          </td>
                           <td className="py-2.5 font-bold">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-black inline-flex items-center gap-1 ${
                                 rank === 1
-                                  ? 'bg-amber-400 text-slate-950'
+                                  ? 'bg-amber-400 text-slate-950 shadow-xs'
                                   : rank <= 4
-                                  ? 'bg-slate-300 text-slate-950'
-                                  : 'bg-amber-900/60 text-amber-200'
+                                  ? 'bg-sky-100 text-sky-900 border border-sky-300'
+                                  : 'bg-amber-100 text-amber-900 border border-amber-300'
                               }`}
                             >
                               {prize}

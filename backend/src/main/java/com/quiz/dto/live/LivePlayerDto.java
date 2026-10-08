@@ -44,6 +44,8 @@ public class LivePlayerDto {
     // Vòng 3
     private Integer round3PairGroup;
     private BigDecimal round3Score;
+    private Integer round3OvertimeSeconds;
+    private Integer round3SuggestedPenalty;
 
     // Tổng kết
     private BigDecimal totalScore;

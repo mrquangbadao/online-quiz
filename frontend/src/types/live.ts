@@ -54,6 +54,8 @@ export interface LivePlayerDto {
   // Vòng 3
   round3PairGroup?: number | null;
   round3Score: number;
+  round3OvertimeSeconds?: number;
+  round3SuggestedPenalty?: number;
 
   // Tổng kết
   totalScore: number;
@@ -87,8 +89,15 @@ export interface LiveSessionDto {
     durationSeconds?: number;
     startedAt?: number;
     endAt?: number;
+    activePlayerId?: number;
     isTimerRunning?: boolean;
+    isTimerPaused?: boolean;
+    pausedRemainingSeconds?: number;
     isTimeUp?: boolean;
+    isOvertimeRunning?: boolean;
+    overtimeSeconds?: number;
+    overtimeStartedAt?: number;
+    isEnded?: boolean;
     player1?: LivePlayerDto;
     player2?: LivePlayerDto;
   };

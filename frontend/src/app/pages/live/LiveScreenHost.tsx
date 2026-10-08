@@ -35,6 +35,7 @@ import {
   X,
   Pause,
   ChevronLeft,
+  MessageSquare,
 } from 'lucide-react';
 import { liveApi } from '../../../api/liveApi';
 import { adminLiveApi } from '../../../api/admin/adminLiveApi';
@@ -111,7 +112,9 @@ export default function LiveScreenHost() {
   ]);
   const [round3DuelTimer, setRound3DuelTimer] = useState<number>(120);
   const [round3DuelTimerRunning, setRound3DuelTimerRunning] = useState<boolean>(false);
+  const [round3DuelTimerPaused, setRound3DuelTimerPaused] = useState<boolean>(false);
   const [round3DuelTimeUp, setRound3DuelTimeUp] = useState<boolean>(false);
+  const [round3DuelTimerEnded, setRound3DuelTimerEnded] = useState<boolean>(false);
   const [round3OvertimeRunning, setRound3OvertimeRunning] = useState<boolean>(false);
   const [round3OvertimeSeconds, setRound3OvertimeSeconds] = useState<number>(0);
   const r3DuelTargetEndTimeRef = useRef<number | null>(null);
@@ -153,7 +156,15 @@ export default function LiveScreenHost() {
       // Khôi phục đồng hồ Vòng 3 nếu reload trang trong lúc đang tranh tài
       if (data && data.status === 'ROUND3' && data.round3DuelState) {
         const duel = data.round3DuelState as any;
-        if (duel.isTimerRunning && duel.endAt) {
+        if (duel.isTimerPaused) {
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(true);
+          setRound3DuelTimerEnded(false);
+          setRound3DuelTimer(Number(duel.pausedRemainingSeconds || 0));
+        } else if (duel.isTimerRunning && duel.endAt) {
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimerEnded(false);
           const duration = Number(duel.durationSeconds || 120);
           const rawRemaining = Math.max(0, Math.ceil((duel.endAt - Date.now()) / 1000));
           const remainingR3 = Math.min(duration, rawRemaining);
@@ -168,25 +179,38 @@ export default function LiveScreenHost() {
             setRound3DuelTimerRunning(false);
             setRound3DuelTimeUp(true);
           }
+        } else if (duel.isEnded) {
+          r3DuelTargetEndTimeRef.current = null;
+          setRound3DuelTimer(0);
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimerEnded(true);
+          setRound3DuelTimeUp(true);
         } else if (duel.isTimeUp) {
           r3DuelTargetEndTimeRef.current = null;
           setRound3DuelTimer(0);
           setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
           setRound3DuelTimeUp(true);
         } else {
           r3DuelTargetEndTimeRef.current = null;
           setRound3DuelTimer(0);
           setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimerEnded(false);
           setRound3DuelTimeUp(false);
         }
 
-        if (duel.isOvertimeRunning && duel.overtimeStartedAt) {
-          r3OvertimeTargetStartRef.current = duel.overtimeStartedAt;
-          const elapsed = Math.max(0, Math.floor((Date.now() - duel.overtimeStartedAt) / 1000));
+        if (duel.isOvertimeRunning) {
+          const startEpoch = duel.overtimeStartedAt ? Number(duel.overtimeStartedAt) : Date.now();
+          r3OvertimeTargetStartRef.current = startEpoch;
+          const elapsed = Math.max(0, Math.floor((Date.now() - startEpoch) / 1000));
           setRound3OvertimeSeconds(elapsed);
           setRound3OvertimeRunning(true);
         } else if (duel.overtimeSeconds) {
           setRound3OvertimeSeconds(Number(duel.overtimeSeconds));
+          setRound3OvertimeRunning(false);
+        } else {
           setRound3OvertimeRunning(false);
         }
       }
@@ -256,9 +280,7 @@ export default function LiveScreenHost() {
         }
       }
 
-      if (data && data.status === 'FINISHED' && !isPreview3Rounds && !searchParams.get('preview')) {
-        setFinishedViewMode('PODIUM');
-      }
+
     } catch (err) {
       console.error('Lỗi tải dữ liệu màn hình chính:', err);
     } finally {
@@ -278,6 +300,7 @@ export default function LiveScreenHost() {
       switch (event.eventType) {
         case 'SESSION_STATUS_CHANGED':
           setSession(event.payload);
+          setIsPreview3Rounds(false);
           break;
 
         case 'SESSION_RESET':
@@ -604,9 +627,12 @@ export default function LiveScreenHost() {
         case 'ROUND3_DUEL_DISPLAYED': {
           const duel = event.payload;
           setSession((prev) => (prev ? { ...prev, round3DuelState: duel } : prev));
+          setIsPreview3Rounds(false);
           r3DuelTargetEndTimeRef.current = null;
           setRound3DuelTimer(0);
           setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimerEnded(false);
           setRound3DuelTimeUp(false);
           setRound3OvertimeRunning(false);
           setRound3OvertimeSeconds(0);
@@ -618,10 +644,13 @@ export default function LiveScreenHost() {
         case 'ROUND3_DUEL_STARTED': {
           const duel = event.payload;
           setSession((prev) => (prev ? { ...prev, round3DuelState: duel } : prev));
+          setIsPreview3Rounds(false);
           const duration = Number(duel.durationSeconds || 120);
           r3DuelTargetEndTimeRef.current = Date.now() + duration * 1000;
           setRound3DuelTimer(duration);
           setRound3DuelTimerRunning(true);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimerEnded(false);
           setRound3DuelTimeUp(false);
           setRound3OvertimeRunning(false);
           setRound3OvertimeSeconds(0);
@@ -646,10 +675,69 @@ export default function LiveScreenHost() {
           if (soundEnabled) liveSound.playBuzzer();
           break;
 
+        case 'ROUND3_TIMER_PAUSED':
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(true);
+          if (event.payload?.pausedRemainingSeconds !== undefined) {
+            setRound3DuelTimer(Number(event.payload.pausedRemainingSeconds));
+          }
+          if (soundEnabled) liveSound.playTick();
+          break;
+
+        case 'ROUND3_TIMER_RESUMED':
+          setRound3DuelTimerRunning(true);
+          setRound3DuelTimerPaused(false);
+          const r3EndAt = event.payload?.endAt || (Date.now() + round3DuelTimer * 1000);
+          r3DuelTargetEndTimeRef.current = r3EndAt;
+          if (soundEnabled) liveSound.playFanfare();
+          break;
+
+        case 'ROUND3_TIMER_RESET':
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimeUp(false);
+          setRound3DuelTimerEnded(false);
+          setRound3OvertimeRunning(false);
+          setRound3OvertimeSeconds(0);
+          r3DuelTargetEndTimeRef.current = null;
+          r3OvertimeTargetStartRef.current = null;
+          setRound3DuelTimer(Number(event.payload?.durationSeconds || 120));
+          if (soundEnabled) liveSound.playCorrect();
+          break;
+
+        case 'ROUND3_TIMER_ENDED':
+          r3DuelTargetEndTimeRef.current = null;
+          r3OvertimeTargetStartRef.current = null;
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimeUp(true);
+          setRound3DuelTimerEnded(true);
+          setRound3OvertimeRunning(false);
+          if (event.payload?.overtimeSeconds !== undefined) {
+            setRound3OvertimeSeconds(Number(event.payload.overtimeSeconds));
+          }
+          if (soundEnabled) liveSound.playBuzzer();
+          fetchSession();
+          break;
+
         case 'ROUND3_OVERTIME_STARTED':
           setRound3OvertimeRunning(true);
           setRound3OvertimeSeconds(0);
-          r3OvertimeTargetStartRef.current = event.payload?.overtimeStartedAt || Date.now();
+          setRound3DuelTimeUp(true);
+          setRound3DuelTimerRunning(false);
+          setRound3DuelTimer(0);
+          r3DuelTargetEndTimeRef.current = null;
+          r3OvertimeTargetStartRef.current = event.payload?.overtimeStartedAt ? Number(event.payload.overtimeStartedAt) : Date.now();
+          setSession((prev) => (prev ? {
+            ...prev,
+            round3DuelState: {
+              ...(prev.round3DuelState || {}),
+              ...(event.payload || {}),
+              isOvertimeRunning: true,
+              isTimeUp: true,
+              isTimerRunning: false,
+            }
+          } : prev));
           if (soundEnabled) liveSound.playTick();
           break;
 
@@ -663,8 +751,11 @@ export default function LiveScreenHost() {
         case 'ROUND3_SHOW_ALL_PAIRS':
           setRound3ViewMode('PAIRS');
           setSession((prev) => (prev ? { ...prev, round3DuelState: undefined, round3ViewMode: 'PAIRS' } : prev));
+          setIsPreview3Rounds(false);
           r3DuelTargetEndTimeRef.current = null;
           setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimerEnded(false);
           setRound3DuelTimer(0);
           setRound3DuelTimeUp(false);
           setRound3OvertimeRunning(false);
@@ -676,8 +767,11 @@ export default function LiveScreenHost() {
         case 'ROUND3_RULES_DISPLAYED':
           setRound3ViewMode('RULES');
           setSession((prev) => (prev ? { ...prev, round3DuelState: undefined, round3ViewMode: 'RULES' } : prev));
+          setIsPreview3Rounds(false);
           r3DuelTargetEndTimeRef.current = null;
           setRound3DuelTimerRunning(false);
+          setRound3DuelTimerPaused(false);
+          setRound3DuelTimerEnded(false);
           setRound3DuelTimer(0);
           setRound3DuelTimeUp(false);
           setRound3OvertimeRunning(false);
@@ -719,17 +813,18 @@ export default function LiveScreenHost() {
           } catch (e) {}
           break;
 
-        case 'FINISH_VIEW_MODE_CHANGED':
-          if (event.payload?.viewMode === 'BOARD') {
-            setFinishedViewMode('BOARD');
-          } else {
-            setFinishedViewMode('PODIUM');
+        case 'FINISH_VIEW_MODE_CHANGED': {
+          const mode = event.payload?.viewMode === 'BOARD' ? 'BOARD' : 'PODIUM';
+          setFinishedViewMode(mode);
+          setIsPreview3Rounds(true);
+          if (mode === 'PODIUM') {
             if (soundEnabled) liveSound.playGrandFanfare();
             try {
               confetti({ particleCount: 160, spread: 100, origin: { y: 0.6 } });
             } catch (e) {}
           }
           break;
+        }
 
         default:
           break;
@@ -875,6 +970,15 @@ export default function LiveScreenHost() {
         r3DuelTargetEndTimeRef.current = null;
         setRound3DuelTimeUp(true);
         if (soundEnabled) liveSound.playBuzzer();
+
+        // Tự động chuyển tiếp sang đếm quá giờ trên màn hình LED nếu chưa kết thúc và không phải giai đoạn chuẩn bị
+        const currentStage = (session?.round3DuelState as any)?.stage;
+        const isPrep = currentStage === 'PREPARE' || currentStage === 'STAGE_1_PREP';
+        if (!round3DuelTimerEnded && !isPrep) {
+          r3OvertimeTargetStartRef.current = Date.now();
+          setRound3OvertimeRunning(true);
+          setRound3OvertimeSeconds(0);
+        }
       } else if (remaining <= 10 && soundEnabled) {
         liveSound.playUrgentCountdown(remaining);
       } else if (remaining <= 15 && soundEnabled) {
@@ -882,7 +986,7 @@ export default function LiveScreenHost() {
       }
     }, 250);
     return () => clearInterval(interval);
-  }, [round3DuelTimerRunning, soundEnabled]);
+  }, [round3DuelTimerRunning, soundEnabled, round3DuelTimerEnded, session?.round3DuelState]);
 
   // Round 3 Overtime ticker
   useEffect(() => {
@@ -2966,7 +3070,7 @@ export default function LiveScreenHost() {
               const activeSpeakerId = Number(duel.activePlayerId || 0);
               const isP1Speaking = activeSpeakerId > 0 && activeSpeakerId === duel.player1?.id;
               const isP2Speaking = activeSpeakerId > 0 && activeSpeakerId === duel.player2?.id;
-              const isPrepareStage = duel.stage === 'PREPARE';
+              const isPrepareStage = duel.stage === 'PREPARE' || duel.stage === 'STAGE_1_PREP';
 
               return (
                 <div className="space-y-6 animate-scaleUp">
@@ -3075,16 +3179,81 @@ export default function LiveScreenHost() {
                         {/* Bộ đếm thời gian tròn to nổi bật */}
                         <div
                           className={`relative transition-all duration-300 flex flex-col items-center justify-center rounded-full select-none shadow-2xl ${
-                            round3DuelTimeUp
+                            round3OvertimeRunning || (!round3DuelTimerEnded && round3DuelTimeUp && !isPrepareStage)
+                              ? 'w-36 h-36 md:w-44 md:h-44 bg-rose-600 border-4 border-yellow-300 text-yellow-300 ring-8 ring-rose-400/50 scale-105 animate-pulse'
+                              : round3DuelTimerRunning
+                              ? round3DuelTimer <= 15
+                                ? 'w-36 h-36 md:w-44 md:h-44 bg-red-600 border-4 border-yellow-300 text-yellow-300 ring-8 ring-red-400/40 scale-110 animate-pulse'
+                                : 'w-32 h-32 md:w-40 md:h-40 bg-white/95 border-4 border-emerald-500 text-emerald-600 ring-4 ring-emerald-400/20'
+                              : round3DuelTimerPaused
+                              ? 'w-36 h-36 md:w-44 md:h-44 bg-amber-500 border-4 border-yellow-200 text-slate-950 ring-8 ring-amber-400/50 scale-105 animate-pulse'
+                              : round3DuelTimerEnded
+                              ? 'w-36 h-36 md:w-44 md:h-44 bg-rose-700 border-4 border-yellow-300 text-white ring-8 ring-rose-500/40 scale-105'
+                              : round3DuelTimeUp
                               ? 'w-36 h-36 md:w-44 md:h-44 bg-rose-600 border-4 border-yellow-300 text-white ring-8 ring-rose-400/50 scale-105 animate-pulse'
                               : isPrepareStage
                               ? 'w-36 h-36 md:w-44 md:h-44 bg-slate-900 border-4 border-amber-400 text-amber-300 ring-8 ring-amber-400/20'
-                              : round3DuelTimer <= 15
-                              ? 'w-36 h-36 md:w-44 md:h-44 bg-red-600 border-4 border-yellow-300 text-yellow-300 ring-8 ring-red-400/40 scale-110 animate-pulse'
                               : 'w-32 h-32 md:w-40 md:h-40 bg-white/95 border-4 border-emerald-500 text-emerald-600 ring-4 ring-emerald-400/20'
                           }`}
                         >
-                          {round3DuelTimeUp ? (
+                          {round3OvertimeRunning || (!round3DuelTimerEnded && round3DuelTimeUp && !isPrepareStage) ? (
+                            <>
+                              <div className="text-3xl md:text-5xl font-mono font-black tracking-tight leading-none text-yellow-300 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+                                {String(Math.floor(round3OvertimeSeconds / 60)).padStart(2, '0')}:
+                                {String(round3OvertimeSeconds % 60).padStart(2, '0')}
+                              </div>
+                              <div className="text-[10px] md:text-xs font-black uppercase tracking-widest mt-1 text-white bg-rose-700/90 px-2 py-0.5 rounded-full border border-yellow-300/60 animate-bounce">
+                                QUÁ GIỜ!
+                              </div>
+                            </>
+                          ) : round3DuelTimerRunning ? (
+                            <>
+                              <div className="text-3xl md:text-5xl font-mono font-black tracking-tight leading-none">
+                                {String(Math.floor(round3DuelTimer / 60)).padStart(2, '0')}:
+                                {String(round3DuelTimer % 60).padStart(2, '0')}
+                              </div>
+                              <div
+                                className={`text-[10px] font-black uppercase tracking-widest mt-1 ${
+                                  round3DuelTimer <= 15 ? 'text-yellow-300 animate-bounce' : 'text-slate-500'
+                                }`}
+                              >
+                                {round3DuelTimer <= 15 ? 'KHẨN TRƯƠNG!' : 'THỜI GIAN'}
+                              </div>
+                            </>
+                          ) : round3DuelTimerPaused ? (
+                            <div className="text-center">
+                              <div className="text-xl md:text-2xl font-black text-slate-950 tracking-wider">
+                                TẠM DỪNG
+                              </div>
+                              <div className="text-sm md:text-base font-mono font-black text-slate-900 mt-0.5">
+                                {String(Math.floor(round3DuelTimer / 60)).padStart(2, '0')}:
+                                {String(round3DuelTimer % 60).padStart(2, '0')}
+                              </div>
+                            </div>
+                          ) : round3DuelTimerEnded ? (
+                            <div className="text-center">
+                              {round3OvertimeSeconds > 0 ? (
+                                <>
+                                  <div className="text-2xl md:text-3xl font-mono font-black text-yellow-300 tracking-tight leading-none">
+                                    {String(Math.floor(round3OvertimeSeconds / 60)).padStart(2, '0')}:
+                                    {String(round3OvertimeSeconds % 60).padStart(2, '0')}
+                                  </div>
+                                  <div className="text-[9px] md:text-[10px] font-black text-white uppercase mt-1 tracking-wider">
+                                    CHỐT QUÁ GIỜ
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="text-2xl md:text-3xl font-black text-yellow-300 tracking-wider">
+                                    KẾT THÚC
+                                  </div>
+                                  <div className="text-[10px] font-bold text-white uppercase mt-0.5">
+                                    Dừng phần thi
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ) : round3DuelTimeUp ? (
                             <div className="text-center">
                               <div className="text-2xl md:text-3xl font-black text-yellow-300 tracking-wider">
                                 HẾT GIỜ!
@@ -3108,29 +3277,28 @@ export default function LiveScreenHost() {
                                 {String(Math.floor(round3DuelTimer / 60)).padStart(2, '0')}:
                                 {String(round3DuelTimer % 60).padStart(2, '0')}
                               </div>
-                              <div
-                                className={`text-[10px] font-black uppercase tracking-widest mt-1 ${
-                                  round3DuelTimer <= 15 ? 'text-yellow-300 animate-bounce' : 'text-slate-500'
-                                }`}
-                              >
-                                {round3DuelTimer <= 15 ? 'KHẨN TRƯƠNG!' : 'THỜI GIAN'}
+                              <div className="text-[10px] font-black uppercase tracking-widest mt-1 text-slate-500">
+                                THỜI GIAN
                               </div>
                             </>
                           )}
                         </div>
 
-                        {/* BỘ ĐẾM THỜI GIAN PHỤ (QUÁ GIỜ) TRÊN MÀN HÌNH LED */}
-                        {(round3OvertimeRunning || round3OvertimeSeconds > 0) && (
+                        {/* BÁO QUÁ GIỜ TRÊN MÀN HÌNH LED */}
+                        {(round3OvertimeRunning || (!round3DuelTimerEnded && round3DuelTimeUp && !isPrepareStage)) ? (
                           <div className="flex flex-col items-center animate-scaleUp pt-1">
-                            <div className="px-4 py-2 rounded-2xl bg-rose-600 border-2 border-yellow-300 text-yellow-300 shadow-[0_0_30px_rgba(225,29,72,0.9)] flex items-center gap-2 font-mono font-black text-xl md:text-2xl animate-pulse">
-                              <AlertTriangle className="w-5 h-5 text-yellow-300" />
-                              <span>+{String(Math.floor(round3OvertimeSeconds / 60)).padStart(2, '0')}:{String(round3OvertimeSeconds % 60).padStart(2, '0')}</span>
-                            </div>
-                            <span className="text-[10px] md:text-xs font-black text-rose-300 uppercase tracking-widest mt-1">
-                              {round3OvertimeRunning ? '⚠️ ĐANG TÍNH QUÁ GIỜ' : 'CHỐT THỜI GIAN QUÁ GIỜ'}
+                            <span className="text-[11px] md:text-xs font-black text-yellow-300 uppercase tracking-widest bg-rose-600/90 border border-yellow-300/60 px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 animate-pulse">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              ĐANG QUÁ GIỜ (CỨ 15S TRỪ 5Đ)
                             </span>
                           </div>
-                        )}
+                        ) : round3DuelTimerEnded && round3OvertimeSeconds > 0 ? (
+                          <div className="flex flex-col items-center animate-scaleUp pt-1">
+                            <span className="text-[10px] md:text-xs font-black text-rose-300 uppercase tracking-widest bg-slate-900/90 border border-rose-500/40 px-3 py-1 rounded-full shadow-md">
+                              CHỐT QUÁ GIỜ: {String(Math.floor(round3OvertimeSeconds / 60)).padStart(2, '0')}:{String(round3OvertimeSeconds % 60).padStart(2, '0')}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
 
                       {/* Đấu thủ 2 (Bên phải) */}
@@ -3594,39 +3762,35 @@ export default function LiveScreenHost() {
                           className={`px-3.5 py-2 lg:py-2.5 rounded-2xl border transition-all flex items-center justify-between gap-3 relative overflow-hidden ${
                             rank === 1
                               ? 'bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-50/90 border-2 border-amber-400 ring-4 ring-amber-300/50 shadow-lg shadow-amber-400/20'
-                              : rank === 2
+                              : rank <= 4
                               ? 'bg-gradient-to-r from-sky-50/90 via-blue-50/50 to-white border-2 border-sky-300 ring-2 ring-sky-200/70 shadow-md'
-                              : rank === 3
-                              ? 'bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-white border-2 border-amber-500/40 ring-2 ring-amber-400/30 shadow-md'
-                              : 'bg-white border-slate-200 text-slate-800 shadow-2xs hover:border-slate-300'
+                              : 'bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-white border-2 border-amber-500/40 ring-2 ring-amber-400/30 shadow-md'
                           }`}
                         >
-                          {/* Dải viền màu định danh bên trái cho Rank 1, 2, 3 */}
+                          {/* Dải viền màu định danh bên trái: 1 Nhất (Vàng), 3 Nhì (Bạc), 6 Ba (Đồng) */}
                           {rank === 1 && (
                             <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-gradient-to-b from-amber-400 via-yellow-300 to-amber-500" />
                           )}
-                          {rank === 2 && (
+                          {rank >= 2 && rank <= 4 && (
                             <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-gradient-to-b from-sky-400 via-blue-400 to-indigo-500" />
                           )}
-                          {rank === 3 && (
+                          {rank >= 5 && (
                             <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-gradient-to-b from-amber-600 via-orange-500 to-amber-700" />
                           )}
 
                           {/* Cột trái: Hạng + Avatar + SBD + Họ tên + Đơn vị */}
                           <div className="flex items-center gap-3 min-w-0 flex-1 pl-1">
-                            {/* Huy hiệu thứ hạng (Chỉ icon huy chương, không có số bên cạnh) */}
+                            {/* Huy hiệu thứ hạng theo rule: 1 Nhất 🥇, 3 Nhì 🥈, 6 Ba 🥉 */}
                             <div
                               className={`rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
                                 rank === 1
                                   ? 'w-10 h-10 lg:w-11 lg:h-11 bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500 ring-4 ring-yellow-200 text-2xl shadow-md animate-pulse'
-                                  : rank === 2
+                                  : rank <= 4
                                   ? 'w-9 h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-white via-sky-50 to-slate-100 border-2 border-sky-300 ring-2 ring-sky-200 text-2xl shadow-sm'
-                                  : rank === 3
-                                  ? 'w-9 h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-amber-100 via-orange-50 to-amber-200 border-2 border-amber-400/80 ring-2 ring-amber-200 text-2xl shadow-sm'
-                                  : 'w-8 h-8 lg:w-9 lg:h-9 bg-slate-100 text-slate-600 font-black text-sm border border-slate-200'
+                                  : 'w-9 h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-amber-100 via-orange-50 to-amber-200 border-2 border-amber-400/80 ring-2 ring-amber-200 text-2xl shadow-sm'
                               }`}
                             >
-                              {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
+                              {rank === 1 ? '🥇' : rank <= 4 ? '🥈' : '🥉'}
                             </div>
 
                             {/* Avatar thí sinh hoặc Chữ cái đầu */}
@@ -3634,11 +3798,9 @@ export default function LiveScreenHost() {
                               className={`rounded-xl bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center shadow-xs ${
                                 rank === 1
                                   ? 'w-10 h-10 lg:w-11 lg:h-11 border-2 border-amber-400 ring-2 ring-yellow-300/60'
-                                  : rank === 2
+                                  : rank <= 4
                                   ? 'w-9 h-9 lg:w-10 lg:h-10 border-2 border-sky-400 ring-2 ring-sky-200/60'
-                                  : rank === 3
-                                  ? 'w-9 h-9 lg:w-10 lg:h-10 border-2 border-amber-500 ring-2 ring-amber-200/60'
-                                  : 'w-8 h-8 lg:w-9 lg:h-9 border border-slate-300'
+                                  : 'w-9 h-9 lg:w-10 lg:h-10 border-2 border-amber-500 ring-2 ring-amber-200/60'
                               }`}
                             >
                               {p.avatarUrl ? (
@@ -3654,23 +3816,31 @@ export default function LiveScreenHost() {
                               )}
                             </div>
 
-                              {/* Thông tin thí sinh: Họ tên + Danh hiệu + Đơn vị */}
+                            {/* Thông tin thí sinh: Họ tên + Danh hiệu giải thưởng + Đơn vị */}
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 truncate">
+                              <div className="flex items-center gap-2 truncate flex-wrap">
                                 <span
                                   className={`truncate ${
                                     rank === 1
                                       ? 'text-base lg:text-lg font-black text-slate-950 tracking-tight'
-                                      : rank === 2
+                                      : rank <= 4
                                       ? 'text-sm lg:text-base font-black text-slate-900'
                                       : 'text-sm lg:text-base font-extrabold text-slate-900'
                                   }`}
                                 >
                                   {p.fullName}
                                 </span>
-                                {rank === 1 && (
+                                {rank === 1 ? (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs">
                                     👑 QUÁN QUÂN
+                                  </span>
+                                ) : rank <= 4 ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs border border-sky-300">
+                                    🥈 GIẢI NHÌ
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs border border-amber-300">
+                                    🥉 GIẢI BA
                                   </span>
                                 )}
                               </div>
@@ -3810,8 +3980,8 @@ export default function LiveScreenHost() {
                         👑
                       </div>
                       
-                      <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-400 text-slate-950 text-sm font-black uppercase tracking-wider mb-4 shadow-sm">
-                        <Trophy className="w-4 h-4 fill-slate-950" />
+                      <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 text-base sm:text-lg font-black uppercase tracking-widest mb-4 shadow-lg shadow-amber-400/40 ring-4 ring-yellow-200/80 animate-pulse">
+                        <Trophy className="w-5 h-5 fill-slate-950" />
                         QUÁN QUÂN
                       </div>
 

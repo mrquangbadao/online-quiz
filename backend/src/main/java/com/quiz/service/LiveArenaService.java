@@ -75,6 +75,10 @@ public interface LiveArenaService {
     void resetAllRound3Pairs(Long sessionId);
     void displayRound3Duel(Long sessionId, Integer pairNumber);
     void startRound3Duel(Long sessionId, Integer pairNumber, String stage, String stageTitle, Integer durationSeconds, Long activePlayerId);
+    void pauseRound3Timer(Long sessionId);
+    void resumeRound3Timer(Long sessionId);
+    void resetRound3Timer(Long sessionId);
+    void endRound3Timer(Long sessionId, Integer overtimeSeconds);
     void stopRound3DuelTimer(Long sessionId);
     void startRound3Overtime(Long sessionId, Long playerId);
     void stopRound3Overtime(Long sessionId, Integer overtimeSeconds);
