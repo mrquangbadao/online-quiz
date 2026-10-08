@@ -71,6 +71,10 @@ Use this checklist after code changes are complete and before considering the ta
 - Is there any missing guardrail that would be painful to add later?
 - Would this still be understandable in three months without extra verbal context?
 
+## 12. Deployment Safety
+- NEVER automatically run VPS rebuild or deploy scripts (such as `.\rebuild-vps.ps1`, remote SSH docker restart) without explicit user approval.
+- Always report what was verified locally and ask or wait for the user's explicit confirmation before triggering any deployment to VPS.
+
 ## Required Final Output
 - What was changed
 - What was verified

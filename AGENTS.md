@@ -19,6 +19,7 @@
 - Add clear English comments for non-trivial code so intent, constraints, and flow are easy to review later.
 - Before coding, follow the pre-code checklist in `.codex/checklists/pre-code-senior-checklist.md`.
 - Before considering a task complete, run `.codex/checklists/post-code-quality-checklist.md`.
+- NEVER automatically rebuild or deploy to VPS (e.g., `.\rebuild-vps.ps1`, SSH deployment, or production restart scripts) without explicit approval from the user. Verify and build locally, and wait for the user to explicitly request or approve VPS deployment.
 
 ## Routing
 - For project context, read `.codex/context/project-overview.md`.
