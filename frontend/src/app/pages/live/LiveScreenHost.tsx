@@ -2681,56 +2681,10 @@ export default function LiveScreenHost() {
               </div>
             )}
 
-            {/* CHẾ ĐỘ 2: ĐANG THI 10 PHÚT (EXAM_RUNNING) - GIỮ NGUYÊN UI GỐC THEO ẢNH, BỘ ĐẾM GIỜ THU GỌN */}
+            {/* CHẾ ĐỘ 2: ĐANG THI 10 PHÚT (EXAM_RUNNING) - ĐỒNG HỒ NỔI TRÒN NHƯ VÒNG 1 (THEO ĐÚNG ẢNH USER) */}
             {r2ViewMode === 'EXAM_RUNNING' && (
-              <div className="space-y-4 max-w-6xl mx-auto animate-fadeIn w-full">
-                {/* 1. BỘ ĐẾM GIỜ THU GỌN - GIỮ NGUYÊN PHONG CÁCH XANH ĐEN VIỀN VÀNG TRONG ẢNH NHƯNG TINH GỌN DIỆN TÍCH */}
-                <div className={`border-4 rounded-3xl py-2.5 px-6 text-white shadow-2xl relative overflow-hidden transition-all duration-500 ${
-                  round2Timer <= 60
-                    ? 'bg-gradient-to-b from-rose-950 via-slate-900 to-rose-950 border-rose-500 ring-4 ring-rose-500/50 shadow-rose-500/40 animate-pulse'
-                    : 'bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 border-amber-400 shadow-amber-500/20'
-                }`}>
-                  <div className={`absolute inset-0 pointer-events-none ${round2Timer <= 60 ? 'bg-rose-500/10' : 'bg-blue-500/10'}`} />
-
-                  <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
-                    <div className={`text-xs font-black uppercase tracking-wider flex items-center gap-2 ${
-                      round2Timer <= 60 ? 'text-rose-400 animate-bounce' : 'text-amber-400'
-                    }`}>
-                      <Timer className={`w-4 h-4 ${round2Timer <= 60 ? 'text-rose-400 animate-spin' : 'text-amber-400'}`} />
-                      <span>
-                        {round2Timer <= 60
-                          ? '⚠️ CẢNH BÁO: CÒN DƯỚI 1 PHÚT LÀM BÀI TRÊN YUM'
-                          : 'THỜI GIAN THỰC HÀNH LÀM BÀI TRÊN PHẦN MỀM (YUM)'}
-                      </span>
-                    </div>
-
-                    <div className={`text-4xl md:text-5xl font-black font-mono tracking-tight ${
-                      round2Timer <= 60
-                        ? 'text-rose-500 animate-pulse drop-shadow-[0_0_20px_rgba(244,63,94,0.8)]'
-                        : 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.35)]'
-                    }`}>
-                      {String(Math.floor(round2Timer / 60)).padStart(2, '0')} : {String(round2Timer % 60).padStart(2, '0')}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs font-bold text-sky-200 bg-white/10 px-2.5 py-1 rounded-lg border border-white/15 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-amber-300" />
-                        <span className="hidden sm:inline">Tự động đổi đề sau:</span>
-                        <span className="font-mono text-yellow-300 font-black">{r2AutoRotateSecondsLeft}s</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setR2AutoRotateEnabled(!r2AutoRotateEnabled)}
-                        className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                        title={r2AutoRotateEnabled ? 'Tạm dừng tự động đổi đề' : 'Bật tự động đổi đề'}
-                      >
-                        {r2AutoRotateEnabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. KHUNG CÂU HỎI CỦA THÍ SINH ĐANG CHIẾU (GIỮ NGUYÊN UI TRONG ẢNH, SHOW TOÀN VĂN KHÔNG HIỆN SCROLL) */}
+              <div className="space-y-4 max-w-6xl mx-auto animate-fadeIn w-full pt-8">
+                {/* 2. KHUNG CÂU HỎI CỦA THÍ SINH ĐANG CHIẾU (ĐỒNG HỒ TRÒN NỔI LÊN PHÍA TRÊN, KHÔNG CHIẾM DIỆN TÍCH) */}
                 {(() => {
                   const r2DisplayPlayers = (r2CurrentBatchPlayers && r2CurrentBatchPlayers.length > 0)
                     ? r2CurrentBatchPlayers
@@ -2746,7 +2700,35 @@ export default function LiveScreenHost() {
                   const s2 = currentTopic?.scenario2 || (effectiveInspected as any)?.scenario2;
 
                   return (
-                    <div className="bg-white border-4 border-amber-400 rounded-3xl p-5 shadow-2xl space-y-3.5 animate-scaleUp">
+                    <div className="bg-white border-4 border-amber-400 rounded-3xl p-5 pt-8 shadow-2xl space-y-3.5 relative animate-scaleUp">
+                      {/* ĐỒNG HỒ TRÒN NỔI BẬT LÊN PHÍA TRÊN GIỐNG VÒNG 1 (ĐÚNG Y HỆT ẢNH CỦA BẠN) */}
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-13 z-20">
+                        <div
+                          className={`relative transition-all duration-300 flex flex-col items-center justify-center rounded-full select-none ${
+                            round2Timer <= 60
+                              ? 'w-26 h-26 md:w-28 md:h-28 bg-red-600 border-4 border-yellow-300 text-yellow-300 shadow-2xl shadow-red-600/70 ring-8 ring-red-400/40 scale-105 animate-pulse'
+                              : 'w-26 h-26 md:w-28 md:h-28 bg-white border-4 border-emerald-500 text-emerald-600 shadow-2xl ring-8 ring-emerald-400/25'
+                          }`}
+                        >
+                          {/* Animated Ping Ring trong 60 giây cuối */}
+                          {round2Timer <= 60 && (
+                            <span className="absolute -inset-2 rounded-full border-2 border-red-500 animate-ping opacity-60 pointer-events-none" />
+                          )}
+
+                          <div className="flex items-baseline justify-center">
+                            <span className="text-3xl md:text-4xl font-black font-mono tracking-tight leading-none">
+                              {round2Timer <= 60
+                                ? round2Timer
+                                : `${String(Math.floor(round2Timer / 60)).padStart(2, '0')}:${String(round2Timer % 60).padStart(2, '0')}`}
+                            </span>
+                            {round2Timer <= 60 && <span className="text-sm md:text-base font-bold ml-0.5">s</span>}
+                          </div>
+                          <span className="text-[10px] md:text-xs font-black uppercase tracking-wider mt-0.5 text-center">
+                            {round2Timer <= 60 ? 'GIÂY' : 'THỜI GIAN'}
+                          </span>
+                        </div>
+                      </div>
+
                       <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-100 pb-2.5">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-2xl bg-amber-500 border-2 border-amber-600 text-white font-black flex items-center justify-center text-xl shadow-md overflow-hidden shrink-0">
@@ -2773,6 +2755,20 @@ export default function LiveScreenHost() {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          <div className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-amber-500" />
+                            <span className="hidden sm:inline">Đổi sau:</span>
+                            <span className="font-mono text-amber-600 font-black">{r2AutoRotateSecondsLeft}s</span>
+                            <button
+                              type="button"
+                              onClick={() => setR2AutoRotateEnabled(!r2AutoRotateEnabled)}
+                              className="ml-1 p-0.5 hover:text-amber-700 transition-colors cursor-pointer"
+                              title={r2AutoRotateEnabled ? 'Tạm dừng tự động' : 'Bật tự động'}
+                            >
+                              {r2AutoRotateEnabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+
                           <button
                             type="button"
                             onClick={() => setR2InspectingPlayer(null)}
@@ -2782,6 +2778,7 @@ export default function LiveScreenHost() {
                           </button>
                         </div>
                       </div>
+
 
                       {/* Chi tiết 2 tình huống (Show toàn văn không có scroll) */}
                       {!currentTopic && !s1 && !s2 ? (
