@@ -135,6 +135,7 @@ export default function AdminLiveControl() {
   const r2TargetEndTimeRef = React.useRef<number | null>(null);
   const [r2ShowAllPlayers, setR2ShowAllPlayers] = useState<boolean>(false);
   const [r2ScoresMap, setR2ScoresMap] = useState<Record<number, { s1: number; s2: number }>>({});
+  const [adminInspectingPlayerId, setAdminInspectingPlayerId] = useState<number | null>(null);
 
   // Round 3 Inputs & Pairing State
   const [r3PlayerId, setR3PlayerId] = useState<number | ''>('');
@@ -2975,29 +2976,70 @@ export default function AdminLiveControl() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {currentBatchPlayers.map((p) => (
-                              <div
-                                key={p.id}
-                                className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between shadow-2xs"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-blue-100 flex items-center justify-center font-black text-blue-700 text-xs shrink-0">
-                                    {p.avatarUrl ? (
-                                      <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                      p.fullName.charAt(0)
-                                    )}
+                            {currentBatchPlayers.map((p) => {
+                              const isShowingOnLed = adminInspectingPlayerId === p.id;
+                              return (
+                                <div
+                                  key={p.id}
+                                  className={`p-3 rounded-2xl border flex items-center justify-between shadow-2xs transition-all ${
+                                    isShowingOnLed
+                                      ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-300'
+                                      : 'bg-slate-50 border-slate-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center font-black text-xs shrink-0 ${
+                                      isShowingOnLed ? 'bg-amber-200 text-amber-900 border border-amber-400' : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {p.avatarUrl ? (
+                                        <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                      ) : (
+                                        p.fullName.charAt(0)
+                                      )}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-black text-slate-900">{p.fullName}</div>
+                                      <div className="text-[10px] text-slate-500">SBD {String(p.orderNumber).padStart(2, '0')} • {p.unit}</div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <div className="text-xs font-black text-slate-900">{p.fullName}</div>
-                                    <div className="text-[10px] text-slate-500">SBD {String(p.orderNumber).padStart(2, '0')} • {p.unit}</div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-400 text-amber-700 text-xs font-black">
+                                      {p.round2DrawCode || 'Chưa có đề'}
+                                    </span>
+
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (!session) return;
+                                        try {
+                                          if (isShowingOnLed) {
+                                            setAdminInspectingPlayerId(null);
+                                            await adminLiveApi.selectRound2Candidate(session.id, 0);
+                                            toast.info(`Đã tắt chiếu đề của ${p.fullName} trên LED`);
+                                          } else {
+                                            setAdminInspectingPlayerId(p.id);
+                                            await adminLiveApi.selectRound2Candidate(session.id, p.id);
+                                            toast.success(`Đã chiếu câu hỏi của ${p.fullName} (${p.round2DrawCode}) lên màn hình LED!`);
+                                          }
+                                        } catch (e) {
+                                          toast.error('Lỗi khi phát lệnh chiếu đề');
+                                        }
+                                      }}
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                        isShowingOnLed
+                                          ? 'bg-amber-500 text-white shadow-amber-500/40 ring-2 ring-amber-400 animate-pulse'
+                                          : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-50'
+                                      }`}
+                                      title="Chiếu toàn văn câu hỏi của thí sinh này lên màn hình LED hội trường"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      <span>{isShowingOnLed ? 'Đang chiếu LED' : 'Chiếu LED'}</span>
+                                    </button>
                                   </div>
                                 </div>
-                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-400 text-amber-700 text-xs font-black">
-                                  {p.round2DrawCode || 'Chưa có đề'}
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </>

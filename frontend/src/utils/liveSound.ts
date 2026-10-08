@@ -40,6 +40,25 @@ export const liveSound = {
     }
   },
 
+  // Mechanical rhythmic tick-tock for countdown timer (every second)
+  playTickTock: (isTok: boolean = false) => {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      // "tik" higher pitch (880Hz), "tok" lower pitch (660Hz)
+      osc.frequency.setValueAtTime(isTok ? 660 : 880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.05);
+    } catch (e) {}
+  },
+
   // Urgent intense tension heartbeat & countdown tick (accelerating in last 10 seconds)
   playUrgentCountdown: (secondsLeft: number) => {
     const ctx = getAudioContext();

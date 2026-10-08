@@ -32,6 +32,8 @@ import {
   ShieldAlert,
   Lightbulb,
   MessageSquare,
+  FileText,
+  X,
 } from 'lucide-react';
 import { liveApi } from '../../../api/liveApi';
 import { adminLiveApi } from '../../../api/admin/adminLiveApi';
@@ -90,6 +92,8 @@ export default function LiveScreenHost() {
   const [r2LeaderboardTab, setR2LeaderboardTab] = useState<'ROUND2_ONLY' | 'CUMULATIVE'>('ROUND2_ONLY');
   const [round2Timer, setRound2Timer] = useState<number>(600); // 10 minutes (600s)
   const [round2TimerRunning, setRound2TimerRunning] = useState<boolean>(false);
+  const [r2InspectingPlayer, setR2InspectingPlayer] = useState<LivePlayerDto | null>(null);
+  const lastRound2SecondRef = useRef<number | null>(null);
   const [isPreview3Rounds, setIsPreview3Rounds] = useState<boolean>(false);
 
   // Round 3 Pairing & Duel State
@@ -425,11 +429,14 @@ export default function LiveScreenHost() {
           break;
 
         case 'ROUND2_CANDIDATE_SELECTED':
-          if (event.payload?.player) {
+          if (!event.payload?.player || event.payload?.playerId === 0) {
+            setR2InspectingPlayer(null);
+          } else {
             setActivePlayerRound2(event.payload.player);
             setR2CandidateSelecting(event.payload.player);
-            setR2CandidateTopicCode(null);
-            setR2ViewMode('SELECTING');
+            setR2CandidateTopicCode(event.payload.player.round2DrawCode || null);
+            setR2InspectingPlayer(event.payload.player);
+            setR2ViewMode((prev) => (prev === 'EXAM_RUNNING' ? 'EXAM_RUNNING' : 'SELECTING'));
             if (soundEnabled) liveSound.playButtonClick();
           }
           break;
@@ -492,6 +499,7 @@ export default function LiveScreenHost() {
         }
 
         case 'ROUND2_BATCH_STARTED': {
+          setR2InspectingPlayer(null);
           setR2ViewMode('EXAM_RUNNING');
           const endAt = event.payload.endAt || (Date.now() + (event.payload.durationSeconds || 600) * 1000);
           r2TargetEndTimeRef.current = endAt;
@@ -508,6 +516,7 @@ export default function LiveScreenHost() {
 
         case 'ROUND2_BATCH_ENDED':
           r2TargetEndTimeRef.current = null;
+          setR2InspectingPlayer(null);
           setR2ViewMode('TIME_UP');
           setRound2TimerRunning(false);
           setRound2Timer(0);
@@ -745,10 +754,26 @@ export default function LiveScreenHost() {
 
   // Round 2 10-minute timer ticker synchronized with server epoch
   useEffect(() => {
-    if (!round2TimerRunning || !r2TargetEndTimeRef.current) return;
+    if (!round2TimerRunning || !r2TargetEndTimeRef.current) {
+      lastRound2SecondRef.current = null;
+      return;
+    }
     const interval = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((r2TargetEndTimeRef.current! - Date.now()) / 1000));
       setRound2Timer(remaining);
+
+      // Play tick-tock sound on each second elapsed
+      if (lastRound2SecondRef.current !== remaining && remaining > 0) {
+        lastRound2SecondRef.current = remaining;
+        if (soundEnabled) {
+          if (remaining <= 10) {
+            liveSound.playUrgentCountdown(remaining);
+          } else {
+            liveSound.playTickTock(remaining % 2 === 0);
+          }
+        }
+      }
+
       if (remaining <= 0) {
         clearInterval(interval);
         setRound2TimerRunning(false);
@@ -756,7 +781,7 @@ export default function LiveScreenHost() {
         setR2ViewMode('TIME_UP');
         if (soundEnabled) liveSound.playBuzzer();
       }
-    }, 250);
+    }, 200);
     return () => clearInterval(interval);
   }, [round2TimerRunning, soundEnabled]);
 
@@ -2480,40 +2505,160 @@ export default function LiveScreenHost() {
             {/* CHẾ ĐỘ 2: ĐANG THI 10 PHÚT (EXAM_RUNNING) */}
             {r2ViewMode === 'EXAM_RUNNING' && (
               <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
-                {/* Đồng hồ đếm ngược 10 phút cực lớn */}
-                <div className="bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 border-4 border-amber-400 rounded-3xl p-8 text-center text-white shadow-2xl relative overflow-hidden">
-                  <div className="absolute inset-0 bg-blue-500/10 pointer-events-none"></div>
+                {/* Đồng hồ đếm ngược 10 phút cực lớn (Highlight đỏ và cảnh báo khi còn <= 60s) */}
+                <div className={`border-4 rounded-3xl ${r2InspectingPlayer ? 'p-5' : 'p-8'} text-center text-white shadow-2xl relative overflow-hidden transition-all duration-500 ${
+                  round2Timer <= 60
+                    ? 'bg-gradient-to-b from-rose-950 via-slate-900 to-rose-950 border-rose-500 ring-4 ring-rose-500/50 shadow-rose-500/40 animate-pulse'
+                    : 'bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 border-amber-400 shadow-amber-500/10'
+                }`}>
+                  <div className={`absolute inset-0 pointer-events-none ${round2Timer <= 60 ? 'bg-rose-500/10' : 'bg-blue-500/10'}`}></div>
 
-                  <div className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
-                    <Timer className="w-5 h-5 text-amber-400 animate-spin" /> THỜI GIAN THỰC HÀNH LÀM BÀI TRÊN PHẦN MỀM (YUM)
+                  <div className={`text-xs font-black uppercase tracking-widest mb-1.5 flex items-center justify-center gap-2 ${
+                    round2Timer <= 60 ? 'text-rose-400 animate-bounce' : 'text-amber-400'
+                  }`}>
+                    <Timer className={`w-5 h-5 animate-spin ${round2Timer <= 60 ? 'text-rose-400' : 'text-amber-400'}`} />
+                    {round2Timer <= 60
+                      ? '⚠️ CẢNH BÁO: CÒN DƯỚI 1 PHÚT LÀM BÀI TRÊN PHẦN MỀM (YUM)'
+                      : 'THỜI GIAN THỰC HÀNH LÀM BÀI TRÊN PHẦN MỀM (YUM)'}
                   </div>
 
-                  <div className={`text-7xl md:text-8xl font-black font-mono tracking-tight my-4 ${round2Timer <= 60 ? 'text-rose-500 animate-pulse' : 'text-amber-400'}`}>
+                  <div className={`${r2InspectingPlayer ? 'text-6xl md:text-7xl my-2' : 'text-7xl md:text-8xl my-4'} font-black font-mono tracking-tight ${
+                    round2Timer <= 60
+                      ? 'text-rose-500 animate-pulse drop-shadow-[0_0_25px_rgba(244,63,94,0.8)]'
+                      : 'text-amber-400 drop-shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+                  }`}>
                     {String(Math.floor(round2Timer / 60)).padStart(2, '0')}:
                     {String(round2Timer % 60).padStart(2, '0')}
                   </div>
 
-                  <p className="text-sm text-sky-200 max-w-md mx-auto">
-                    Các thí sinh đang thực hành 02 tình huống nghiệp vụ trên máy tính dự thi. Màn hình điện thoại hiển thị toàn văn câu hỏi.
+                  <p className={`text-xs md:text-sm max-w-md mx-auto ${round2Timer <= 60 ? 'text-rose-200 font-bold' : 'text-sky-200'}`}>
+                    {round2Timer <= 60
+                      ? 'Thí sinh khẩn trương hoàn thành các thao tác nghiệp vụ cuối cùng trên YUM!'
+                      : 'Các thí sinh đang thực hành 02 tình huống nghiệp vụ trên máy tính dự thi. Màn hình điện thoại hiển thị toàn văn câu hỏi.'}
                   </p>
                 </div>
 
+                {/* HIỂN THỊ CHI TIẾT BỘ ĐỀ CỦA THÍ SINH ĐANG ĐƯỢC CHỌN SOI ĐỀ */}
+                {r2InspectingPlayer && (
+                  <div className="bg-white border-4 border-amber-400 rounded-3xl p-6 shadow-2xl space-y-4 animate-scaleUp">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-100 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-500 border-2 border-amber-600 text-white font-black flex items-center justify-center text-xl shadow-md overflow-hidden">
+                          {r2InspectingPlayer.avatarUrl ? (
+                            <img src={r2InspectingPlayer.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            r2InspectingPlayer.fullName.trim().split(/\s+/).slice(-1)[0]?.charAt(0).toUpperCase() || '★'
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xl font-black text-slate-900 uppercase">
+                              {r2InspectingPlayer.fullName}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-900 border border-blue-300 font-black text-xs">
+                              SBD {String(r2InspectingPlayer.orderNumber).padStart(2, '0')}
+                            </span>
+                            <span className="text-xs text-slate-500 font-bold">• {r2InspectingPlayer.unit}</span>
+                          </div>
+                          <div className="text-sm font-black text-amber-600 flex items-center gap-1.5 mt-0.5">
+                            <FileText className="w-4 h-4" /> BỘ ĐỀ DỰ THI: {r2InspectingPlayer.round2DrawCode || 'Chưa gán đề'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setR2InspectingPlayer(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" /> Thu gọn câu hỏi
+                      </button>
+                    </div>
+
+                    {/* Chi tiết 2 tình huống */}
+                    {(() => {
+                      const currentTopic = round2Topics.find((t) => t.code === r2InspectingPlayer.round2DrawCode);
+                      if (!currentTopic) {
+                        return (
+                          <div className="p-6 text-center text-slate-500 font-bold text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                            Thí sinh này chưa được gán bộ đề thi hoặc chưa có dữ liệu câu hỏi.
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Tình huống 1 */}
+                          <div className="p-4 rounded-2xl bg-gradient-to-b from-blue-50/90 to-blue-100/40 border-2 border-blue-300 space-y-2 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                              <span className="text-xs font-black text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">1</span>
+                                TÌNH HUỐNG 01
+                              </span>
+                              <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                                Tối đa {currentTopic.maxScore1 || 20} điểm
+                              </span>
+                            </div>
+                            <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                              {currentTopic.scenario1}
+                            </p>
+                          </div>
+
+                          {/* Tình huống 2 */}
+                          <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-50/90 to-amber-100/40 border-2 border-amber-300 space-y-2 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                              <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
+                                TÌNH HUỐNG 02
+                              </span>
+                              <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                                Tối đa {currentTopic.maxScore2 || 20} điểm
+                              </span>
+                            </div>
+                            <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                              {currentTopic.scenario2}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Danh sách các thí sinh đang thi */}
                 <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-xl space-y-4">
-                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider text-center">
-                    CÁC THÍ SINH ĐANG THỰC HIỆN BÀI THI TRONG ĐỢT:
-                  </h4>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                      CÁC THÍ SINH ĐANG THỰC HIỆN BÀI THI TRONG ĐỢT:
+                    </h4>
+                    <span className="text-xs font-bold text-slate-400 italic">
+                      * Bấm vào thí sinh để chiếu câu hỏi lên màn hình LED
+                    </span>
+                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
                     {r2CurrentBatchPlayers.map((p) => {
+                      const isInspected = r2InspectingPlayer?.id === p.id;
                       const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
                       const initialChar = lastWord.charAt(0).toUpperCase() || '?';
                       return (
                         <div
                           key={p.id}
-                          className="p-4 rounded-2xl bg-gradient-to-b from-slate-50 to-blue-50/40 border-2 border-blue-300 shadow-md flex items-center gap-3.5"
+                          onClick={() => {
+                            if (isInspected) {
+                              setR2InspectingPlayer(null);
+                            } else {
+                              setR2InspectingPlayer(p);
+                            }
+                          }}
+                          className={`p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all duration-300 cursor-pointer select-none relative ${
+                            isInspected
+                              ? 'bg-gradient-to-r from-amber-100 via-yellow-100 to-amber-200 border-amber-500 shadow-xl ring-4 ring-amber-400 scale-[1.04] animate-pulse'
+                              : 'bg-gradient-to-b from-slate-50 to-blue-50/40 border-blue-300 shadow-md hover:border-amber-400 hover:shadow-lg hover:scale-[1.02]'
+                          }`}
                         >
-                          <div className="w-14 h-14 rounded-2xl bg-blue-100 border-2 border-blue-500 flex items-center justify-center text-xl font-black text-blue-800 overflow-hidden shrink-0 shadow-sm">
+                          <div className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-lg font-black overflow-hidden shrink-0 shadow-xs ${
+                            isInspected ? 'bg-amber-300 border-amber-600 text-amber-950' : 'bg-blue-100 border-blue-500 text-blue-800'
+                          }`}>
                             {p.avatarUrl ? (
                               <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
                             ) : (
@@ -2521,8 +2666,15 @@ export default function LiveScreenHost() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-base font-black text-slate-900 truncate">{p.fullName}</div>
-                            <div className="text-xs font-black text-blue-700 mt-0.5">{p.round2DrawCode}</div>
+                            <div className={`text-sm font-black truncate ${isInspected ? 'text-amber-950 font-black' : 'text-slate-900'}`}>{p.fullName}</div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={`text-xs font-black ${isInspected ? 'text-amber-800' : 'text-blue-700'}`}>{p.round2DrawCode}</span>
+                              {isInspected && (
+                                <span className="px-1.5 py-0.2 rounded bg-amber-600 text-white text-[9px] font-black uppercase">
+                                  CHIẾU ĐỀ
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

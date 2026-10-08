@@ -1135,6 +1135,14 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     @Override
     @Transactional
     public void selectRound2Candidate(Long sessionId, Long playerId) {
+        if (playerId == null || playerId <= 0) {
+            Map<String, Object> payload = Map.of(
+                    "sessionId", sessionId,
+                    "playerId", 0L
+            );
+            broadcast(sessionId, "ROUND2_CANDIDATE_SELECTED", payload);
+            return;
+        }
         LivePlayer player = livePlayerRepository.findById(playerId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
         Map<String, Object> payload = Map.of(
