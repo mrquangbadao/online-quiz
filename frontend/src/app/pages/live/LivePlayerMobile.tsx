@@ -943,10 +943,87 @@ export default function LivePlayerMobile() {
     }
   };
 
-  // If no player is selected, show check-in / OTP verification screen
+  // 1. Initial loading state: while fetching session from server, show sleek loading indicator
+  if (loading && !session) {
+    return (
+      <div
+        className="min-h-screen bg-gradient-to-b from-[#134bc4] via-[#1d63ea] to-[#1448b8] text-white flex flex-col items-center justify-center relative overflow-hidden"
+        style={{ fontFamily: '"Be Vietnam Pro", sans-serif' }}
+      >
+        <DigitalTechBackground />
+        <div className="relative z-10 flex flex-col items-center gap-4 px-4 text-center">
+          <div className="p-3 rounded-2xl bg-white/15 ring-1 ring-white/35 shadow-xl backdrop-blur-md animate-pulse">
+            <BrandMark size={52} />
+          </div>
+          <div className="flex items-center gap-2.5 text-white font-bold text-sm tracking-wide bg-[#0d3b9e]/80 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 shadow-md">
+            <RefreshCw className="w-4 h-4 animate-spin text-yellow-300" />
+            <span>Đang tải thông tin phòng thi...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. If session is not available after loading (e.g. server error or no live session started)
+  if (!session) {
+    return (
+      <div
+        className="min-h-screen bg-gradient-to-b from-[#134bc4] via-[#1d63ea] to-[#1448b8] text-white flex flex-col justify-between relative overflow-hidden"
+        style={{ fontFamily: '"Be Vietnam Pro", sans-serif' }}
+      >
+        <DigitalTechBackground />
+        <header className="relative z-10 w-full bg-[#10348c]/90 border-b border-white/15 backdrop-blur-md shadow-md">
+          <div className="w-full flex items-center justify-between px-3 sm:px-4 md:px-8 py-2.5 max-w-[1400px] mx-auto gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 text-white min-w-0">
+              <BrandMark size={34} showBorder={false} className="shrink-0 sm:hidden" />
+              <BrandMark size={40} showBorder={false} className="shrink-0 hidden sm:block" />
+              <div className="leading-tight min-w-0">
+                <p className="text-[9px] sm:text-xs font-black tracking-wider uppercase text-yellow-300 truncate">
+                  TỈNH ĐOÀN NGHỆ AN
+                </p>
+                <p className="text-[11px] sm:text-sm font-extrabold uppercase tracking-tight sm:tracking-wide text-white drop-shadow-xs truncate">
+                  CHUNG KẾT BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 border border-white/20 text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-xs">
+                <Radio className="w-3 h-3 text-yellow-300 animate-pulse" />
+                <span>Cổng thí sinh</span>
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8 text-center max-w-md mx-auto w-full">
+          <div className="bg-white text-slate-900 rounded-2xl p-6 sm:p-7 shadow-2xl border border-blue-100 space-y-4 w-full">
+            <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base sm:text-lg font-black text-blue-950 uppercase">Chưa có phiên thi trực tiếp</h3>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Hiện tại chưa có phiên thi chung kết nào đang mở hoặc máy chủ chưa sẵn sàng. Vui lòng liên hệ Ban Tổ chức hoặc thử lại.
+              </p>
+            </div>
+            <button
+              onClick={() => fetchSession()}
+              className="w-full py-3 px-4 bg-[#134bc4] hover:bg-[#10348c] active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Tải lại phiên thi</span>
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // 3. If no player is selected, show check-in / OTP verification screen
   if (!selectedPlayerId || !player) {
-    const availableCandidates = session?.players?.filter((p) => !p.isCheckedIn) || [];
-    const candidate = session?.players?.find((p) => p.id === candidateId);
+    const totalPlayers = session.players?.length || 0;
+    const availableCandidates = session.players?.filter((p) => !p.isCheckedIn) || [];
+    const candidate = session.players?.find((p) => p.id === candidateId);
     const filteredCandidates = availableCandidates.filter((p) => {
       if (!candidateSearch.trim()) return true;
       const q = candidateSearch.trim().toLowerCase();
@@ -1141,7 +1218,7 @@ export default function LivePlayerMobile() {
               </div>
             )}
 
-            {availableCandidates.length === 0 && (
+            {totalPlayers > 0 && availableCandidates.length === 0 && (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div className="leading-relaxed">
