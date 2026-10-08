@@ -705,7 +705,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("questionOrder", questionOrder);
         payload.put("state", "QUESTION_READING");
-        payload.put("question", convertQuestionToDto(question, false)); // Chưa lộ đáp án đúng
+        // Không gửi nội dung câu hỏi trong broadcast QUESTION_READING: Thí sinh chỉ nhận câu hỏi & 4 đáp án khi Admin bắt đầu tính giờ 40s
         broadcast(sessionId, "QUESTION_READING", payload);
     }
 
@@ -1088,6 +1088,16 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     public LiveQuestionDto getShuffledQuestionForPlayer(Long questionId, Long playerId) {
         LiveQuestion question = liveQuestionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy câu hỏi: " + questionId));
+
+        LiveSession session = liveSessionRepository.findById(question.getSessionId()).orElse(null);
+        if (session != null && session.getCurrentRound() != null && session.getCurrentRound() == 1) {
+            String r1State = session.getRound1State();
+            if (!"QUESTION_40S".equalsIgnoreCase(r1State)
+                    && !"ANSWER_REVEALED".equalsIgnoreCase(r1State)
+                    && !"LEADERBOARD".equalsIgnoreCase(r1State)) {
+                throw new IllegalStateException("Câu hỏi chưa bắt đầu tính giờ!");
+            }
+        }
 
         // Tạo 4 phương án gốc
         List<LiveQuestionDto.ShuffledOption> options = new ArrayList<>();
@@ -2171,7 +2181,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
                 .questionStartedAt(startedAt)
                 .createdAt(s.getCreatedAt())
                 .players(players.stream().map(p -> convertPlayerToDto(p, playerAnswersMap.get(p.getId()), questionOrderMap, s)).collect(Collectors.toList()))
-                .currentQuestion(question != null ? convertQuestionToDto(question, "ANSWER_REVEALED".equalsIgnoreCase(s.getRound1State()) || "LEADERBOARD".equalsIgnoreCase(s.getRound1State())) : null)
+                .currentQuestion((question != null && (s.getCurrentRound() == null || s.getCurrentRound() != 1 || "QUESTION_40S".equalsIgnoreCase(s.getRound1State()) || "ANSWER_REVEALED".equalsIgnoreCase(s.getRound1State()) || "LEADERBOARD".equalsIgnoreCase(s.getRound1State()))) ? convertQuestionToDto(question, "ANSWER_REVEALED".equalsIgnoreCase(s.getRound1State()) || "LEADERBOARD".equalsIgnoreCase(s.getRound1State())) : null)
                 .revealedData(revealedData)
                 .round2BatchEndAt(round2BatchEndTimes.get(s.getId()))
                 .round2BatchRunning(round2BatchRunningMap.getOrDefault(s.getId(), false))

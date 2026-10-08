@@ -201,8 +201,8 @@ export default function LivePlayerMobile() {
         }
       }
 
-      // Automatically fetch question options and check previous submission if we synced into a live question
-      if (data && (data.round1State === 'QUESTION_READING' || data.round1State === 'QUESTION_40S')) {
+      // Automatically fetch question options and check previous submission if we synced into active 40s question
+      if (data && data.round1State === 'QUESTION_40S') {
         const activePId = selectedPlayerIdRef.current || (sessionStorage.getItem('live_player_id') ? Number(sessionStorage.getItem('live_player_id')) : null);
         if (data.currentQuestion?.id && activePId) {
           // Khôi phục tạm trước từ sessionStorage nếu có (giúp UI không bị giật nhấp nháy F5)
@@ -558,6 +558,10 @@ export default function LivePlayerMobile() {
           targetEndTimeRef.current = null;
           setTimerRunning(false);
           setCountdown(0);
+          setCurrentQuestion(null);
+          setSelectedKey(null);
+          setHasSubmitted(false);
+          setSubmitTimeMs(null);
           setSession((prev) => {
             if (!prev) return prev;
             return {
@@ -566,13 +570,11 @@ export default function LivePlayerMobile() {
               currentRound: 1,
               round1State: 'QUESTION_READING',
               currentQuestionIndex: event.payload.questionOrder ?? prev.currentQuestionIndex,
-              currentQuestion: event.payload.question || prev.currentQuestion,
+              currentQuestion: undefined,
             };
           });
-          const activePId = selectedPlayerIdRef.current || (sessionStorage.getItem('live_player_id') ? Number(sessionStorage.getItem('live_player_id')) : null);
-          if (event.payload.question?.id && activePId) {
-            fetchPlayerQuestion(event.payload.question.id, activePId);
-          }
+          // Tải lại session để cập nhật danh sách thí sinh đã đặt Ngôi sao hy vọng trong câu hỏi này
+          fetchSession();
           break;
         }
 
@@ -1406,6 +1408,18 @@ export default function LivePlayerMobile() {
       (player.hopeStarUsed && player.hopeStarQuestionIndex === session?.currentQuestionIndex)
   );
 
+  // Danh sách thí sinh đặt Ngôi sao hy vọng ở câu hỏi hiện tại
+  const hopeStarPlayersThisQuestion = useMemo(() => {
+    const currentQ = session?.currentQuestionIndex;
+    if (!currentQ || !session?.players) return [];
+    return session.players.filter((p) => {
+      return (
+        (p.hopeStarUsed && p.hopeStarQuestionIndex === currentQ) ||
+        (p.id === selectedPlayerId && hopeStarActivatedThisQuestion)
+      );
+    });
+  }, [session, selectedPlayerId, hopeStarActivatedThisQuestion]);
+
   return (
     <div
       className={`min-h-screen text-white flex flex-col select-none relative transition-all duration-500 overflow-x-hidden ${
@@ -1703,37 +1717,77 @@ export default function LivePlayerMobile() {
                 )}
 
                 <div className="bg-white text-slate-900 border border-blue-100 rounded-3xl p-5 sm:p-7 shadow-2xl w-full max-w-xl mx-auto text-center relative overflow-hidden">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-black uppercase mb-3 shadow-xs">
-                    <Radio className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-                    CÂU HỎI {session?.currentQuestionIndex} / 10 • MC ĐANG ĐỌC ĐỀ
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-black uppercase mb-3 shadow-xs">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-600 animate-spin-slow" />
+                    CÂU HỎI {session?.currentQuestionIndex} / 10 • KẾT QUẢ ĐẶT NGÔI SAO HY VỌNG
                   </div>
 
-                  {questionTitle ? (
-                    <div className="w-full p-4 rounded-2xl bg-blue-50/70 border-2 border-blue-200 shadow-inner mb-4 text-left animate-fadeIn">
-                      <div className="text-[11px] font-black uppercase tracking-wider text-blue-800 mb-1 flex items-center gap-1">
-                        <span>Nội dung câu hỏi:</span>
-                      </div>
-                      <p className="text-sm sm:text-base font-bold leading-relaxed text-slate-900">
-                        {questionTitle}
+                  <h3 className="text-base sm:text-lg font-black text-blue-950 uppercase tracking-tight mb-4">
+                    DANH SÁCH THÍ SINH ĐẶT NGÔI SAO HY VỌNG
+                  </h3>
+
+                  {hopeStarPlayersThisQuestion.length > 0 ? (
+                    <div className="space-y-3 mb-5">
+                      <p className="text-xs sm:text-sm font-semibold text-amber-950 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+                        ⭐ Thí sinh đặt Ngôi sao hy vọng ở câu hỏi này:
                       </p>
+                      <div className="flex flex-wrap items-center justify-center gap-3">
+                        {hopeStarPlayersThisQuestion.map((p) => {
+                          const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
+                          const initialChar = lastWord.charAt(0).toUpperCase();
+                          const isMe = p.id === selectedPlayerId;
+
+                          return (
+                            <div
+                              key={p.id}
+                              className={`flex items-center gap-2.5 px-3.5 py-2 rounded-2xl border-2 transition-all ${
+                                isMe
+                                  ? 'bg-amber-100 border-amber-400 text-blue-950 font-bold shadow-md ring-2 ring-amber-300'
+                                  : 'bg-slate-50 border-amber-200 text-slate-800 shadow-xs'
+                              }`}
+                            >
+                              <div className="relative">
+                                {p.avatarUrl ? (
+                                  <img
+                                    src={p.avatarUrl}
+                                    alt={p.fullName}
+                                    className="w-8 h-8 rounded-xl object-cover border border-amber-400 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-blue-950 font-black text-xs flex items-center justify-center shrink-0 border border-amber-300">
+                                    {initialChar}
+                                  </div>
+                                )}
+                                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center shadow-xs">
+                                  <Star className="w-2.5 h-2.5 fill-blue-950 text-blue-950" />
+                                </span>
+                              </div>
+                              <div className="text-left min-w-0">
+                                <div className="text-xs font-black truncate flex items-center gap-1">
+                                  <span>{p.fullName}</span>
+                                  {isMe && <span className="text-[10px] text-amber-800 font-extrabold">(Bạn)</span>}
+                                </div>
+                                <div className="text-[10px] text-slate-500 truncate">{p.unit}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ) : (
-                    <div className="py-4 text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center mx-auto mb-3 shadow-lg ring-4 ring-blue-100">
-                        <Radio className="w-8 h-8 animate-pulse" />
+                    <div className="py-4 text-center mb-4">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                        <Star className="w-6 h-6 text-slate-400" />
                       </div>
-                      <h3 className="text-base sm:text-lg font-black text-blue-950 uppercase">
-                        MC ĐANG ĐỌC CÂU HỎI
-                      </h3>
-                      <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto">
-                        Thí sinh chú ý lắng nghe và theo dõi đề trên màn hình LED lớn tại sân khấu...
+                      <p className="text-xs text-slate-500 italic">
+                        Không có thí sinh nào đặt Ngôi sao hy vọng ở câu hỏi này.
                       </p>
                     </div>
                   )}
 
-                  <div className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-blue-900 bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 shadow-xs">
+                  <div className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-blue-900 bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-200 shadow-xs">
                     <Timer className="w-4 h-4 text-blue-600 animate-spin-slow" />
-                    <span>Thời gian 40 giây sẽ bắt đầu sau hiệu lệnh của Ban tổ chức</span>
+                    <span>Nội dung câu hỏi và 4 phương án sẽ hiển thị khi Ban tổ chức bắt đầu đếm giờ 40 giây</span>
                   </div>
                 </div>
               </div>
