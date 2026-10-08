@@ -73,7 +73,8 @@ Use this checklist after code changes are complete and before considering the ta
 
 ## 12. Deployment Safety
 - NEVER automatically run VPS rebuild or deploy scripts (such as `.\rebuild-vps.ps1`, remote SSH docker restart) without explicit user approval.
-- Always report what was verified locally and ask or wait for the user's explicit confirmation before triggering any deployment to VPS.
+- After code changes are verified, automatically check if local servers (Backend port 8080, Frontend port 5173) are running. If not running, start them locally so the user can test on local first.
+- Only run VPS rebuild / deploy when the user has explicitly verified on local and requested/approved deployment.
 
 ## Required Final Output
 - What was changed
