@@ -79,6 +79,7 @@ export interface LiveSessionDto {
   round2BatchEndAt?: number;
   round2BatchRunning?: boolean;
   round2BatchPlayerIds?: number[];
+  round2InspectingPlayerId?: number | null;
   round3DuelState?: {
     pairNumber?: number;
     stage?: string;

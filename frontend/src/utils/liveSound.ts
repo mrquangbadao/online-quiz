@@ -20,21 +20,21 @@ function getAudioContext(): AudioContext | null {
 }
 
 export const liveSound = {
-  // Beep when timer ticks down (last 5s)
-  playTick: () => {
+  // Beep when timer ticks down (standard crisp tick sound)
+  playTick: (pitch: number = 880) => {
     const ctx = getAudioContext();
     if (!ctx) return;
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(pitch, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.1);
+      osc.stop(ctx.currentTime + 0.08);
     } catch (e) {
       // Audio autoplay policy
     }

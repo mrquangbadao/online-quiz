@@ -28,6 +28,7 @@ public class LiveSessionDto {
     private Long round2BatchEndAt; // Timestamp ms when round 2 10-minute batch ends
     private Boolean round2BatchRunning; // Whether round 2 10-minute batch is running
     private List<Long> round2BatchPlayerIds; // List of player IDs in current batch
+    private Long round2InspectingPlayerId; // Player ID currently inspected/spotlighted on LED screen in Round 2
     private java.util.Map<String, Object> round3DuelState; // Current active duel info and timer in Round 3
     private String round3ViewMode; // RULES or PAIRS
 }

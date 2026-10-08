@@ -44,6 +44,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     private final Map<Long, Long> round2BatchEndTimes = new ConcurrentHashMap<>();
     private final Map<Long, Boolean> round2BatchRunningMap = new ConcurrentHashMap<>();
     private final Map<Long, List<Long>> round2ActiveBatches = new ConcurrentHashMap<>();
+    private final Map<Long, Long> round2InspectingPlayerMap = new ConcurrentHashMap<>();
     private final Map<Long, java.util.concurrent.ScheduledFuture<?>> round2BatchFutures = new ConcurrentHashMap<>();
 
     // Track Round 3 active duels in-memory state per session
@@ -1136,6 +1137,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
     @Transactional
     public void selectRound2Candidate(Long sessionId, Long playerId) {
         if (playerId == null || playerId <= 0) {
+            round2InspectingPlayerMap.remove(sessionId);
             Map<String, Object> payload = Map.of(
                     "sessionId", sessionId,
                     "playerId", 0L
@@ -1143,6 +1145,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
             broadcast(sessionId, "ROUND2_CANDIDATE_SELECTED", payload);
             return;
         }
+        round2InspectingPlayerMap.put(sessionId, playerId);
         LivePlayer player = livePlayerRepository.findById(playerId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thí sinh: " + playerId));
         Map<String, Object> payload = new java.util.HashMap<>();
@@ -2206,6 +2209,7 @@ public class LiveArenaServiceImpl implements LiveArenaService {
                 .round2BatchEndAt(round2BatchEndTimes.get(s.getId()))
                 .round2BatchRunning(round2BatchRunningMap.getOrDefault(s.getId(), false))
                 .round2BatchPlayerIds(round2ActiveBatches.getOrDefault(s.getId(), List.of()))
+                .round2InspectingPlayerId(round2InspectingPlayerMap.get(s.getId()))
                 .round3DuelState(round3ActiveDuels.get(s.getId()))
                 .round3ViewMode(round3ViewModes.getOrDefault(s.getId(), "PAIRS"))
                 .build();

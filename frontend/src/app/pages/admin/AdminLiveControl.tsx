@@ -2981,10 +2981,26 @@ export default function AdminLiveControl() {
                               return (
                                 <div
                                   key={p.id}
-                                  className={`p-3 rounded-2xl border flex items-center justify-between shadow-2xs transition-all ${
+                                  onClick={async () => {
+                                    if (!session) return;
+                                    try {
+                                      if (isShowingOnLed) {
+                                        setAdminInspectingPlayerId(null);
+                                        await adminLiveApi.selectRound2Candidate(session.id, 0);
+                                        toast.info(`Đã tắt chiếu đề của ${p.fullName} trên LED`);
+                                      } else {
+                                        setAdminInspectingPlayerId(p.id);
+                                        await adminLiveApi.selectRound2Candidate(session.id, p.id);
+                                        toast.success(`Đã chiếu câu hỏi của ${p.fullName} (${p.round2DrawCode}) lên màn hình LED!`);
+                                      }
+                                    } catch (e) {
+                                      toast.error('Lỗi khi phát lệnh chiếu đề');
+                                    }
+                                  }}
+                                  className={`p-3 rounded-2xl border flex items-center justify-between shadow-2xs transition-all cursor-pointer ${
                                     isShowingOnLed
                                       ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-300'
-                                      : 'bg-slate-50 border-slate-200'
+                                      : 'bg-slate-50 border-slate-200 hover:border-amber-300 hover:bg-amber-50/40'
                                   }`}
                                 >
                                   <div className="flex items-center gap-2.5">
@@ -3010,7 +3026,8 @@ export default function AdminLiveControl() {
 
                                     <button
                                       type="button"
-                                      onClick={async () => {
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
                                         if (!session) return;
                                         try {
                                           if (isShowingOnLed) {

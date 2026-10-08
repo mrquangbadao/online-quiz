@@ -239,11 +239,18 @@ export default function LiveScreenHost() {
       }
 
       if (data?.players) {
-        setR2CurrentBatchPlayers((prev) =>
-          prev
+        const availableRound2 = data.players.filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0));
+        setR2CurrentBatchPlayers((prev) => {
+          if (prev.length === 0) return availableRound2;
+          return prev
             .map((bp) => data.players?.find((p) => p.id === bp.id) || bp)
-            .filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0))
-        );
+            .filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0));
+        });
+
+        if (data.round2InspectingPlayerId) {
+          const inspected = data.players.find((p) => p.id === data.round2InspectingPlayerId);
+          if (inspected) setR2InspectingPlayer(inspected);
+        }
       }
 
       if (data && data.status === 'FINISHED' && !isPreview3Rounds && !searchParams.get('preview')) {
@@ -771,11 +778,7 @@ export default function LiveScreenHost() {
       if (lastRound2SecondRef.current !== remaining && remaining > 0) {
         lastRound2SecondRef.current = remaining;
         if (soundEnabled) {
-          if (remaining <= 10) {
-            liveSound.playUrgentCountdown(remaining);
-          } else {
-            liveSound.playTick();
-          }
+          liveSound.playTick(remaining <= 5 ? 1046 : 880);
         }
       }
 
@@ -790,10 +793,30 @@ export default function LiveScreenHost() {
     return () => clearInterval(interval);
   }, [round2TimerRunning, soundEnabled]);
 
+  // Hàm tìm kiếm bộ đề chuẩn hóa theo mã đề
+  const getTopicForCode = useCallback(
+    (code?: string | null) => {
+      if (!code) return null;
+      const clean = code.trim().toUpperCase();
+      let found = round2Topics.find((t) => t.code?.trim().toUpperCase() === clean);
+      if (found) return found;
+      const numMatch = clean.match(/\d+/);
+      if (numMatch) {
+        const num = parseInt(numMatch[0], 10);
+        found = round2Topics.find((t) => {
+          const tNum = t.code?.match(/\d+/);
+          return tNum && parseInt(tNum[0], 10) === num;
+        });
+      }
+      return found;
+    },
+    [round2Topics]
+  );
+
   // Tự động tải lại nội dung đề thi đầy đủ nếu chưa có scenario text
   useEffect(() => {
     if (r2InspectingPlayer && session?.id) {
-      const topic = round2Topics.find((t) => t.code === r2InspectingPlayer.round2DrawCode);
+      const topic = getTopicForCode(r2InspectingPlayer.round2DrawCode);
       if (!topic || !topic.scenario1) {
         liveApi.getRound2Topics(session.id).then((topics) => {
           if (topics && topics.length > 0) {
@@ -802,7 +825,7 @@ export default function LiveScreenHost() {
         }).catch(() => {});
       }
     }
-  }, [r2InspectingPlayer, session?.id, round2Topics]);
+  }, [r2InspectingPlayer, session?.id, getTopicForCode]);
 
   // Round 3 Duel countdown ticker synchronized with server epoch
   useEffect(() => {
@@ -2318,58 +2341,122 @@ export default function LiveScreenHost() {
               <div className="space-y-6 max-w-6xl mx-auto">
                 {/* Spotlight Thí sinh đang chọn đề */}
                 {(() => {
-                  const rawCandidate = r2CandidateSelecting || activePlayerRound2;
+                  const rawCandidate = r2InspectingPlayer || r2CandidateSelecting || activePlayerRound2;
                   const candidateLive = rawCandidate ? session?.players?.find((p) => p.id === rawCandidate.id) || rawCandidate : null;
                   const candidate = candidateLive && (!candidateLive.round2Score || Number(candidateLive.round2Score) === 0) ? candidateLive : null;
                   const topicCode = candidate ? (r2CandidateTopicCode || candidate.round2DrawCode) : null;
                   const lastWord = candidate?.fullName ? candidate.fullName.trim().split(/\s+/).slice(-1)[0] : '';
                   const initialChar = lastWord.charAt(0).toUpperCase() || '?';
 
-                  return (
-                    <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border-2 border-amber-400 rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                  const currentTopic = topicCode ? getTopicForCode(topicCode) : null;
+                  const s1 = currentTopic?.scenario1 || (candidate as any)?.scenario1;
+                  const s2 = currentTopic?.scenario2 || (candidate as any)?.scenario2;
 
-                      <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
-                        {/* Thông tin thí sinh: Định danh bằng Avatar + Tên đầy đủ */}
-                        <div className="flex items-center gap-5">
-                          <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-white/10 border-2 border-amber-400 flex items-center justify-center text-4xl font-black text-amber-300 overflow-hidden shadow-lg shrink-0">
-                            {candidate?.avatarUrl ? (
-                              <img src={candidate.avatarUrl} alt={candidate.fullName} className="w-full h-full object-cover" />
+                  return (
+                    <div className="space-y-5">
+                      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border-2 border-amber-400 rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                          {/* Thông tin thí sinh: Định danh bằng Avatar + Tên đầy đủ */}
+                          <div className="flex items-center gap-5">
+                            <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-white/10 border-2 border-amber-400 flex items-center justify-center text-4xl font-black text-amber-300 overflow-hidden shadow-lg shrink-0">
+                              {candidate?.avatarUrl ? (
+                                <img src={candidate.avatarUrl} alt={candidate.fullName} className="w-full h-full object-cover" />
+                              ) : (
+                                <span>{initialChar}</span>
+                              )}
+                            </div>
+                            <div className="space-y-3">
+                              <div className="text-xs sm:text-sm font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                                THÍ SINH BỐC THĂM MÃ ĐỀ:
+                              </div>
+                              <h3 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-wide leading-tight">
+                                {candidate ? (
+                                  candidate.fullName
+                                ) : (
+                                  <span className="text-slate-400 italic text-xl">MC đang mời thí sinh lên chọn đề...</span>
+                                )}
+                              </h3>
+                            </div>
+                          </div>
+
+                          {/* Ô Mã Đề Thí Sinh Đã Chọn / Chờ Chọn */}
+                          <div className="text-center shrink-0">
+                            <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                              MÃ ĐỀ ĐÃ CHỌN:
+                            </div>
+                            {topicCode ? (
+                              <div className="px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-3xl shadow-xl ring-4 ring-amber-300 animate-scaleUp border border-yellow-200 tracking-wider">
+                                {topicCode}
+                              </div>
                             ) : (
-                              <span>{initialChar}</span>
+                              <div className="px-8 py-4 rounded-2xl bg-white/10 border-2 border-dashed border-amber-400/80 text-amber-300 font-black text-xl animate-pulse tracking-wide">
+                                [ CHỜ CHỌN MÃ ĐỀ ❓ ]
+                              </div>
                             )}
                           </div>
-                          <div className="space-y-3">
-                            <div className="text-xs sm:text-sm font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
-                              THÍ SINH BỐC THĂM MÃ ĐỀ:
-                            </div>
-                            <h3 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-wide leading-tight">
-                              {candidate ? (
-                                candidate.fullName
-                              ) : (
-                                <span className="text-slate-400 italic text-xl">MC đang mời thí sinh lên chọn đề...</span>
-                              )}
-                            </h3>
-                          </div>
-                        </div>
-
-                        {/* Ô Mã Đề Thí Sinh Đã Chọn / Chờ Chọn */}
-                        <div className="text-center shrink-0">
-                          <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                            MÃ ĐỀ ĐÃ CHỌN:
-                          </div>
-                          {topicCode ? (
-                            <div className="px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-3xl shadow-xl ring-4 ring-amber-300 animate-scaleUp border border-yellow-200 tracking-wider">
-                              {topicCode}
-                            </div>
-                          ) : (
-                            <div className="px-8 py-4 rounded-2xl bg-white/10 border-2 border-dashed border-amber-400/80 text-amber-300 font-black text-xl animate-pulse tracking-wide">
-                              [ CHỜ CHỌN MÃ ĐỀ ❓ ]
-                            </div>
-                          )}
                         </div>
                       </div>
+
+                      {/* Chi tiết câu hỏi của bộ đề khi thí sinh đã có mã đề */}
+                      {topicCode && (
+                        <div className="bg-white border-4 border-amber-400 rounded-3xl p-6 shadow-2xl space-y-4 animate-scaleUp">
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-100 pb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-lg shadow">
+                                <FileText className="w-5 h-5 text-slate-950" />
+                              </div>
+                              <div>
+                                <h4 className="text-base sm:text-lg font-black text-slate-900 uppercase">
+                                  CÂU HỎI {topicCode} {candidate?.fullName ? `— ${candidate.fullName}` : ''}
+                                </h4>
+                                <div className="text-xs text-slate-500 font-bold">
+                                  SBD {candidate?.orderNumber ? String(candidate.orderNumber).padStart(2, '0') : '--'} • {candidate?.unit || 'Thí sinh dự thi'}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="px-3 py-1 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 text-xs font-black uppercase">
+                              TỔNG ĐIỂM: 40 ĐIỂM
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Tình huống 1 */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-b from-blue-50/90 to-blue-100/40 border-2 border-blue-300 space-y-2 shadow-sm">
+                              <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                                <span className="text-xs font-black text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
+                                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">1</span>
+                                  TÌNH HUỐNG 01
+                                </span>
+                                <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                                  Tối đa {currentTopic?.maxScore1 || 20} điểm
+                                </span>
+                              </div>
+                              <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                                {s1 || 'Đang nạp dữ liệu tình huống 1...'}
+                              </p>
+                            </div>
+
+                            {/* Tình huống 2 */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-50/90 to-amber-100/40 border-2 border-amber-300 space-y-2 shadow-sm">
+                              <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                                <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                                  <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
+                                  TÌNH HUỐNG 02
+                                </span>
+                                <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                                  Tối đa {currentTopic?.maxScore2 || 20} điểm
+                                </span>
+                              </div>
+                              <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                                {s2 || 'Đang nạp dữ liệu tình huống 2...'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -2384,7 +2471,7 @@ export default function LiveScreenHost() {
                       </h4>
                     </div>
                     <span className="text-xs font-bold text-slate-500">
-                      * Mỗi mã đề chỉ được chọn 1 lần duy nhất trong Hội thi
+                      * Mỗi mã đề chỉ được chọn 1 lần duy nhất trong Hội thi • Bấm vào để xem
                     </span>
                   </div>
 
@@ -2411,7 +2498,16 @@ export default function LiveScreenHost() {
                       return (
                         <div
                           key={code}
-                          className={`p-3.5 rounded-2xl border-2 text-center transition-all flex flex-col justify-between min-h-[128px] relative ${
+                          onClick={() => {
+                            if (isChosen && chosenPlayer) {
+                              setR2CandidateSelecting(chosenPlayer);
+                              setR2CandidateTopicCode(code);
+                              setR2InspectingPlayer(chosenPlayer);
+                            } else {
+                              setR2CandidateTopicCode(code);
+                            }
+                          }}
+                          className={`p-3.5 rounded-2xl border-2 text-center transition-all flex flex-col justify-between min-h-[128px] relative cursor-pointer ${
                             isCurrentCandidateCode
                               ? 'bg-gradient-to-b from-amber-100 via-yellow-100 to-amber-200 border-amber-500 ring-4 ring-amber-400 shadow-xl scale-[1.03] animate-pulse'
                               : isChosen
@@ -2558,150 +2654,165 @@ export default function LiveScreenHost() {
                 </div>
 
                 {/* HIỂN THỊ CHI TIẾT BỘ ĐỀ CỦA THÍ SINH ĐANG ĐƯỢC CHỌN SOI ĐỀ */}
-                {r2InspectingPlayer && (
-                  <div className="bg-white border-4 border-amber-400 rounded-3xl p-6 shadow-2xl space-y-4 animate-scaleUp">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-100 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-amber-500 border-2 border-amber-600 text-white font-black flex items-center justify-center text-xl shadow-md overflow-hidden">
-                          {r2InspectingPlayer.avatarUrl ? (
-                            <img src={r2InspectingPlayer.avatarUrl} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            r2InspectingPlayer.fullName.trim().split(/\s+/).slice(-1)[0]?.charAt(0).toUpperCase() || '★'
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xl font-black text-slate-900 uppercase">
-                              {r2InspectingPlayer.fullName}
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-900 border border-blue-300 font-black text-xs">
-                              SBD {String(r2InspectingPlayer.orderNumber).padStart(2, '0')}
-                            </span>
-                            <span className="text-xs text-slate-500 font-bold">• {r2InspectingPlayer.unit}</span>
-                          </div>
-                          <div className="text-sm font-black text-amber-600 flex items-center gap-1.5 mt-0.5">
-                            <FileText className="w-4 h-4" /> BỘ ĐỀ DỰ THI: {r2InspectingPlayer.round2DrawCode || 'Chưa gán đề'}
-                          </div>
-                        </div>
-                      </div>
+                {(() => {
+                  const r2DisplayPlayers = (r2CurrentBatchPlayers && r2CurrentBatchPlayers.length > 0)
+                    ? r2CurrentBatchPlayers
+                    : (session?.players || []).filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0));
 
-                      <button
-                        type="button"
-                        onClick={() => setR2InspectingPlayer(null)}
-                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
-                      >
-                        <X className="w-4 h-4" /> Thu gọn câu hỏi
-                      </button>
-                    </div>
+                  const effectiveInspected = r2InspectingPlayer || (r2DisplayPlayers.length > 0 ? r2DisplayPlayers[0] : null);
+                  if (!effectiveInspected) return null;
 
-                    {/* Chi tiết 2 tình huống */}
-                    {(() => {
-                      const currentTopic = round2Topics.find((t) => t.code === r2InspectingPlayer.round2DrawCode);
-                      const s1 = currentTopic?.scenario1 || (r2InspectingPlayer as any)?.scenario1;
-                      const s2 = currentTopic?.scenario2 || (r2InspectingPlayer as any)?.scenario2;
-                      if (!currentTopic && !s1 && !s2) {
-                        return (
-                          <div className="p-6 text-center text-slate-500 font-bold text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                            Thí sinh này chưa được gán bộ đề thi hoặc chưa có dữ liệu câu hỏi.
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Tình huống 1 */}
-                          <div className="p-4 rounded-2xl bg-gradient-to-b from-blue-50/90 to-blue-100/40 border-2 border-blue-300 space-y-2 shadow-sm">
-                            <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-                              <span className="text-xs font-black text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
-                                <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">1</span>
-                                TÌNH HUỐNG 01
-                              </span>
-                              <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                                Tối đa {currentTopic?.maxScore1 || 20} điểm
-                              </span>
-                            </div>
-                            <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
-                              {s1 || 'Đang cập nhật nội dung tình huống 1...'}
-                            </p>
-                          </div>
+                  const currentTopic = getTopicForCode(effectiveInspected.round2DrawCode);
+                  const s1 = currentTopic?.scenario1 || (effectiveInspected as any)?.scenario1;
+                  const s2 = currentTopic?.scenario2 || (effectiveInspected as any)?.scenario2;
 
-                          {/* Tình huống 2 */}
-                          <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-50/90 to-amber-100/40 border-2 border-amber-300 space-y-2 shadow-sm">
-                            <div className="flex items-center justify-between border-b border-amber-200 pb-2">
-                              <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
-                                <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
-                                TÌNH HUỐNG 02
-                              </span>
-                              <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                                Tối đa {currentTopic?.maxScore2 || 20} điểm
-                              </span>
-                            </div>
-                            <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
-                              {s2 || 'Đang cập nhật nội dung tình huống 2...'}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {/* Danh sách các thí sinh đang thi */}
-                <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-xl space-y-4">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-                      CÁC THÍ SINH ĐANG THỰC HIỆN BÀI THI TRONG ĐỢT:
-                    </h4>
-                    <span className="text-xs font-bold text-slate-400 italic">
-                      * Bấm vào thí sinh để chiếu câu hỏi lên màn hình LED
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-                    {r2CurrentBatchPlayers.map((p) => {
-                      const isInspected = r2InspectingPlayer?.id === p.id;
-                      const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
-                      const initialChar = lastWord.charAt(0).toUpperCase() || '?';
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => {
-                            if (isInspected) {
-                              setR2InspectingPlayer(null);
-                            } else {
-                              setR2InspectingPlayer(p);
-                            }
-                          }}
-                          className={`p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all duration-300 cursor-pointer select-none relative ${
-                            isInspected
-                              ? 'bg-gradient-to-r from-amber-100 via-yellow-100 to-amber-200 border-amber-500 shadow-xl ring-4 ring-amber-400 scale-[1.04] animate-pulse'
-                              : 'bg-gradient-to-b from-slate-50 to-blue-50/40 border-blue-300 shadow-md hover:border-amber-400 hover:shadow-lg hover:scale-[1.02]'
-                          }`}
-                        >
-                          <div className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-lg font-black overflow-hidden shrink-0 shadow-xs ${
-                            isInspected ? 'bg-amber-300 border-amber-600 text-amber-950' : 'bg-blue-100 border-blue-500 text-blue-800'
-                          }`}>
-                            {p.avatarUrl ? (
-                              <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  return (
+                    <div className="bg-white border-4 border-amber-400 rounded-3xl p-6 shadow-2xl space-y-4 animate-scaleUp">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-100 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-500 border-2 border-amber-600 text-white font-black flex items-center justify-center text-xl shadow-md overflow-hidden">
+                            {effectiveInspected.avatarUrl ? (
+                              <img src={effectiveInspected.avatarUrl} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              initialChar
+                              effectiveInspected.fullName.trim().split(/\s+/).slice(-1)[0]?.charAt(0).toUpperCase() || '★'
                             )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-sm font-black truncate ${isInspected ? 'text-amber-950 font-black' : 'text-slate-900'}`}>{p.fullName}</div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className={`text-xs font-black ${isInspected ? 'text-amber-800' : 'text-blue-700'}`}>{p.round2DrawCode}</span>
-                              {isInspected && (
-                                <span className="px-1.5 py-0.2 rounded bg-amber-600 text-white text-[9px] font-black uppercase">
-                                  CHIẾU ĐỀ
-                                </span>
-                              )}
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xl font-black text-slate-900 uppercase">
+                                {effectiveInspected.fullName}
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-900 border border-blue-300 font-black text-xs">
+                                SBD {String(effectiveInspected.orderNumber).padStart(2, '0')}
+                              </span>
+                              <span className="text-xs text-slate-500 font-bold">• {effectiveInspected.unit}</span>
+                            </div>
+                            <div className="text-sm font-black text-amber-600 flex items-center gap-1.5 mt-0.5">
+                              <FileText className="w-4 h-4" /> BỘ ĐỀ DỰ THI: {effectiveInspected.round2DrawCode || 'Chưa gán đề'}
                             </div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setR2InspectingPlayer(null)}
+                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" /> Thu gọn câu hỏi
+                        </button>
+                      </div>
+
+                      {/* Chi tiết 2 tình huống */}
+                      {(() => {
+                        if (!currentTopic && !s1 && !s2) {
+                          return (
+                            <div className="p-6 text-center text-slate-500 font-bold text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                              Thí sinh này chưa được gán bộ đề thi hoặc chưa có dữ liệu câu hỏi.
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Tình huống 1 */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-b from-blue-50/90 to-blue-100/40 border-2 border-blue-300 space-y-2 shadow-sm">
+                              <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                                <span className="text-xs font-black text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
+                                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">1</span>
+                                  TÌNH HUỐNG 01
+                                </span>
+                                <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                                  Tối đa {currentTopic?.maxScore1 || 20} điểm
+                                </span>
+                              </div>
+                              <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                                {s1 || 'Đang cập nhật nội dung tình huống 1...'}
+                              </p>
+                            </div>
+
+                            {/* Tình huống 2 */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-50/90 to-amber-100/40 border-2 border-amber-300 space-y-2 shadow-sm">
+                              <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                                <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                                  <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
+                                  TÌNH HUỐNG 02
+                                </span>
+                                <span className="text-xs font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                                  Tối đa {currentTopic?.maxScore2 || 20} điểm
+                                </span>
+                              </div>
+                              <p className="text-xs md:text-sm text-slate-800 leading-relaxed font-semibold whitespace-pre-line">
+                                {s2 || 'Đang cập nhật nội dung tình huống 2...'}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
+
+                {/* Danh sách các thí sinh đang thi */}
+                {(() => {
+                  const r2DisplayPlayers = (r2CurrentBatchPlayers && r2CurrentBatchPlayers.length > 0)
+                    ? r2CurrentBatchPlayers
+                    : (session?.players || []).filter((p) => Boolean(p.round2DrawCode) && (!p.round2Score || Number(p.round2Score) === 0));
+                  const effectiveInspected = r2InspectingPlayer || (r2DisplayPlayers.length > 0 ? r2DisplayPlayers[0] : null);
+
+                  return (
+                    <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-xl space-y-4">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                          CÁC THÍ SINH ĐANG THỰC HIỆN BÀI THI TRONG ĐỢT ({r2DisplayPlayers.length} THÍ SINH):
+                        </h4>
+                        <span className="text-xs font-bold text-slate-400 italic">
+                          * Bấm vào thí sinh để chiếu câu hỏi lên màn hình LED
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                        {r2DisplayPlayers.map((p) => {
+                          const isInspected = (effectiveInspected?.id === p.id);
+                          const lastWord = p.fullName.trim().split(/\s+/).slice(-1)[0] || '';
+                          const initialChar = lastWord.charAt(0).toUpperCase() || '?';
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                setR2InspectingPlayer(p);
+                              }}
+                              className={`p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all duration-300 cursor-pointer select-none relative ${
+                                isInspected
+                                  ? 'bg-gradient-to-r from-amber-100 via-yellow-100 to-amber-200 border-amber-500 shadow-xl ring-4 ring-amber-400 scale-[1.04] animate-pulse'
+                                  : 'bg-gradient-to-b from-slate-50 to-blue-50/40 border-blue-300 shadow-md hover:border-amber-400 hover:shadow-lg hover:scale-[1.02]'
+                              }`}
+                            >
+                              <div className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-lg font-black overflow-hidden shrink-0 shadow-xs ${
+                                isInspected ? 'bg-amber-300 border-amber-600 text-amber-950' : 'bg-blue-100 border-blue-500 text-blue-800'
+                              }`}>
+                                {p.avatarUrl ? (
+                                  <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  initialChar
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-black truncate ${isInspected ? 'text-amber-950 font-black' : 'text-slate-900'}`}>{p.fullName}</div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className={`text-xs font-black ${isInspected ? 'text-amber-800' : 'text-blue-700'}`}>{p.round2DrawCode}</span>
+                                  {isInspected && (
+                                    <span className="px-1.5 py-0.2 rounded bg-amber-600 text-white text-[9px] font-black uppercase">
+                                      CHIẾU ĐỀ
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
