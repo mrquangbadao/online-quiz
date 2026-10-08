@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { settingsApi } from "../../api/settingsApi";
 
 const fallbackSlogan =
-  "⭐ TỈNH ĐOÀN NGHỆ AN | HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI TỈNH NGHỆ AN NĂM 2026 | KHÁT VỌNG CỐNG HIẾN – RÈN ĐỨC LUYỆN TÀI – VỮNG BƯỚC TƯƠNG LAI | 70 CÁN BỘ ĐOÀN TRANH TÀI VÒNG LOẠI CẤP TỈNH ⭐";
+  "⭐ TỈNH ĐOÀN NGHỆ AN | CHUNG KẾT HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI TỈNH NGHỆ AN NĂM 2026 | “ĐỔI MỚI MẠNH MẼ PHƯƠNG THỨC HOẠT ĐỘNG CỦA ĐOÀN” | 10 THÍ SINH TRANH TÀI SÂN KHẤU CẤP TỈNH ⭐";
 
 export default function MarqueeBanner() {
   const [slogan, setSlogan] = useState<string>(fallbackSlogan);

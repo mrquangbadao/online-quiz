@@ -961,10 +961,10 @@ export default function LiveScreenHost() {
               TỈNH ĐOÀN NGHỆ AN
             </p>
             <h1 className="text-xl font-extrabold uppercase tracking-wide text-white drop-shadow-xs">
-              HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI NĂM 2026
+              CHUNG KẾT HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI TỈNH NGHỆ AN NĂM 2026
             </h1>
-            <div className="text-xs font-semibold text-sky-200 tracking-wide uppercase">
-              Vòng Chung kết: Thông thái • Nhạy bén • Bản lĩnh
+            <div className="text-xs font-bold text-sky-200 tracking-wide italic">
+              "Đổi mới mạnh mẽ phương thức hoạt động của Đoàn"
             </div>
           </div>
         </div>

@@ -119,7 +119,7 @@ export default function Landing() {
                 TỈNH ĐOÀN NGHỆ AN
               </p>
               <p className="text-[11px] sm:text-sm font-extrabold uppercase tracking-tight sm:tracking-wide text-white drop-shadow-xs truncate">
-                BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
+                CHUNG KẾT BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
               </p>
             </div>
           </div>
@@ -193,7 +193,7 @@ export default function Landing() {
           {/* Tiêu đề chính chuẩn bố cục biểu ngữ Đoàn */}
           <div className="max-w-4xl mx-auto w-full px-2 min-w-0">
             <p className="text-[11px] sm:text-base md:text-lg text-sky-200 font-black uppercase tracking-[0.2em] mb-0.5 sm:mb-1 drop-shadow-xs">
-              HỘI THI
+              CHUNG KẾT HỘI THI
             </p>
             <h1 className="text-[18px] min-[360px]:text-[20px] sm:text-3xl md:text-4xl lg:text-5xl font-black uppercase text-white leading-tight tracking-tight drop-shadow-md">
               BÍ THƯ ĐOÀN CƠ SỞ GIỎI
@@ -202,25 +202,21 @@ export default function Landing() {
               TỈNH NGHỆ AN NĂM 2026
             </p>
 
-            {/* Điểm nhấn Chặng 04: Vòng Chung kết cấp tỉnh */}
+            {/* Điểm nhấn Vòng Chung kết cấp tỉnh */}
             <div className="mt-3.5 sm:mt-5 inline-flex items-center gap-2 bg-gradient-to-r from-red-600 via-amber-600 to-yellow-500 text-white font-black text-xs sm:text-sm md:text-base uppercase tracking-wider px-4 sm:px-6 py-1.5 sm:py-2 rounded-full shadow-lg shadow-blue-950/40 border border-yellow-300/40">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-300" />
               </span>
-              <span>CHẶNG 04: VÒNG CHUNG KẾT CẤP TỈNH</span>
+              <span>VÒNG CHUNG KẾT CẤP TỈNH</span>
               <Flame className="w-4 h-4 text-yellow-200 shrink-0" />
             </div>
           </div>
 
-          {/* Khẩu hiệu chính thức Đoàn TNCS Hồ Chí Minh */}
-          <div className="mt-3 sm:mt-5 max-w-xl mx-auto px-2 min-w-0 w-full">
-            <p className="text-xs min-[375px]:text-sm sm:text-base md:text-lg font-black text-yellow-300 italic tracking-wide drop-shadow-md leading-relaxed text-center">
-              <span className="inline-block whitespace-nowrap">“Khát vọng cống hiến</span>
-              <span className="text-white font-bold mx-1.5">–</span>
-              <span className="inline-block whitespace-nowrap">Rèn đức luyện tài</span>
-              <span className="text-white font-bold mx-1.5">–</span>
-              <span className="inline-block whitespace-nowrap">Vững bước tương lai”</span>
+          {/* Khẩu hiệu chính thức */}
+          <div className="mt-3 sm:mt-5 max-w-2xl mx-auto px-2 min-w-0 w-full">
+            <p className="text-sm min-[375px]:text-base sm:text-lg md:text-xl font-black text-yellow-300 italic tracking-wide drop-shadow-md leading-relaxed text-center">
+              “Đổi mới mạnh mẽ phương thức hoạt động của Đoàn”
             </p>
           </div>
 
@@ -700,7 +696,7 @@ export default function Landing() {
 
           <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-blue-200/60 text-center sm:text-left">
             <p>Bản quyền © 2026 Ban Thường vụ Tỉnh đoàn Nghệ An</p>
-            <p>Hệ thống thi trực tuyến Vòng Chung kết cấp tỉnh</p>
+            <p>Hệ thống thi trực tuyến Chung kết Hội thi Bí thư Đoàn cơ sở giỏi tỉnh Nghệ An năm 2026 • “Đổi mới mạnh mẽ phương thức hoạt động của Đoàn”</p>
           </div>
         </div>
       </footer>

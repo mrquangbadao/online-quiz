@@ -984,7 +984,10 @@ export default function LivePlayerMobile() {
                   TỈNH ĐOÀN NGHỆ AN
                 </div>
                 <div className="text-xs sm:text-sm font-black uppercase tracking-wide text-white leading-tight">
-                  HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
+                  CHUNG KẾT HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI TỈNH NGHỆ AN NĂM 2026
+                </div>
+                <div className="text-[10px] sm:text-[11px] font-bold text-sky-200 tracking-wide italic mt-0.5">
+                  "Đổi mới mạnh mẽ phương thức hoạt động của Đoàn"
                 </div>
               </div>
             </div>
@@ -1313,7 +1316,7 @@ export default function LivePlayerMobile() {
 
         {/* Footer */}
         <footer className="relative z-10 text-center text-[11px] text-white/80 py-3 px-4 border-t border-white/15 bg-[#0d3b9e]/60 backdrop-blur-sm">
-          BAN THƯỜNG VỤ TỈNH ĐOÀN NGHỆ AN • HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
+          CHUNG KẾT HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI TỈNH NGHỆ AN NĂM 2026 • “ĐỔI MỚI MẠNH MẼ PHƯƠNG THỨC HOẠT ĐỘNG CỦA ĐOÀN”
         </footer>
       </div>
     );
