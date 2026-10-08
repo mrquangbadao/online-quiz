@@ -972,29 +972,29 @@ export default function LivePlayerMobile() {
           }}
         />
 
-        {/* Top Header Banner - Official Youth Union Identity */}
-        <header className="relative z-10 w-full pt-6 pb-4 px-4 border-b border-white/15 bg-[#0d3b9e]/80 backdrop-blur-md">
-          <div className="max-w-lg md:max-w-xl mx-auto flex flex-col items-center text-center">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-1.5 rounded-2xl bg-white/15 ring-1 ring-white/30 shadow-md">
-                <BrandMark size={42} />
-              </div>
-              <div className="text-left">
-                <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-yellow-300">
+        {/* Top Header Navbar - Đồng bộ phong cách trang chủ */}
+        <header className="relative z-10 w-full bg-[#10348c]/90 border-b border-white/15 backdrop-blur-md shadow-md">
+          <div className="w-full flex items-center justify-between px-3 sm:px-4 md:px-8 py-2.5 max-w-[1400px] mx-auto gap-2">
+            {/* Logo & Tiêu đề thanh Navbar */}
+            <div className="flex items-center gap-2 sm:gap-3 text-white min-w-0">
+              <BrandMark size={34} showBorder={false} className="shrink-0 sm:hidden" />
+              <BrandMark size={40} showBorder={false} className="shrink-0 hidden sm:block" />
+              <div className="leading-tight min-w-0">
+                <p className="text-[9px] sm:text-xs font-black tracking-wider uppercase text-yellow-300 truncate">
                   TỈNH ĐOÀN NGHỆ AN
-                </div>
-                <div className="text-xs sm:text-sm font-black uppercase tracking-wide text-white leading-tight">
-                  CHUNG KẾT HỘI THI BÍ THƯ ĐOÀN CƠ SỞ GIỎI TỈNH NGHỆ AN NĂM 2026
-                </div>
-                <div className="text-[10px] sm:text-[11px] font-bold text-sky-200 tracking-wide italic mt-0.5">
-                  "Đổi mới mạnh mẽ phương thức hoạt động của Đoàn"
-                </div>
+                </p>
+                <p className="text-[11px] sm:text-sm font-extrabold uppercase tracking-tight sm:tracking-wide text-white drop-shadow-xs truncate">
+                  CHUNG KẾT BÍ THƯ ĐOÀN CƠ SỞ GIỎI 2026
+                </p>
               </div>
             </div>
 
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/25 text-white text-[11px] font-bold uppercase tracking-wider mt-1 shadow-xs">
-              <Radio className="w-3 h-3 text-yellow-300 animate-pulse" />
-              <span>Cổng dự thi trực tuyến của thí sinh</span>
+            {/* Huy hiệu Cổng Thí Sinh */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 border border-white/20 text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-xs">
+                <Radio className="w-3 h-3 text-yellow-300 animate-pulse" />
+                <span>Cổng thí sinh</span>
+              </span>
             </div>
           </div>
         </header>
