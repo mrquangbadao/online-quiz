@@ -2779,10 +2779,19 @@ export default function LiveScreenHost() {
                         </div>
                       </div>
 
-                      {/* Trung tâm: Kiếm chéo & Đồng hồ đếm ngược nổi bật + Đồng hồ phụ quá giờ */}
+                      {/* Trung tâm: Chữ VS nổi bật & Đồng hồ đếm ngược + Đồng hồ phụ quá giờ */}
                       <div className="flex flex-col items-center justify-center space-y-3 my-4 md:my-0">
                         <div className="flex items-center justify-center">
-                          <Swords className="w-12 h-12 md:w-16 md:h-16 text-amber-400 drop-shadow-[0_0_20px_rgba(245,158,11,0.9)] animate-bounce" />
+                          <div className="relative flex items-center justify-center my-1">
+                            {/* Hào quang rực lửa phía sau */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-500 rounded-2xl blur-xl opacity-70 animate-pulse" />
+                            {/* Huy hiệu VS được highlight sắc sảo */}
+                            <div className="relative px-6 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500/30 via-yellow-400/40 to-orange-500/30 border-2 border-yellow-300 shadow-[0_0_35px_rgba(245,158,11,0.95)] backdrop-blur-md">
+                              <span className="text-3xl md:text-5xl font-black italic tracking-widest bg-gradient-to-b from-yellow-100 via-amber-300 to-orange-500 bg-clip-text text-transparent drop-shadow-[0_2px_15px_rgba(245,158,11,1)] select-none">
+                                VS
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Bộ đếm thời gian tròn to nổi bật */}
@@ -3134,11 +3143,11 @@ export default function LiveScreenHost() {
                             )}
                           </div>
 
-                          {/* Biểu tượng Kiếm song đấu ở giữa (Vòng lửa rực cháy) */}
+                          {/* Biểu tượng VS song đấu ở giữa (Vòng lửa rực cháy) */}
                           <div className="py-2.5 flex items-center justify-center gap-2 relative z-10">
                             <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent flex-1" />
                             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 border-2 border-yellow-300 flex items-center justify-center shadow-[0_0_25px_rgba(245,158,11,0.85)] ring-2 ring-amber-400/50">
-                              <Swords className="w-6 h-6 text-yellow-200 drop-shadow-[0_0_10px_rgba(255,255,255,0.9)] animate-bounce" />
+                              <span className="font-black italic text-yellow-200 text-lg drop-shadow-[0_0_8px_rgba(255,255,255,0.9)] select-none">VS</span>
                             </div>
                             <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent flex-1" />
                           </div>

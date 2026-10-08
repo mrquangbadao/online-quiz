@@ -1519,8 +1519,10 @@ export default function LivePlayerMobile() {
         )}
 
         {/* 1. ROUND 1 VIEW */}
-        {session?.status === 'ROUND1' && (
-          <div className="flex-1 flex flex-col justify-center w-full">
+        {session?.status === 'ROUND1' && (() => {
+          const questionTitle = currentQuestion?.title || session?.currentQuestion?.title;
+          return (
+            <div className="flex-1 flex flex-col justify-center w-full">
             {/* Round 1: Phase 1 - 5s Hope Star */}
             {round1State === 'HOPE_STAR_5S' && (
               <div className="flex-1 flex flex-col items-center justify-center text-center py-4 animate-fadeIn w-full">
@@ -1620,26 +1622,36 @@ export default function LivePlayerMobile() {
                   </div>
                 )}
 
-                <div className="bg-white text-slate-900 border border-blue-100 rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xl mx-auto text-center relative overflow-hidden">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black uppercase mb-4 shadow-xs">
-                    <Star className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-                    CÂU HỎI {session?.currentQuestionIndex} / 10 • KẾT QUẢ NGÔI SAO HY VỌNG
+                <div className="bg-white text-slate-900 border border-blue-100 rounded-3xl p-5 sm:p-7 shadow-2xl w-full max-w-xl mx-auto text-center relative overflow-hidden">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-black uppercase mb-3 shadow-xs">
+                    <Radio className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+                    CÂU HỎI {session?.currentQuestionIndex} / 10 • MC ĐANG ĐỌC ĐỀ
                   </div>
 
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 text-blue-950 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-500/30 ring-4 ring-amber-100">
-                    <Star className="w-10 h-10 fill-blue-950 text-blue-950 animate-pulse" />
-                  </div>
+                  {questionTitle ? (
+                    <div className="w-full p-4 rounded-2xl bg-blue-50/70 border-2 border-blue-200 shadow-inner mb-4 text-left animate-fadeIn">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-blue-800 mb-1 flex items-center gap-1">
+                        <span>Nội dung câu hỏi:</span>
+                      </div>
+                      <p className="text-sm sm:text-base font-bold leading-relaxed text-slate-900">
+                        {questionTitle}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="py-4 text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center mx-auto mb-3 shadow-lg ring-4 ring-blue-100">
+                        <Radio className="w-8 h-8 animate-pulse" />
+                      </div>
+                      <h3 className="text-base sm:text-lg font-black text-blue-950 uppercase">
+                        MC ĐANG ĐỌC CÂU HỎI
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto">
+                        Thí sinh chú ý lắng nghe và theo dõi đề trên màn hình LED lớn tại sân khấu...
+                      </p>
+                    </div>
+                  )}
 
-                  <h3 className="text-lg sm:text-xl font-black text-blue-950 mb-2 uppercase tracking-wide">
-                    {isHopeStarActiveThisRound ? 'ĐÃ KÍCH HOẠT NGÔI SAO HY VỌNG' : 'CHỜ HIỆU LỆNH BẮT ĐẦU CÂU HỎI'}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 max-w-xs sm:max-w-md mx-auto leading-relaxed">
-                    {isHopeStarActiveThisRound
-                      ? 'Bạn đã chọn Ngôi sao hy vọng cho câu hỏi này. Câu hỏi và các phương án A - B - C - D sẽ xuất hiện ngay khi Ban tổ chức phát lệnh.'
-                      : 'Đã hoàn thành thời gian chọn Ngôi sao hy vọng. Thí sinh chuẩn bị, câu hỏi và các phương án A - B - C - D sẽ mở ngay khi Ban tổ chức phát lệnh.'}
-                  </p>
-
-                  <div className="mt-6 inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-blue-900 bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 shadow-xs">
+                  <div className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-blue-900 bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 shadow-xs">
                     <Timer className="w-4 h-4 text-blue-600 animate-spin-slow" />
                     <span>Thời gian 40 giây sẽ bắt đầu sau hiệu lệnh của Ban tổ chức</span>
                   </div>
@@ -1651,8 +1663,8 @@ export default function LivePlayerMobile() {
             {round1State === 'QUESTION_40S' && (
               <div className="flex-1 flex flex-col justify-center py-2 sm:py-4 md:py-6 animate-fadeIn w-full">
                 {/* Timer & Question Info */}
-                <div className="w-full mb-3 sm:mb-4">
-                  <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+                <div className="w-full mb-2 sm:mb-3">
+                  <div className="flex items-center justify-between mb-2 sm:mb-2.5">
                     <div className="flex items-center gap-2">
                       <span className="px-3.5 py-1.5 rounded-xl bg-white/20 border border-white/30 text-yellow-300 font-black text-xs sm:text-sm uppercase shadow-xs">
                         CÂU HỎI {session?.currentQuestionIndex} / 10
@@ -1676,26 +1688,35 @@ export default function LivePlayerMobile() {
                     </div>
                   </div>
 
-                  {/* THÔNG BÁO HIỂN THỊ LÊN PHÍA TRÊN (KHÔNG ĐỂ DƯỚI ĐỂ TRÁNH BỊ CUỘN TRANG) */}
+                  {/* Khung nội dung câu hỏi hiển thị trực tiếp cho thí sinh */}
+                  {questionTitle && (
+                    <div className="w-full p-3 sm:p-4 rounded-2xl bg-white text-slate-900 border-2 border-blue-200 shadow-md mb-2 sm:mb-2.5 text-left animate-fadeIn">
+                      <p className="text-xs sm:text-sm md:text-base font-bold leading-relaxed text-slate-900 select-text">
+                        {questionTitle}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Thông báo trạng thái đã nộp hoặc hướng dẫn chọn phương án */}
                   {hasSubmitted ? (
-                    <div className="p-2.5 sm:p-3 rounded-2xl bg-emerald-600 text-white border-2 border-white text-center shadow-lg animate-scaleUp">
-                      <div className="inline-flex items-center gap-2 text-sm sm:text-base font-black uppercase tracking-wide">
-                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-white shrink-0" />
-                        <span>ĐÃ NỘP</span>
+                    <div className="p-2 sm:p-2.5 rounded-2xl bg-emerald-600 text-white border-2 border-white text-center shadow-lg animate-scaleUp">
+                      <div className="inline-flex items-center gap-2 text-xs sm:text-sm font-black uppercase tracking-wide">
+                        <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+                        <span>ĐÃ NỘP BÀI THÀNH CÔNG</span>
                       </div>
                       {submitTimeMs !== null && (
-                        <p className="text-xs sm:text-sm text-emerald-100 mt-0.5">
+                        <p className="text-xs text-emerald-100 mt-0.5">
                           Thời gian: <strong className="text-yellow-300 font-black font-mono">{(submitTimeMs / 1000).toFixed(2)}s</strong>
                         </p>
                       )}
                     </div>
                   ) : (
-                    <div className="p-3 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/25 text-center text-xs sm:text-sm text-white shadow-xs">
+                    <div className="py-1 px-3 rounded-xl bg-white/15 backdrop-blur-sm border border-white/25 text-center text-xs text-white shadow-xs">
                       <p className="font-semibold">
                         {isHopeStarActiveThisRound ? (
-                          <span>⭐ <strong className="text-yellow-300 underline font-black">CÂU HỎI CÓ NGÔI SAO HY VỌNG</strong>: Chạm vào 01 phương án dưới đây để trả lời!</span>
+                          <span>⭐ <strong className="text-yellow-300 underline font-black">CÂU HỎI CÓ NGÔI SAO HY VỌNG</strong>: Chạm chọn 01 phương án dưới đây!</span>
                         ) : (
-                          <span>Thí sinh theo dõi đề trên sân khấu & chọn 01 phương án dưới đây:</span>
+                          <span>Chạm chọn 01 phương án đúng nhất dưới đây:</span>
                         )}
                       </p>
                     </div>
@@ -2003,7 +2024,8 @@ export default function LivePlayerMobile() {
               </div>
             )}
           </div>
-        )}
+        );
+      })()}
 
         {/* 2. ROUND 2 VIEW */}
         {session?.status === 'ROUND2' && (() => {
