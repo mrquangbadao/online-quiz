@@ -762,14 +762,14 @@ export default function LiveScreenHost() {
       const remaining = Math.max(0, Math.ceil((r2TargetEndTimeRef.current! - Date.now()) / 1000));
       setRound2Timer(remaining);
 
-      // Play tick-tock sound on each second elapsed
+      // Play standard countdown tick sound on each second elapsed
       if (lastRound2SecondRef.current !== remaining && remaining > 0) {
         lastRound2SecondRef.current = remaining;
         if (soundEnabled) {
           if (remaining <= 10) {
             liveSound.playUrgentCountdown(remaining);
           } else {
-            liveSound.playTickTock(remaining % 2 === 0);
+            liveSound.playTick();
           }
         }
       }
