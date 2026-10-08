@@ -381,10 +381,22 @@ export default function LivePlayerMobile() {
     });
   }, [session?.players]);
 
-  // Auto-fetch question if session is in reading or 40s state
+  // Danh sách thí sinh đặt Ngôi sao hy vọng ở câu hỏi hiện tại
+  const hopeStarPlayersThisQuestion = useMemo(() => {
+    const currentQ = session?.currentQuestionIndex;
+    if (!currentQ || !session?.players) return [];
+    return session.players.filter((p) => {
+      return (
+        (p.hopeStarUsed && p.hopeStarQuestionIndex === currentQ) ||
+        (p.id === selectedPlayerId && hopeStarActivatedThisQuestion)
+      );
+    });
+  }, [session?.currentQuestionIndex, session?.players, selectedPlayerId, hopeStarActivatedThisQuestion]);
+
+  // Auto-fetch question ONLY when session is in active 40s answering state
   useEffect(() => {
     if (
-      (session?.round1State === 'QUESTION_40S' || session?.round1State === 'QUESTION_READING') &&
+      session?.round1State === 'QUESTION_40S' &&
       selectedPlayerId
     ) {
       const qId = session.currentQuestion?.id;
@@ -1407,18 +1419,6 @@ export default function LivePlayerMobile() {
     hopeStarActivatedThisQuestion ||
       (player.hopeStarUsed && player.hopeStarQuestionIndex === session?.currentQuestionIndex)
   );
-
-  // Danh sách thí sinh đặt Ngôi sao hy vọng ở câu hỏi hiện tại
-  const hopeStarPlayersThisQuestion = useMemo(() => {
-    const currentQ = session?.currentQuestionIndex;
-    if (!currentQ || !session?.players) return [];
-    return session.players.filter((p) => {
-      return (
-        (p.hopeStarUsed && p.hopeStarQuestionIndex === currentQ) ||
-        (p.id === selectedPlayerId && hopeStarActivatedThisQuestion)
-      );
-    });
-  }, [session, selectedPlayerId, hopeStarActivatedThisQuestion]);
 
   return (
     <div
