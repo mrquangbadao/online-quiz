@@ -2661,7 +2661,16 @@ export default function LiveScreenHost() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handlePrevCandidate}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer"
+                            title="Chuyển thí sinh trước"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+
                           <div className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5">
                             <Clock className="w-3.5 h-3.5 text-amber-500" />
                             <span className="hidden sm:inline">Đổi sau:</span>
@@ -2670,7 +2679,7 @@ export default function LiveScreenHost() {
                               type="button"
                               onClick={() => setR2AutoRotateEnabled(!r2AutoRotateEnabled)}
                               className="ml-1 p-0.5 hover:text-amber-700 transition-colors cursor-pointer"
-                              title={r2AutoRotateEnabled ? 'Tạm dừng tự động' : 'Bật tự động'}
+                              title={r2AutoRotateEnabled ? 'Tạm dừng tự động' : 'Bật tự động chuyển'}
                             >
                               {r2AutoRotateEnabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                             </button>
@@ -2678,10 +2687,11 @@ export default function LiveScreenHost() {
 
                           <button
                             type="button"
-                            onClick={() => setR2InspectingPlayer(null)}
-                            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
+                            onClick={handleNextCandidate}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer"
+                            title="Chuyển thí sinh kế tiếp"
                           >
-                            <X className="w-4 h-4" /> Thu gọn câu hỏi
+                            <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
