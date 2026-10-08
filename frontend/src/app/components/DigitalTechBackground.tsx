@@ -154,7 +154,7 @@ export default function DigitalTechBackground() {
         >
           {/* Hexagon Badge góc trên */}
           <polygon points="30,40 55,25 80,40 80,70 55,85 30,70" stroke="#38bdf8" strokeWidth="1.5" fill="rgba(56,189,248,0.06)" />
-          <text x="55" y="60" textAnchor="middle" fill="#facc15" fontSize="9" fontWeight="900" fontFamily="sans-serif" opacity="0.9">ĐOÀN</text>
+          <text x="-55" y="60" textAnchor="middle" transform="scale(-1, 1)" fill="#facc15" fontSize="9" fontWeight="900" fontFamily="sans-serif" opacity="0.9">ĐOÀN</text>
 
           {/* Các nhánh vi mạch chính */}
           <g stroke="#38bdf8" strokeWidth="1.5">
